@@ -70,6 +70,7 @@ def load_patch_batch(
         y = [np.array([l[c] for c in lc]) for l, lc in izip(labels, centers)]
         y = np.concatenate(y)
         y[idx] = y
+        print('Batch size = (%s)' % ','.join([str(l) for l in x.shape]) )
         yield (x, keras.utils.to_categorical(y, num_classes=nlabels))
 
 
