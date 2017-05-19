@@ -142,7 +142,7 @@ def main():
                         )
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-                  c['g'] + 'Training th emodel with a generator for ' + c['b'] + 'iteration 1' + c['nc'])
+                  c['g'] + 'Training the model with a generator for ' + c['b'] + 'iteration 1' + c['nc'])
             net.fit_generator(
                 generator=load_patch_batch(
                     training_data,

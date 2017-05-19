@@ -36,6 +36,12 @@ def centers_and_idx(centers, n_images):
     return centers, idx
 
 
+def images_norm_generator(image_names):
+    for patient in image_names:
+        images = [load_nii(image_name).get_data() for image_name in patient]
+        yield [norm(im) for im in images]
+
+
 def load_patch_batch(
             image_names,
             label_names,
@@ -49,16 +55,14 @@ def load_patch_batch(
     idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
                                                   for i, centers in enumerate(centers_list)])
 
-    images = [[load_nii(image_name).get_data() for image_name in patient] for patient in image_names]
     labels = [load_nii(name).get_data() for name in label_names]
 
-    images_norm = [[norm(im) for im in l_images] for l_images in images]
     rndm_centers = np.random.permutation(idx_lesion_centers)
     n_centers = len(rndm_centers)
-    n_images = len(images)
+    n_images = len(image_names)
     for i in range(0, n_centers, batch_size):
         centers, idx = centers_and_idx(rndm_centers[i:i + batch_size], n_images)
-        x = [get_image_patches(im, c, size) for im, c in izip(images_norm, centers)]
+        x = [get_image_patches(im, c, size) for im, c in izip(images_norm_generator(image_names), centers)]
         x = np.concatenate(x).astype(dtype=datatype)
         x[i] = x
         y = [get_image_patches(l, c, 1) for l, c in izip(labels, centers)]
