@@ -64,10 +64,10 @@ def load_patch_batch(
         centers, idx = centers_and_idx(rndm_centers[i:i + batch_size], n_images)
         x = [get_image_patches(im, c, size) for im, c in izip(images_norm_generator(image_names), centers)]
         x = np.concatenate(x).astype(dtype=datatype)
-        x[i,:,:,:,:] = x
+        x[idx] = x
         y = [get_image_patches(l, c, 1) for l, c in izip(labels, centers)]
         y = np.concatenate(y)
-        y[i] = y
+        y[idx] = y
         yield (x, y)
 
 
