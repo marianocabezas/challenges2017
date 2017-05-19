@@ -55,7 +55,7 @@ def nfold_cross_validation(data_list, labels_list, n=5, random_state=42):
 
     for i in xrange(n):
         indices = shuffled_indices[i::n]
-        training_data = data_list[indices]
-        training_labels = labels_list[indices]
-        testing_data = data_list[[idx for idx in shuffled_indices if idx not in indices]]
+        testing_data = data_list[indices]
+        training_labels = labels_list[[idx for idx in shuffled_indices if idx not in indices]]
+        training_data = data_list[[idx for idx in shuffled_indices if idx not in indices]]
         yield training_data, training_labels, testing_data
