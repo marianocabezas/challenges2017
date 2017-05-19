@@ -135,7 +135,7 @@ def main():
             net.add(Dropout(0.5))
             net.add(Dense(dense_size, activation='relu'))
             net.add(Dropout(0.5))
-            net.add(Dense(4, activation='softmax'))
+            net.add(Dense(5, activation='softmax'))
             net.compile(optimizer='adadelta',
                         loss='categorical_crossentropy',
                         metrics=['accuracy']
@@ -150,7 +150,7 @@ def main():
                     rois,
                     batch_size,
                     patch_size,
-                    4,
+                    5,
                     datatype=np.float32
                 ),
                 steps_per_epoch=steps_per_epoch,
