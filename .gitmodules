@@ -1,0 +1,3 @@
+[submodule "data_manipulation"]
+	path = data_manipulation
+	url = https://github.com/marianocabezas/data_manipulation.git
