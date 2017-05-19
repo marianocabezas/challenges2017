@@ -29,7 +29,7 @@ def get_image_patches(image_list, centers, size):
 
 
 def centers_and_idx(centers, n_images):
-    centers = [list(map(lambda z: z[1] if z[0] == im else [], centers)) for im in range(n_images)]
+    centers = [list(map(lambda z: tuple(z[1]) if z[0] == im else [], centers)) for im in range(n_images)]
     idx = [map(lambda (a, b): [a] if b else [], enumerate(c)) for c in centers]
     centers = [filter(bool, c) for c in centers]
     idx = list(chain(*[chain(*i) for i in idx]))
@@ -46,7 +46,8 @@ def load_patch_batch(
 ):
 
     centers_list = [get_mask_voxels(roi) for roi in rois]
-    idx_lesion_centers = np.concatenate([[(i, c) for c in centers] for i, centers in enumerate(centers_list)])
+    idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
+                                                  for i, centers in enumerate(centers_list)])
 
     images = [[load_nii(image_name).get_data() for image_name in patient] for patient in image_names]
     labels = [load_nii(name).get_data() for name in label_names]
