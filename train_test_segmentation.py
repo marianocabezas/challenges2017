@@ -24,7 +24,7 @@ def parse_inputs():
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=10000)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
-    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=1000)
+    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=100)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
@@ -70,6 +70,7 @@ def main():
     # Prepare the net architecture parameters
     multi = options['multi']
     # Prepare the net hyperparameters
+    num_classes = 5
     epochs = options['epochs']
     padding = options['padding']
     patch_width = options['patch_width']
@@ -135,7 +136,7 @@ def main():
             net.add(Dropout(0.5))
             net.add(Dense(dense_size, activation='relu'))
             net.add(Dropout(0.5))
-            net.add(Dense(5, activation='softmax'))
+            net.add(Dense(num_classes, activation='softmax'))
             net.compile(optimizer='adadelta',
                         loss='categorical_crossentropy',
                         metrics=['accuracy']
@@ -150,7 +151,7 @@ def main():
                     rois,
                     batch_size,
                     patch_size,
-                    5,
+                    num_classes,
                     datatype=np.float32
                 ),
                 steps_per_epoch=steps_per_epoch,
