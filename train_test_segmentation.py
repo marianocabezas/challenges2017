@@ -138,7 +138,7 @@ def main():
             net.add(Dense(dense_size, activation='relu'))
             net.add(Dropout(0.5))
             net.add(Dense(num_classes, activation='softmax'))
-            net.compile(optimizer='adadelta', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+            net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
                   c['g'] + 'Training the model with a generator for ' + c['b'] + 'iteration 1' + c['nc'])
