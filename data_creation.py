@@ -65,7 +65,7 @@ def load_patch_batch(
         x = [get_image_patches(im, c, size) for im, c in izip(images_norm_generator(image_names), centers)]
         x = np.concatenate(x).astype(dtype=datatype)
         x[idx] = x
-        y = [get_image_patches(l, c, (1, 1, 1)) for l, c in izip(labels, centers)]
+        y = [np.array([l[c] for c in lc]) for l, lc in izip(labels, centers)]
         y = np.concatenate(y)
         y[idx] = y
         yield (x, y)
