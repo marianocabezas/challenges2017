@@ -7,6 +7,7 @@ from scipy.ndimage.morphology import binary_dilation as imdilate
 from numpy import logical_and as log_and
 from numpy import logical_or as log_or
 from numpy import logical_not as log_not
+import keras
 
 
 def norm(image):
@@ -48,6 +49,7 @@ def load_patch_batch(
             rois,
             batch_size,
             size,
+            nlabels,
             datatype=np.float32
 ):
 
@@ -68,7 +70,7 @@ def load_patch_batch(
         y = [np.array([l[c] for c in lc]) for l, lc in izip(labels, centers)]
         y = np.concatenate(y)
         y[idx] = y
-        yield (x, y)
+        yield (x, keras.utils.to_categorical(y, num_classes=nlabels))
 
 
 def get_centers_from_masks(positive_masks, negative_masks, balanced=True, random_state=42):

@@ -150,6 +150,7 @@ def main():
                     rois,
                     batch_size,
                     patch_size,
+                    5,
                     datatype=np.float32
                 ),
                 steps_per_epoch=steps_per_epoch,
