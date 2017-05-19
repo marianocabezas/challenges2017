@@ -129,13 +129,13 @@ def main():
                 activation='relu',
                 data_format='channels_first'
             ))
-            net.add(Dropout(0.5))
+            # net.add(Dropout(0.5))
             net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu'))
-            net.add(Dropout(0.5))
+            # net.add(Dropout(0.5))
             net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu'))
-            net.add(Dropout(0.5))
+            # net.add(Dropout(0.5))
             net.add(Dense(dense_size, activation='relu'))
-            net.add(Dropout(0.5))
+            # net.add(Dropout(0.5))
             net.add(Dense(num_classes, activation='softmax'))
             net.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
