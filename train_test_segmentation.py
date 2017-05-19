@@ -5,7 +5,7 @@ from time import strftime
 import numpy as np
 import keras
 from keras.models import Sequential
-from keras.layers import Dense, Conv3D, Dropout
+from keras.layers import Dense, Conv3D, Dropout, Flatten
 from nibabel import load as load_nii
 from utils import color_codes, nfold_cross_validation
 from itertools import izip
@@ -134,6 +134,7 @@ def main():
             net.add(Dropout(0.5))
             net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu'))
             net.add(Dropout(0.5))
+            net.add(Flatten())
             net.add(Dense(dense_size, activation='relu'))
             net.add(Dropout(0.5))
             net.add(Dense(num_classes, activation='softmax'))
