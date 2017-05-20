@@ -43,11 +43,6 @@ def images_norm_generator(image_names):
         yield [norm(im) for im in images]
 
 
-def labels_generator(image_names):
-    for patient in image_names:
-        yield load_nii(patient).get_data()
-
-
 def load_patch_batch(
             image_names,
             label_names,
