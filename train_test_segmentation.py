@@ -117,6 +117,8 @@ def main():
                   c['g'] + 'Creating and compiling the model for ' + c['b'] + 'iteration 1' + c['nc'])
             # NET definition using Keras
             rois = get_cnn_rois(training_data[:, 0], training_labels)
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model for '
+                  + c['b'] + 'iteration 1 (%d samples)' % sum([np.count_nonzero(roi) * 2 for roi in rois]) + c['nc'])
             steps_per_epoch = -(-sum([np.count_nonzero(roi) * 2 for roi in rois])/batch_size)
             input_shape = (n_channels,) + patch_size
             kernel_size = (conv_width,) * 3
