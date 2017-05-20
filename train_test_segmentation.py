@@ -21,7 +21,7 @@ def parse_inputs():
     parser.add_argument('-p', '--pool-size', dest='pool_size', type=int, default=2)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=2)
-    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=1000)
+    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=10000)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=100)
@@ -153,6 +153,7 @@ def main():
                     datatype=np.float32
                 ),
                 steps_per_epoch=steps_per_epoch,
+                max_q_size=1,
                 epochs=epochs
             )
             net.save(net_name)
