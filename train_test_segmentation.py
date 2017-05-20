@@ -101,7 +101,7 @@ def main():
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
     data_names, label_names = get_names_from_path(options)
     folds = options['folds']
-    fold_generator = izip(nfold_cross_validation(data_names, label_names), xrange(folds))
+    fold_generator = izip(nfold_cross_validation(data_names, label_names, folds), xrange(folds))
     for (training_data, training_labels, testing_data), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold ' + c['g'] +
               'Number of training/testing images (%d=%d/%d)'
