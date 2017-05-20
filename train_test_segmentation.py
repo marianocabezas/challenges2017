@@ -97,12 +97,14 @@ def main():
         options['use_t2']]
     )
 
-    print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting leave-one-out' + c['nc'])
+    print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting cross-validation' + c['nc'])
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
     data_names, label_names = get_names_from_path(options)
     folds = options['folds']
     fold_generator = izip(nfold_cross_validation(data_names, label_names), xrange(folds))
     for (training_data, training_labels, testing_data), i in fold_generator:
+        print('Number of training/testing images (%d=%d/%d)'
+              % (len(training_data), len(training_labels), len(testing_data)))
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold ' + c['g'] +
