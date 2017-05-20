@@ -153,6 +153,7 @@ def main():
                     datatype=np.float32
                 ),
                 steps_per_epoch=steps_per_epoch,
+                max_q_size=1,
                 epochs=epochs
             )
             net.save(net_name)
