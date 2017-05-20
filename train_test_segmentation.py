@@ -113,8 +113,6 @@ def main():
         try:
             net = keras.models.load_model(net_name)
         except IOError:
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-                  c['g'] + 'Creating and compiling the model for ' + c['b'] + 'iteration 1' + c['nc'])
             # NET definition using Keras
             rois = get_cnn_rois(training_data[:, 0], training_labels)
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model for '
