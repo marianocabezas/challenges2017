@@ -43,6 +43,11 @@ def images_norm_generator(image_names):
         yield [norm(im) for im in images]
 
 
+def labels_generator(image_names):
+    for patient in image_names:
+        yield load_nii(patient).get_data()
+
+
 def load_patch_batch(
             image_names,
             label_names,
@@ -57,8 +62,6 @@ def load_patch_batch(
     idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
                                                   for i, centers in enumerate(centers_list)])
 
-    labels = [load_nii(name).get_data() for name in label_names]
-
     rndm_centers = np.random.permutation(idx_lesion_centers)
     n_centers = len(rndm_centers)
     n_images = len(image_names)
@@ -67,10 +70,9 @@ def load_patch_batch(
         x = [get_image_patches(im, c, size) for im, c in izip(images_norm_generator(image_names), centers)]
         x = np.concatenate(x).astype(dtype=datatype)
         x[idx] = x
-        y = [np.array([l[c] for c in lc]) for l, lc in izip(labels, centers)]
+        y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
         y = np.concatenate(y)
         y[idx] = y
-        print('Batch size = (%s)' % ','.join([str(l) for l in x.shape]) )
         yield (x, keras.utils.to_categorical(y, num_classes=nlabels))
 
 
