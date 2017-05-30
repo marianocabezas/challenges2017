@@ -22,8 +22,8 @@ def subsample(center_list, sizes, random_state):
 
 
 def get_image_patches(image_list, centers, size, preload):
-    patches = [get_patches(image, centers, size) for image in image_list] if preload else [
-        get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_list]
+    patches = [get_patches(image, centers, size) for image in image_list] if preload\
+        else [get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_list]
     return patches
 
 
@@ -31,9 +31,9 @@ def get_stacked_patches(list_of_image_list, centers_list, size, preload):
     if preload:
         list_of_image_list = [[load_nii(image_name).get_data() for image_name in patient]
                               for patient in list_of_image_list]
-
-    return [np.stack(get_image_patches(image_list, centers, size, preload), axis=1)
-            for image_list, centers in izip(list_of_image_list, centers_list) if centers]
+    patches = [np.stack(get_image_patches(image_list, centers, size, preload), axis=1)
+               for image_list, centers in izip(list_of_image_list, centers_list) if centers]
+    return patches
 
 
 def centers_and_idx(centers, n_images):
@@ -42,12 +42,6 @@ def centers_and_idx(centers, n_images):
     centers = [filter(bool, c) for c in centers]
     idx = list(chain(*[chain(*i) for i in idx]))
     return centers, idx
-
-
-def images_norm_generator(image_names):
-    for patient in image_names:
-        images = [load_nii(image_name).get_data() for image_name in patient]
-        yield [norm(im) for im in images]
 
 
 def labels_generator(image_names):
@@ -95,6 +89,8 @@ def load_patch_batch_generator(
     for i in range(0, n_centers, batch_size):
         centers, idx = centers_and_idx(centers[i:i + batch_size], n_images)
         x = get_stacked_patches(image_names, centers, size, preload)
+        print(len(x))
+        print('(' + ','.join(str([len(image) for image in x])) + ')')
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
         y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
