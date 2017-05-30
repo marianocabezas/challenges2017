@@ -26,6 +26,7 @@ def parse_inputs():
     parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=10)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=100)
+    parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=10)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
@@ -88,6 +89,7 @@ def main():
     conv_size = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     # Data loading parameters
     preload = options['preload']
+    queue = options['queue']
 
     # Prepare the sufix that will be added to the results for the net and images
     path = options['dir_name']
@@ -163,7 +165,7 @@ def main():
                     datatype=np.float32,
                 ),
                 steps_per_epoch=steps_per_epoch,
-                max_q_size=1,
+                max_q_size=queue,
                 epochs=epochs
             )
             net.save(net_name)
