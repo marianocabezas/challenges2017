@@ -74,7 +74,7 @@ def load_patch_batch(
             size=size,
             nlabels=nlabels,
             datatype=datatype,
-            preload=pre
+            preload=preload
         )
         for x, y in gen:
             yield x, y
