@@ -29,6 +29,17 @@ def get_image_patches(image_list, centers, size):
     return patches
 
 
+def get_norm_patches(image_names, centers, size):
+    return [get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_names]
+
+
+def get_stacked_patches(image_name_list, centers_list, size):
+    patches = [np.stack(get_norm_patches(image_names, centers, size), axis=1)
+               for image_names, centers in izip(image_name_list, centers_list) if centers]
+
+    return patches
+
+
 def centers_and_idx(centers, n_images):
     centers = [list(map(lambda z: tuple(z[1]) if z[0] == im else [], centers)) for im in range(n_images)]
     idx = [map(lambda (a, b): [a] if b else [], enumerate(c)) for c in centers]
@@ -49,26 +60,75 @@ def labels_generator(image_names):
 
 
 def load_patch_batch(
+        image_names,
+        label_names,
+        centers,
+        batch_size,
+        size,
+        nlabels,
+        datatype=np.float32,
+        preload=False
+):
+    while True:
+        gen = load_patch_batch_generator(
+            image_names=image_names,
+            label_names=label_names,
+            centers=centers,
+            batch_size=batch_size,
+            size=size,
+            nlabels=nlabels,
+            datatype=datatype,
+        ) if preload else load_patch_batch_generator_preload(
+            image_names=image_names,
+            label_names=label_names,
+            centers=centers,
+            batch_size=batch_size,
+            size=size,
+            nlabels=nlabels,
+            datatype=datatype,
+        )
+        for x, y in gen:
+            yield x, y
+
+
+def load_patch_batch_generator(
             image_names,
             label_names,
-            rois,
+            centers,
             batch_size,
             size,
             nlabels,
             datatype=np.float32
 ):
-
-    centers_list = [get_mask_voxels(roi) for roi in rois]
-    idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
-                                                  for i, centers in enumerate(centers_list)])
-
-    rndm_centers = np.random.permutation(idx_lesion_centers)
-    n_centers = len(rndm_centers)
+    n_centers = len(centers)
     n_images = len(image_names)
     for i in range(0, n_centers, batch_size):
-        centers, idx = centers_and_idx(rndm_centers[i:i + batch_size], n_images)
-        x = [get_image_patches(im, c, size) for im, c in izip(images_norm_generator(image_names), centers)]
-        x = np.concatenate(filter(lambda y: y.any(), x)).astype(dtype=datatype)
+        centers, idx = centers_and_idx(centers[i:i + batch_size], n_images)
+        x = get_stacked_patches(image_names, centers, size)
+        x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
+        x[idx] = x
+        y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
+        y = np.concatenate(y)
+        y[idx] = y
+        yield (x, keras.utils.to_categorical(y, num_classes=nlabels))
+
+
+def load_patch_batch_generator_preload(
+        image_names,
+        label_names,
+        centers,
+        batch_size,
+        size,
+        nlabels,
+        datatype=np.float32
+):
+    n_centers = len(centers)
+    n_images = len(image_names)
+    images = [images_norm_generator(image_names)]
+    for i in range(0, n_centers, batch_size):
+        centers, idx = centers_and_idx(centers[i:i + batch_size], n_images)
+        x = get_image_patches(images, centers, size)
+        x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
         y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
         y = np.concatenate(y)
@@ -91,7 +151,7 @@ def load_masks(mask_names):
         yield load_nii(image_name).get_data().astype(dtype=np.bool)
 
 
-def get_cnn_rois(names, labels_names, neigh_width=15):
+def get_cnn_centers(names, labels_names, neigh_width=15, dfactor=10):
     rois = load_masks(names)
     rois_p = list(load_masks(labels_names))
     rois_p_neigh = [log_and(imdilate(roi_p, iterations=neigh_width), log_not(roi_p))
@@ -105,4 +165,8 @@ def get_cnn_rois(names, labels_names, neigh_width=15):
         roi_ng[roi_ng] = np.random.permutation(xrange(np.count_nonzero(roi_ng))) < np.count_nonzero(roi_p)
         rois.append(log_or(log_or(roi_ng, roi_pn), roi_p))
 
-    return rois
+    centers_list = [get_mask_voxels(roi) for roi in rois]
+    idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
+                                         for i, centers in enumerate(centers_list)])
+
+    return np.random.permutation(idx_lesion_centers[::dfactor])

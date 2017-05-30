@@ -9,7 +9,7 @@ from keras.layers import Dense, Conv3D, Dropout, Flatten
 from nibabel import load as load_nii
 from utils import color_codes, nfold_cross_validation
 from itertools import izip
-from data_creation import load_patch_batch, get_cnn_rois
+from data_creation import load_patch_batch, get_cnn_centers
 
 
 def parse_inputs():
@@ -23,8 +23,10 @@ def parse_inputs():
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=2)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=10000)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
+    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=10)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=100)
+    parser.add_argument('--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
@@ -69,6 +71,7 @@ def main():
 
     # Prepare the net architecture parameters
     multi = options['multi']
+    dfactor = options['dfactor']
     # Prepare the net hyperparameters
     num_classes = 5
     epochs = options['epochs']
@@ -83,6 +86,8 @@ def main():
     n_filters = n_filters if len(n_filters) > 1 else n_filters*conv_blocks
     conv_width = options['conv_width']
     conv_size = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
+    # Data loading parameters
+    preload = options['preload']
 
     # Prepare the sufix that will be added to the results for the net and images
     path = options['dir_name']
@@ -117,10 +122,11 @@ def main():
             net = keras.models.load_model(net_name)
         except IOError:
             # NET definition using Keras
-            rois = get_cnn_rois(training_data[:, 0], training_labels)
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model for '
-                  + c['b'] + 'iteration 1 (%d samples)' % sum([np.count_nonzero(roi) * 2 for roi in rois]) + c['nc'])
-            steps_per_epoch = -(-sum([np.count_nonzero(roi) * 2 for roi in rois])/batch_size)
+            centers = get_cnn_centers(training_data[:, 0], training_labels, dfactor=dfactor)
+            nsamples = len(centers)
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model for ' +
+                  c['b'] + 'iteration 1 (%d samples)' % nsamples + c['nc'])
+            steps_per_epoch = -(-nsamples/batch_size)
             input_shape = (n_channels,) + patch_size
             kernel_size = (conv_width,) * 3
             filters = options['n_filters'][0]
@@ -149,11 +155,12 @@ def main():
                 generator=load_patch_batch(
                     training_data,
                     training_labels,
-                    rois,
+                    centers,
                     batch_size,
                     patch_size,
                     num_classes,
-                    datatype=np.float32
+                    preload=preload,
+                    datatype=np.float32,
                 ),
                 steps_per_epoch=steps_per_epoch,
                 max_q_size=1,
