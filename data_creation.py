@@ -28,9 +28,6 @@ def get_image_patches(image_list, centers, size, preload):
 
 
 def get_stacked_patches(list_of_image_list, centers_list, size, preload):
-    if preload:
-        list_of_image_list = [[load_nii(image_name).get_data() for image_name in patient]
-                              for patient in list_of_image_list]
     patches = [np.stack(get_image_patches(image_list, centers, size, preload), axis=1)
                for image_list, centers in izip(list_of_image_list, centers_list) if centers]
     return patches
@@ -61,7 +58,7 @@ def load_patch_batch(
 ):
     while True:
         gen = load_patch_batch_generator(
-            image_names=image_names,
+            image_list=image_names,
             label_names=label_names,
             centers=centers,
             batch_size=batch_size,
@@ -75,7 +72,7 @@ def load_patch_batch(
 
 
 def load_patch_batch_generator(
-        image_names,
+        image_list,
         label_names,
         centers,
         batch_size,
@@ -85,10 +82,13 @@ def load_patch_batch_generator(
         datatype=np.float32
 ):
     n_centers = len(centers)
-    n_images = len(image_names)
+    n_images = len(image_list)
+    if preload:
+        image_list = [[load_nii(image_name).get_data() for image_name in patient]
+                      for patient in image_list]
     for i in range(0, n_centers, batch_size):
         centers, idx = centers_and_idx(centers[i:i + batch_size], n_images)
-        x = get_stacked_patches(image_names, centers, size, preload)
+        x = get_stacked_patches(image_list, centers, size, preload)
         print(len(x))
         print('(' + ','.join(str([len(image) for image in x])) + ')')
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
