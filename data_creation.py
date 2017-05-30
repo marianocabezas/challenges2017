@@ -24,6 +24,8 @@ def subsample(center_list, sizes, random_state):
 def get_image_patches(list_of_image_lists, center_list, size):
     print(len(center_list))
     print('(' + ','.join([str(len(center)) for center in center_list]) + ')')
+    if isinstance(center_list[0][0], tuple):
+        print('tuples')
     return [np.stack([get_patches(image, centers, size) for image in image_list], axis=1)
             for image_list, centers in izip(list_of_image_lists, center_list)]
 
