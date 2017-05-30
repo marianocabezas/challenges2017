@@ -21,24 +21,15 @@ def subsample(center_list, sizes, random_state):
     return [itemgetter(*idx)(centers) if idx else [] for centers, idx in izip(center_list, indices)]
 
 
-def get_image_patches(list_of_image_lists, center_list, size):
-    print(len(center_list))
-    print('(' + ','.join([str(len(center)) for center in center_list]) + ')')
-    if np.array([np.array([len(center) == 3 for center in centers]).all() for centers in center_list]).all():
-        print('All centers')
-    return [np.stack([get_patches(image, centers, size) for image in image_list], axis=1)
-            for image_list, centers in izip(list_of_image_lists, center_list)]
-
-
-def get_norm_patches(image_names, centers, size):
-    return [get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_names]
-
-
-def get_stacked_patches(image_name_list, centers_list, size):
-    patches = [np.stack(get_norm_patches(image_names, centers, size), axis=1)
-               for image_names, centers in izip(image_name_list, centers_list) if centers]
-
+def get_image_patches(image_list, centers, size, preload):
+    patches = [get_patches(image, centers, size) for image in image_list] if preload else [
+        get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_list]
     return patches
+
+
+def get_stacked_patches(image_name_list, centers_list, size, preload):
+    return [np.stack(get_image_patches(image_names, centers, size, preload), axis=1)
+            for image_names, centers in izip(image_name_list, centers_list) if centers]
 
 
 def centers_and_idx(centers, n_images):
@@ -71,7 +62,7 @@ def load_patch_batch(
         preload=False
 ):
     while True:
-        gen = load_patch_batch_generator_preload(
+        gen = load_patch_batch_generator(
             image_names=image_names,
             label_names=label_names,
             centers=centers,
@@ -79,56 +70,27 @@ def load_patch_batch(
             size=size,
             nlabels=nlabels,
             datatype=datatype,
-        ) if preload else load_patch_batch_generator(
-            image_names=image_names,
-            label_names=label_names,
-            centers=centers,
-            batch_size=batch_size,
-            size=size,
-            nlabels=nlabels,
-            datatype=datatype,
+            preload=preload
         )
         for x, y in gen:
             yield x, y
 
 
 def load_patch_batch_generator(
-            image_names,
-            label_names,
-            centers,
-            batch_size,
-            size,
-            nlabels,
-            datatype=np.float32
-):
-    n_centers = len(centers)
-    n_images = len(image_names)
-    for i in range(0, n_centers, batch_size):
-        centers, idx = centers_and_idx(centers[i:i + batch_size], n_images)
-        x = get_stacked_patches(image_names, centers, size)
-        x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
-        x[idx] = x
-        y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
-        y = np.concatenate(y)
-        y[idx] = y
-        yield (x, keras.utils.to_categorical(y, num_classes=nlabels))
-
-
-def load_patch_batch_generator_preload(
         image_names,
         label_names,
         centers,
         batch_size,
         size,
         nlabels,
+        preload=False,
         datatype=np.float32
 ):
     n_centers = len(centers)
     n_images = len(image_names)
-    images = [images_norm_generator(image_names)]
     for i in range(0, n_centers, batch_size):
         centers, idx = centers_and_idx(centers[i:i + batch_size], n_images)
-        x = get_image_patches(images, centers, size)
+        x = get_stacked_patches(image_names, centers, size, preload)
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
         y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
