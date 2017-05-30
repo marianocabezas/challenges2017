@@ -27,9 +27,13 @@ def get_image_patches(image_list, centers, size, preload):
     return patches
 
 
-def get_stacked_patches(image_name_list, centers_list, size, preload):
-    return [np.stack(get_image_patches(image_names, centers, size, preload), axis=1)
-            for image_names, centers in izip(image_name_list, centers_list) if centers]
+def get_stacked_patches(list_of_image_list, centers_list, size, preload):
+    if preload:
+        list_of_image_list = [[load_nii(image_name).get_data() for image_name in patient]
+                              for patient in list_of_image_list]
+
+    return [np.stack(get_image_patches(image_list, centers, size, preload), axis=1)
+            for image_list, centers in izip(list_of_image_list, centers_list) if centers]
 
 
 def centers_and_idx(centers, n_images):
@@ -70,7 +74,7 @@ def load_patch_batch(
             size=size,
             nlabels=nlabels,
             datatype=datatype,
-            preload=preload
+            preload=pre
         )
         for x, y in gen:
             yield x, y
