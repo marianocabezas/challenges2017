@@ -70,7 +70,7 @@ def load_patch_batch(
         preload=False
 ):
     while True:
-        gen = load_patch_batch_generator(
+        gen = load_patch_batch_generator_preload(
             image_names=image_names,
             label_names=label_names,
             centers=centers,
@@ -78,7 +78,7 @@ def load_patch_batch(
             size=size,
             nlabels=nlabels,
             datatype=datatype,
-        ) if preload else load_patch_batch_generator_preload(
+        ) if preload else load_patch_batch_generator(
             image_names=image_names,
             label_names=label_names,
             centers=centers,
