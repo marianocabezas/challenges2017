@@ -21,11 +21,9 @@ def subsample(center_list, sizes, random_state):
     return [itemgetter(*idx)(centers) if idx else [] for centers, idx in izip(center_list, indices)]
 
 
-def get_image_patches(image_list, centers, size):
-    patches = np.stack(
-        [np.array(get_patches(image, centers, size)) for image in image_list],
-        axis=1,
-    ) if len(size) == 3 else np.array([np.stack(get_patches2_5d(image, centers, size)) for image in image_list])
+def get_image_patches(list_of_image_lists, centers, size):
+    patches = [np.stack([get_patches(image, centers, size) for image in image_list], axis=1)
+               for image_list in list_of_image_lists]
     return patches
 
 
