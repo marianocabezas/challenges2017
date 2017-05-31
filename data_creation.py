@@ -88,9 +88,9 @@ def load_patch_batch_generator(
                       for patient in image_list]
     for i in range(0, n_centers, batch_size):
         centers, idx = centers_and_idx(centers[i:i + batch_size], n_images)
+        print('Images from %d centers' % len(centers) + '(%d centers)' % sum([len(c) for c in centers]))
         x = get_stacked_patches(image_list, centers, size, preload)
-        print(len(x))
-        print('(' + str(sum([len(image) for image in x])) + ')')
+        print('Patches from %d images' % len(x) + '(%d patches' % str(sum([len(image) for image in x])))
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
         y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
