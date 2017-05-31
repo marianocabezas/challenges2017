@@ -28,9 +28,9 @@ def get_image_patches(image_list, centers, size, preload):
 
 
 def get_stacked_patches(list_of_image_list, centers_list, size, preload):
-    patches = [np.stack(get_image_patches(image_list, centers, size, preload), axis=1)
-               for image_list, centers in izip(list_of_image_list, centers_list) if centers]
-    return patches
+    patch_list = [np.stack(get_image_patches(image_list, centers, size, preload), axis=1)
+                  for image_list, centers in izip(list_of_image_list, centers_list) if centers]
+    return patch_list
 
 
 def centers_and_idx(centers, n_images):
@@ -90,7 +90,7 @@ def load_patch_batch_generator(
         centers, idx = centers_and_idx(centers[i:i + batch_size], n_images)
         x = get_stacked_patches(image_list, centers, size, preload)
         print(len(x))
-        print('(' + ','.join(str([len(image) for image in x])) + ')')
+        print('(' + str(sum([len(image) for image in x])) + ')')
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
         y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
