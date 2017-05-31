@@ -81,7 +81,7 @@ def load_patch_batch_generator(
         preload=False,
         datatype=np.float32
 ):
-    n_centers = len(centers)
+    n_centers = len(center_list)
     n_images = len(image_names)
     image_list = [[norm(load_nii(image_name).get_data()) for image_name in patient]
                   for patient in image_names] if preload else image_names
