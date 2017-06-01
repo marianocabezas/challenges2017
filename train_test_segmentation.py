@@ -124,7 +124,7 @@ def main():
             net = keras.models.load_model(net_name)
         except IOError:
             # NET definition using Keras
-            centers = get_cnn_centers(training_data[:, 0], training_labels, dfactor=dfactor)
+            centers = get_cnn_centers(training_data[:, 0], training_labels)
             nsamples = len(centers)
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model for ' +
                   c['b'] + 'iteration 1 (%d samples)' % nsamples + c['nc'])
@@ -161,6 +161,7 @@ def main():
                     batch_size,
                     patch_size,
                     num_classes,
+                    dfactor=dfactor,
                     preload=preload,
                     datatype=np.float32,
                 ),

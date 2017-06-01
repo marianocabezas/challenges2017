@@ -53,6 +53,7 @@ def load_patch_batch(
         batch_size,
         size,
         nlabels,
+        dfactor=10,
         datatype=np.float32,
         preload=False
 ):
@@ -67,6 +68,7 @@ def load_patch_batch(
             size=size,
             nlabels=nlabels,
             datatype=datatype,
+            dfactor=dfactor,
             preload=preload
         )
         for x, y in gen:
@@ -80,13 +82,15 @@ def load_patch_batch_generator(
         batch_size,
         size,
         nlabels,
+        dfactor,
         preload=False,
         datatype=np.float32
 ):
-    n_centers = len(center_list)
+    batch_centers = np.random.permutation(center_list)[::dfactor]
+    n_centers = len(batch_centers)
     n_images = len(image_list)
     for i in range(0, n_centers, batch_size):
-        centers, idx = centers_and_idx(center_list[i:i + batch_size], n_images)
+        centers, idx = centers_and_idx(batch_centers[i:i + batch_size], n_images)
         x = get_stacked_patches(image_list, centers, size, preload)
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
@@ -111,7 +115,7 @@ def load_masks(mask_names):
         yield load_nii(image_name).get_data().astype(dtype=np.bool)
 
 
-def get_cnn_centers(names, labels_names, neigh_width=15, dfactor=10):
+def get_cnn_centers(names, labels_names, neigh_width=15):
     rois = load_masks(names)
     rois_p = list(load_masks(labels_names))
     rois_p_neigh = [log_and(imdilate(roi_p, iterations=neigh_width), log_not(roi_p))
@@ -129,4 +133,4 @@ def get_cnn_centers(names, labels_names, neigh_width=15, dfactor=10):
     idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
                                          for i, centers in enumerate(centers_list)])
 
-    return np.random.permutation(idx_lesion_centers[::dfactor])
+    return np.random.permutation(idx_lesion_centers)
