@@ -133,4 +133,4 @@ def get_cnn_centers(names, labels_names, neigh_width=15):
     idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
                                          for i, centers in enumerate(centers_list)])
 
-    return np.random.permutation(idx_lesion_centers)
+    return idx_lesion_centers
