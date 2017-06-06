@@ -46,7 +46,7 @@ def labels_generator(image_names):
         yield load_nii(patient).get_data()
 
 
-def load_patch_batch(
+def load_patch_batch_train(
         image_names,
         label_names,
         centers,
@@ -60,7 +60,7 @@ def load_patch_batch(
     image_list = [[norm(load_nii(image_name).get_data()) for image_name in patient]
                   for patient in image_names] if preload else image_names
     while True:
-        gen = load_patch_batch_generator(
+        gen = load_patch_batch_generator_train(
             image_list=image_list,
             label_names=label_names,
             center_list=centers,
@@ -75,7 +75,7 @@ def load_patch_batch(
             yield x, y
 
 
-def load_patch_batch_generator(
+def load_patch_batch_generator_train(
         image_list,
         label_names,
         center_list,
@@ -98,6 +98,20 @@ def load_patch_batch_generator(
         y = np.concatenate(y)
         y[idx] = y
         yield (x, keras.utils.to_categorical(y, num_classes=nlabels))
+
+
+def load_patch_batch_generator_test(
+            image_list,
+            roi,
+            batch_size,
+            size,
+            datatype=np.float32
+):
+    centers = get_mask_voxels(roi)
+    n_centers = len(centers)
+    for i in range(0, n_centers, batch_size):
+        x = get_stacked_patches(image_list, centers[i:i + batch_size], size)
+        return np.concatenate(x).astype(dtype=datatype)
 
 
 def get_centers_from_masks(positive_masks, negative_masks, balanced=True, random_state=42):

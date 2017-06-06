@@ -9,7 +9,7 @@ from keras.layers import Dense, Conv3D, Dropout, Flatten
 from nibabel import load as load_nii
 from utils import color_codes, nfold_cross_validation
 from itertools import izip
-from data_creation import load_patch_batch, get_cnn_centers
+from data_creation import load_patch_batch_train, load_patch_batch_generator_test, get_cnn_centers
 
 
 def parse_inputs():
@@ -125,7 +125,7 @@ def main():
         except IOError:
             # NET definition using Keras
             centers = get_cnn_centers(training_data[:, 0], training_labels)
-            nsamples = len(centers)
+            nsamples = len(centers)/dfactor
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model for ' +
                   c['b'] + 'iteration 1 (%d samples)' % nsamples + c['nc'])
             steps_per_epoch = -(-nsamples/batch_size)
@@ -154,7 +154,7 @@ def main():
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
                   c['g'] + 'Training the model with a generator for ' + c['b'] + 'iteration 1' + c['nc'])
             net.fit_generator(
-                generator=load_patch_batch(
+                generator=load_patch_batch_train(
                     training_data,
                     training_labels,
                     centers,
@@ -171,16 +171,18 @@ def main():
             )
             net.save(net_name)
 
-        # Then we test the net. Again we save time by checking if we already tested that patient.
+        # Then we test the net.
         for p in testing_data:
+            p_name = p[0].rsplit('/')[:-1]
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, sufix + 'test.nii.gz')
             try:
                 load_nii(outputname)
             except IOError:
                 print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
-                      '<Creating the probability map ' + c['b'] + '1' + c['nc'] + c['g'] + '>' + c['nc'])
-                # TODO: Net testing
+                      '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] + '>' + c['nc'])
+                # TODO: Finish this
+                # net.predict_generator(load_patch_batch_generator_test,)
 
 
 if __name__ == '__main__':
