@@ -111,13 +111,11 @@ def main():
     folds = options['folds']
     fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
     for (train_data, train_labels, val_data, val_labels, test_data), i in fold_generator:
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold ' + c['g'] +
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d:' % (i+1, folds) + c['g'] +
               'Number of training/validation/testing images (%d=%d/%d=%d/%d)'
               % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)))
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold ' + c['g'] +
-              '%d/%d' % (i+1, folds) + c['nc'])
         net_name = os.path.join(path, 'baseline-brats2017.fold%d' % i + sufix + '.')
 
         # First we check that we did not train for that patient, in order to save time
@@ -129,8 +127,8 @@ def main():
             val_centers = get_cnn_centers(val_data[:, 0], val_labels)
             train_samples = len(train_centers)/dfactor
             val_samples = len(val_centers) / dfactor
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model for ' +
-                  c['b'] + 'iteration 1 (%d samples)' % train_samples + c['nc'])
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
+                  c['b'] + '(%d samples)' % train_samples + c['nc'])
             train_steps_per_epoch = -(-train_samples/batch_size)
             val_steps_per_epoch = -(-val_samples / batch_size)
             input_shape = (n_channels,) + patch_size
@@ -154,7 +152,7 @@ def main():
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
                   c['g'] + 'Training the model with a generator for ' +
-                  c['b'] + 'iteration 1 (%d parameters)' % net.count_params() + c['nc'])
+                  c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
             print(net.summary())
             net.fit_generator(
                 generator=load_patch_batch_train(
