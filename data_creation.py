@@ -34,6 +34,7 @@ def get_stacked_patches(list_of_image_list, centers_list, size, preload):
 
 
 def centers_and_idx(centers, n_images):
+    # This function is used to decompress the centers with image references into image indices and centers.
     centers = [list(map(lambda z: tuple(z[1]) if z[0] == im else [], centers)) for im in range(n_images)]
     idx = [map(lambda (a, b): [a] if b else [], enumerate(c)) for c in centers]
     centers = [filter(bool, c) for c in centers]
@@ -86,6 +87,11 @@ def load_patch_batch_generator_train(
         preload=False,
         datatype=np.float32
 ):
+    # The following line is important to understand the goal of the down scaling factor.
+    # The idea of this parameter is to speed up training when using a large pool of samples, while trying
+    # to retain the same variability. To accomplish that, at each epoch we shuffle the original samples (represented
+    # by the center of the patch) and then get a subsample of this set. By randomly selecting at each step,
+    # we can train with a larger dataset while also training each lesion with a smaller pool.
     batch_centers = np.random.permutation(center_list)[::dfactor]
     n_centers = len(batch_centers)
     n_images = len(image_list)
@@ -138,11 +144,15 @@ def get_cnn_centers(names, labels_names, neigh_width=15):
                      for roi, roi_pn, roi_p in izip(rois, rois_p_neigh, rois_p)]
     rois = list()
     for roi_pn, roi_ng, roi_p in izip(rois_p_neigh, rois_n_global, rois_p):
-        # Using the Python trick for "ceil" with integers
+        # The goal of this for is to randomly select the same number of nonlesion and lesion samples for each image.
+        # We also want to make sure that we select the same number of boundary negatives and general negatives to
+        # try to account for the variability in the brain.
         roi_pn[roi_pn] = np.random.permutation(xrange(np.count_nonzero(roi_pn))) < np.count_nonzero(roi_p)
         roi_ng[roi_ng] = np.random.permutation(xrange(np.count_nonzero(roi_ng))) < np.count_nonzero(roi_p)
         rois.append(log_or(log_or(roi_ng, roi_pn), roi_p))
 
+    # In order to be able to permute the centers to randomly select them, or just shuffle them for training, we need
+    # to keep the image reference with the center. That's why we are doing the next following lines of code.
     centers_list = [get_mask_voxels(roi) for roi in rois]
     idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
                                          for i, centers in enumerate(centers_list)])
