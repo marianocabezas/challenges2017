@@ -144,7 +144,7 @@ def main():
             ))
             for filters, kernel_size in zip(filters_list[1:], kernel_size_list[1:]):
                 net.add(Dropout(0.5))
-                net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu'))
+                net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first'))
             net.add(Dropout(0.5))
             net.add(Flatten())
             net.add(Dense(dense_size, activation='relu'))
