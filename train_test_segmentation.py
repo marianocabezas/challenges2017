@@ -145,6 +145,7 @@ def main():
             for filters, kernel_size in zip(filters_list[1:], kernel_size_list[1:]):
                 net.add(Dropout(0.5))
                 net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu'))
+            net.add(Dropout(0.5))
             net.add(Flatten())
             net.add(Dense(dense_size, activation='relu'))
             net.add(Dropout(0.5))
@@ -152,7 +153,8 @@ def main():
             net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-                  c['g'] + 'Training the model with a generator for ' + c['b'] + 'iteration 1' + c['nc'])
+                  c['g'] + 'Training the model with a generator for ' +
+                  c['b'] + 'iteration 1 (%d parameters)' % net.count_params() + c['nc'])
             print(net.summary())
             net.fit_generator(
                 generator=load_patch_batch_train(
