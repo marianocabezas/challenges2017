@@ -10,7 +10,7 @@ from nibabel import load as load_nii
 from utils import color_codes, nfold_cross_validation
 from itertools import izip
 from data_creation import load_patch_batch_train, get_cnn_centers
-from data_creation import load_patch_batch_generator_test, load_patch_batch_generator_train
+from data_creation import load_patch_batch_generator_test
 
 
 def parse_inputs():
@@ -18,8 +18,7 @@ def parse_inputs():
     parser = argparse.ArgumentParser(description='Test different nets with 3D data.')
     parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/DATA/Brats17Train/')
     parser.add_argument('-F', '--n-fold', dest='folds', type=int, default=5)
-    parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=15)
-    parser.add_argument('-p', '--pool-size', dest='pool_size', type=int, default=1)
+    parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=13)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
@@ -80,7 +79,6 @@ def main():
     padding = options['padding']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
-    pool_size = options['pool_size']
     batch_size = options['batch_size']
     dense_size = options['dense_size']
     conv_blocks = options['conv_blocks']
@@ -111,7 +109,7 @@ def main():
     folds = options['folds']
     fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
     for (train_data, train_labels, val_data, val_labels, test_data), i in fold_generator:
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d:' % (i+1, folds) + c['g'] +
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d: ' % (i+1, folds) + c['g'] +
               'Number of training/validation/testing images (%d=%d/%d=%d/%d)'
               % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)))
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
