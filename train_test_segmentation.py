@@ -9,23 +9,24 @@ from keras.layers import Dense, Conv3D, Dropout, Flatten
 from nibabel import load as load_nii
 from utils import color_codes, nfold_cross_validation
 from itertools import izip
-from data_creation import load_patch_batch_train, load_patch_batch_generator_test, get_cnn_centers
+from data_creation import load_patch_batch_train, get_cnn_centers
+from data_creation import load_patch_batch_generator_test, load_patch_batch_generator_train
 
 
 def parse_inputs():
     # I decided to separate this function, for easier acces to the command line parameters
     parser = argparse.ArgumentParser(description='Test different nets with 3D data.')
-    parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/DATA/Brats17TrainingData/')
-    parser.add_argument('-F', '--n-fold', dest='folds', type=int, default=10)
-    parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=9)
-    parser.add_argument('-p', '--pool-size', dest='pool_size', type=int, default=2)
+    parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/DATA/Brats17Train/')
+    parser.add_argument('-F', '--n-fold', dest='folds', type=int, default=5)
+    parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=15)
+    parser.add_argument('-p', '--pool-size', dest='pool_size', type=int, default=1)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
-    parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=2)
-    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=10000)
+    parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
+    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
-    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=10)
+    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=500)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
-    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=100)
+    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=10)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
@@ -49,7 +50,7 @@ def list_directories(path):
 def get_names_from_path(options):
     path = options['dir_name']
 
-    patients = sorted(np.concatenate([list_directories(f) for f in list_directories(path)]))
+    patients = sorted(list_directories(path))
 
     # Prepare the names
     flair_names = [os.path.join(path, p, p.split('/')[-1] + options['flair'])
@@ -84,17 +85,17 @@ def main():
     dense_size = options['dense_size']
     conv_blocks = options['conv_blocks']
     n_filters = options['n_filters']
-    n_filters = n_filters if len(n_filters) > 1 else n_filters*conv_blocks
+    filters_list = n_filters if len(n_filters) > 1 else n_filters*conv_blocks
     conv_width = options['conv_width']
-    conv_size = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
+    kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     # Data loading parameters
     preload = options['preload']
     queue = options['queue']
 
     # Prepare the sufix that will be added to the results for the net and images
     path = options['dir_name']
-    filters_s = 'n'.join(['%d' % nf for nf in n_filters])
-    conv_s = 'c'.join(['%d' % cs for cs in conv_size])
+    filters_s = 'n'.join(['%d' % nf for nf in filters_list])
+    conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     mc_s = '.mc' if multi else ''
     sufix = '%s.p%d.c%s.n%s.d%d.e%d.pad_%s' % (mc_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
     n_channels = np.count_nonzero([
@@ -108,11 +109,11 @@ def main():
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
     data_names, label_names = get_names_from_path(options)
     folds = options['folds']
-    fold_generator = izip(nfold_cross_validation(data_names, label_names, folds), xrange(folds))
-    for (training_data, training_labels, testing_data), i in fold_generator:
+    fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
+    for (train_data, train_labels, val_data, val_labels, test_data), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold ' + c['g'] +
-              'Number of training/testing images (%d=%d/%d)'
-              % (len(training_data), len(training_labels), len(testing_data)))
+              'Number of training/validation/testing images (%d=%d/%d=%d/%d)'
+              % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)))
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold ' + c['g'] +
@@ -124,27 +125,26 @@ def main():
             net = keras.models.load_model(net_name)
         except IOError:
             # NET definition using Keras
-            centers = get_cnn_centers(training_data[:, 0], training_labels)
-            nsamples = len(centers)/dfactor
+            train_centers = get_cnn_centers(train_data[:, 0], train_labels)
+            val_centers = get_cnn_centers(val_data[:, 0], val_labels)
+            train_samples = len(train_centers)/dfactor
+            val_samples = len(val_centers) / dfactor
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model for ' +
-                  c['b'] + 'iteration 1 (%d samples)' % nsamples + c['nc'])
-            steps_per_epoch = -(-nsamples/batch_size)
+                  c['b'] + 'iteration 1 (%d samples)' % train_samples + c['nc'])
+            train_steps_per_epoch = -(-train_samples/batch_size)
+            val_steps_per_epoch = -(-val_samples / batch_size)
             input_shape = (n_channels,) + patch_size
-            kernel_size = (conv_width,) * 3
-            filters = options['n_filters'][0]
             net = Sequential()
             net.add(Conv3D(
-                filters,
-                kernel_size=kernel_size,
+                filters_list[0],
+                kernel_size=kernel_size_list[0],
                 input_shape=input_shape,
                 activation='relu',
                 data_format='channels_first'
             ))
-            net.add(Dropout(0.5))
-            net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu'))
-            net.add(Dropout(0.5))
-            net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu'))
-            net.add(Dropout(0.5))
+            for filters, kernel_size in zip(filters_list[1:], kernel_size_list[1:]):
+                net.add(Dropout(0.5))
+                net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu'))
             net.add(Flatten())
             net.add(Dense(dense_size, activation='relu'))
             net.add(Dropout(0.5))
@@ -155,24 +155,36 @@ def main():
                   c['g'] + 'Training the model with a generator for ' + c['b'] + 'iteration 1' + c['nc'])
             net.fit_generator(
                 generator=load_patch_batch_train(
-                    training_data,
-                    training_labels,
-                    centers,
-                    batch_size,
-                    patch_size,
-                    num_classes,
+                    image_names=train_data,
+                    label_names=train_labels,
+                    centers=train_centers,
+                    batch_size=batch_size,
+                    size=patch_size,
+                    nlabels=num_classes,
                     dfactor=dfactor,
                     preload=preload,
                     datatype=np.float32,
                 ),
-                steps_per_epoch=steps_per_epoch,
+                validation_data=load_patch_batch_train(
+                    image_names=val_data,
+                    label_names=val_labels,
+                    centers=val_centers,
+                    batch_size=batch_size,
+                    size=patch_size,
+                    nlabels=num_classes,
+                    dfactor=dfactor,
+                    preload=preload,
+                    datatype=np.float32
+                ),
+                steps_per_epoch=train_steps_per_epoch,
+                validation_steps=val_steps_per_epoch,
                 max_q_size=queue,
                 epochs=epochs
             )
             net.save(net_name)
 
         # Then we test the net.
-        for p in testing_data:
+        for p in test_data:
             p_name = p[0].rsplit('/')[:-1]
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, sufix + 'test.nii.gz')
