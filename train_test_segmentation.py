@@ -213,7 +213,7 @@ def main():
                 ))
 
                 [x, y, z] = np.stack(centers, axis=1)
-                image[x, y, z] = y_pred[:, -1]
+                image[x, y, z] = y_pred
 
                 print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
                 roi_nii.get_data()[:] = image
