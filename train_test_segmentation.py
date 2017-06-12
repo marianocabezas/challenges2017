@@ -111,7 +111,7 @@ def main():
     for (train_data, train_labels, val_data, val_labels, test_data), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d: ' % (i+1, folds) + c['g'] +
               'Number of training/validation/testing images (%d=%d/%d=%d/%d)'
-              % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)))
+              % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)) + c['nc'])
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
         net_name = os.path.join(path, 'baseline-brats2017.fold%d' % i + sufix + '.')
@@ -184,7 +184,7 @@ def main():
 
         # Then we test the net.
         for p in test_data:
-            p_name = p[0].rsplit('/')[:-1]
+            p_name = p[0].rsplit('/')[-1]
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, sufix + 'test.nii.gz')
             try:
