@@ -1,7 +1,9 @@
+from __future__ import print_function
+import sys
 from operator import itemgetter
 import numpy as np
 from nibabel import load as load_nii
-from data_manipulation.generate_features import get_mask_voxels, get_patches, get_patches2_5d
+from data_manipulation.generate_features import get_mask_voxels, get_patches
 from itertools import izip, chain
 from scipy.ndimage.morphology import binary_dilation as imdilate
 from numpy import logical_and as log_and
@@ -107,17 +109,21 @@ def load_patch_batch_generator_train(
 
 
 def load_patch_batch_generator_test(
-            image_list,
-            roi,
+            image_names,
+            centers,
             batch_size,
             size,
+            preload=False,
             datatype=np.float32
 ):
-    centers = get_mask_voxels(roi)
-    n_centers = len(centers)
-    for i in range(0, n_centers, batch_size):
-        x = get_stacked_patches(image_list, centers[i:i + batch_size], size)
-        return np.concatenate(x).astype(dtype=datatype)
+    while True:
+        n_centers = len(centers)
+        image_list = [norm(load_nii(image_name).get_data()) for image_name in image_names] if preload else image_names
+        for i in range(0, n_centers, batch_size):
+            print('%f%% tested (step %d)' % (100.0*i/n_centers, (i/batch_size)+1), end='\r')
+            sys.stdout.flush()
+            x = get_stacked_patches([image_list], [centers[i:i + batch_size]], size, preload)
+            yield np.concatenate(x).astype(dtype=datatype)
 
 
 def get_centers_from_masks(positive_masks, negative_masks, balanced=True, random_state=42):

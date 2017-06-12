@@ -9,14 +9,15 @@ from keras.layers import Dense, Conv3D, Dropout, Flatten
 from nibabel import load as load_nii
 from utils import color_codes, nfold_cross_validation
 from itertools import izip
-from data_creation import load_patch_batch_train, get_cnn_centers
+from data_creation import load_patch_batch_train, get_cnn_centers, load_masks
 from data_creation import load_patch_batch_generator_test
+from data_manipulation.generate_features import get_mask_voxels
 
 
 def parse_inputs():
     # I decided to separate this function, for easier acces to the command line parameters
     parser = argparse.ArgumentParser(description='Test different nets with 3D data.')
-    parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/DATA/Brats17Train/')
+    parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/DATA/Brats17CBICA/')
     parser.add_argument('-F', '--n-fold', dest='folds', type=int, default=5)
     parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=13)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
@@ -190,10 +191,33 @@ def main():
             try:
                 load_nii(outputname)
             except IOError:
+                roi_nii = load_nii(p[0])
+                roi = roi_nii.get_data().astype(dtype=np.bool)
+                centers = get_mask_voxels(roi)
+                test_samples = np.count_nonzero(roi)
+                image = np.zeros_like(roi)
                 print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
-                      '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] + '>' + c['nc'])
-                # TODO: Finish this
-                # net.predict_generator(load_patch_batch_generator_test,)
+                      '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] +
+                      ' (%d samples)>' % test_samples + c['nc'])
+                test_steps_per_epoch = -(-test_samples / batch_size)
+                y_pred = np.argmax(net.predict_generator(
+                    generator=load_patch_batch_generator_test(
+                        image_names=p,
+                        centers=centers,
+                        batch_size=batch_size,
+                        size=patch_size,
+                        preload=preload
+                    ),
+                    steps=test_steps_per_epoch,
+                    max_q_size=queue
+                ))
+
+                [x, y, z] = np.stack(centers, axis=1)
+                image[x, y, z] = y_pred[:, -1]
+
+                print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
+                roi_nii.get_data()[:] = image
+                roi_nii.to_filename(outputname)
 
 
 if __name__ == '__main__':
