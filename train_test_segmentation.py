@@ -96,7 +96,7 @@ def main():
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     mc_s = '.mc' if multi else ''
-    sufix = '%s.p%d.c%s.n%s.d%d.e%d.pad_%s' % (mc_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
+    sufix = '%s.p%d.c%s.n%s.d%d.e%d.pad_%s.' % (mc_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
     n_channels = np.count_nonzero([
         options['use_flair'],
         options['use_t1'],
@@ -115,7 +115,7 @@ def main():
               % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)) + c['nc'])
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
-        net_name = os.path.join(path, 'baseline-brats2017.fold%d' % i + sufix + '.')
+        net_name = os.path.join(path, 'baseline-brats2017.fold%d' % i + sufix + 'mdl')
 
         # First we check that we did not train for that patient, in order to save time
         try:
@@ -187,7 +187,7 @@ def main():
         for p in test_data:
             p_name = p[0].rsplit('/')[-1]
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
-            outputname = os.path.join(patient_path, sufix + 'test.nii.gz')
+            outputname = os.path.join(patient_path, 'deep-brats17.' + sufix + 'test.nii.gz')
             try:
                 load_nii(outputname)
             except IOError:
@@ -212,8 +212,10 @@ def main():
                     max_q_size=queue
                 ))
 
+                print(y_pred.max())
+
                 [x, y, z] = np.stack(centers, axis=1)
-                image[x, y, z] = y_pred
+                image[x, y, z] = y_pred.astype(dtype=np.uint8)
 
                 print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
                 roi_nii.get_data()[:] = image
