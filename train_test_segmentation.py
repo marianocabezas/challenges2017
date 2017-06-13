@@ -28,6 +28,7 @@ def parse_inputs():
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=10)
+    parser.add_argument('-u', '--unbalanced', action='store_false', dest='balanced', default=True)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
@@ -87,6 +88,7 @@ def main():
     filters_list = n_filters if len(n_filters) > 1 else n_filters*conv_blocks
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
+    balanced = options['balanced']
     # Data loading parameters
     preload = options['preload']
     queue = options['queue']
@@ -96,7 +98,9 @@ def main():
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     mc_s = '.mc' if multi else ''
-    sufix = '%s.p%d.c%s.n%s.d%d.e%d.pad_%s.' % (mc_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
+    ub_s = '.ub' if not balanced else ''
+    params_s = (ub_s, mc_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
+    sufix = '%s%s.p%d.c%s.n%s.d%d.e%d.pad_%s.' % params_s
     n_channels = np.count_nonzero([
         options['use_flair'],
         options['use_t1'],
@@ -122,8 +126,8 @@ def main():
             net = keras.models.load_model(net_name)
         except IOError:
             # NET definition using Keras
-            train_centers = get_cnn_centers(train_data[:, 0], train_labels)
-            val_centers = get_cnn_centers(val_data[:, 0], val_labels)
+            train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
+            val_centers = get_cnn_centers(val_data[:, 0], val_labels, balanced=balanced)
             train_samples = len(train_centers)/dfactor
             val_samples = len(val_centers) / dfactor
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
@@ -185,9 +189,9 @@ def main():
 
         # Then we test the net.
         for p in test_data:
-            p_name = p[0].rsplit('/')[-1]
+            p_name = p[0].rsplit('/')[-2]
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
-            outputname = os.path.join(patient_path, 'deep-brats17.' + sufix + 'test.nii.gz')
+            outputname = os.path.join(patient_path, 'deep-brats17' + sufix + 'test.nii.gz')
             try:
                 load_nii(outputname)
             except IOError:
@@ -195,7 +199,7 @@ def main():
                 roi = roi_nii.get_data().astype(dtype=np.bool)
                 centers = get_mask_voxels(roi)
                 test_samples = np.count_nonzero(roi)
-                image = np.zeros_like(roi)
+                image = np.zeros_like(roi).astype(dtype=np.uint8)
                 print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
                       '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] +
                       ' (%d samples)>' % test_samples + c['nc'])
@@ -210,12 +214,10 @@ def main():
                     ),
                     steps=test_steps_per_epoch,
                     max_q_size=queue
-                ))
-
-                print(y_pred.max())
+                ), axis=1)
 
                 [x, y, z] = np.stack(centers, axis=1)
-                image[x, y, z] = y_pred.astype(dtype=np.uint8)
+                image[x, y, z] = y_pred
 
                 print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
                 roi_nii.get_data()[:] = image

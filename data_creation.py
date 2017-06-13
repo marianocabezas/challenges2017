@@ -141,7 +141,7 @@ def load_masks(mask_names):
         yield load_nii(image_name).get_data().astype(dtype=np.bool)
 
 
-def get_cnn_centers(names, labels_names, neigh_width=15):
+def get_cnn_centers(names, labels_names, balanced=True, neigh_width=15):
     rois = load_masks(names)
     rois_p = list(load_masks(labels_names))
     rois_p_neigh = [log_and(imdilate(roi_p, iterations=neigh_width), log_not(roi_p))
@@ -153,7 +153,8 @@ def get_cnn_centers(names, labels_names, neigh_width=15):
         # The goal of this for is to randomly select the same number of nonlesion and lesion samples for each image.
         # We also want to make sure that we select the same number of boundary negatives and general negatives to
         # try to account for the variability in the brain.
-        roi_pn[roi_pn] = np.random.permutation(xrange(np.count_nonzero(roi_pn))) < np.count_nonzero(roi_p)
+        if balanced:
+            roi_pn[roi_pn] = np.random.permutation(xrange(np.count_nonzero(roi_pn))) < np.count_nonzero(roi_p)
         roi_ng[roi_ng] = np.random.permutation(xrange(np.count_nonzero(roi_ng))) < np.count_nonzero(roi_p)
         rois.append(log_or(log_or(roi_ng, roi_pn), roi_p))
 
