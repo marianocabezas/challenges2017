@@ -126,16 +126,6 @@ def load_patch_batch_generator_test(
             yield np.concatenate(x).astype(dtype=datatype)
 
 
-def get_centers_from_masks(positive_masks, negative_masks, balanced=True, random_state=42):
-    positive_centers = [get_mask_voxels(mask) for mask in positive_masks]
-    negative_centers = [get_mask_voxels(mask) for mask in negative_masks]
-    if balanced:
-        positive_voxels = [len(positives) for positives in positive_centers]
-        negative_centers = list(subsample(negative_centers, positive_voxels, random_state))
-
-    return positive_centers, negative_centers
-
-
 def load_masks(mask_names):
     for image_name in mask_names:
         yield load_nii(image_name).get_data().astype(dtype=np.bool)

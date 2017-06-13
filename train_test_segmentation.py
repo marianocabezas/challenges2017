@@ -9,7 +9,7 @@ from keras.layers import Dense, Conv3D, Dropout, Flatten
 from nibabel import load as load_nii
 from utils import color_codes, nfold_cross_validation
 from itertools import izip
-from data_creation import load_patch_batch_train, get_cnn_centers, load_masks
+from data_creation import load_patch_batch_train, get_cnn_centers
 from data_creation import load_patch_batch_generator_test
 from data_manipulation.generate_features import get_mask_voxels
 
