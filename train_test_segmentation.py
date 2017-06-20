@@ -7,7 +7,7 @@ import keras
 from keras.models import Sequential
 from keras.layers import Dense, Conv3D, Dropout, Flatten
 from nibabel import load as load_nii
-from utils import color_codes, nfold_cross_validation
+from utils import color_codes, nfold_cross_validation, get_biggest_region
 from itertools import izip
 from data_creation import load_patch_batch_train, get_cnn_centers
 from data_creation import load_patch_batch_generator_test
@@ -218,6 +218,8 @@ def main():
 
                 [x, y, z] = np.stack(centers, axis=1)
                 image[x, y, z] = y_pred
+                # Post-processing (Basically keep the biggest connected region)
+                image = get_biggest_region(image)
 
                 print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
                 roi_nii.get_data()[:] = image

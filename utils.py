@@ -1,5 +1,6 @@
 import numpy as np
 from math import floor
+from scipy import ndimage as nd
 
 
 def color_codes():
@@ -60,3 +61,12 @@ def nfold_cross_validation(data_list, labels_list, n=5, random_state=42, val_dat
         train_data = data_list[[idx for idx in shuffled_indices if idx not in indices]]
         val_len = int(len(train_data) * val_data)
         yield train_data[val_len:], train_labels[val_len:], train_data[:val_len], train_labels[:val_len], test_data
+
+
+def get_biggest_region(labels):
+    nu_labels = np.copy(labels)
+    blobs, _ = nd.measurements.label(labels.astype(dtype=np.bool), nd.morphology.generate_binary_structure(3, 3))
+    big_region = np.argmax(np.bincount(blobs.ravel())[1:])
+    nu_labels[blobs != big_region + 1] = 0
+    return nu_labels
+
