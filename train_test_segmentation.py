@@ -4,8 +4,8 @@ import os
 from time import strftime
 import numpy as np
 import keras
-from keras.models import Sequential
-from keras.layers import Dense, Conv3D, Dropout, Flatten
+from keras.models import Sequential, Model
+from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate
 from nibabel import load as load_nii
 from utils import color_codes, nfold_cross_validation, get_biggest_region
 from itertools import izip
@@ -29,6 +29,7 @@ def parse_inputs():
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=10)
     parser.add_argument('-u', '--unbalanced', action='store_false', dest='balanced', default=True)
+    parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
@@ -73,7 +74,7 @@ def main():
     c = color_codes()
 
     # Prepare the net architecture parameters
-    multi = options['multi']
+    sequential = options['sequential']
     dfactor = options['dfactor']
     # Prepare the net hyperparameters
     num_classes = 5
@@ -97,10 +98,10 @@ def main():
     path = options['dir_name']
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
-    mc_s = '.mc' if multi else ''
+    s_s = '.s' if sequential else '.f'
     ub_s = '.ub' if not balanced else ''
-    params_s = (ub_s, mc_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
-    sufix = '%s%s.p%d.c%s.n%s.d%d.e%d.pad_%s.' % params_s
+    params_s = (ub_s, dfactor, s_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
+    sufix = '%s.D%d%s.p%d.c%s.n%s.d%d.e%d.pad_%s.' % params_s
     n_channels = np.count_nonzero([
         options['use_flair'],
         options['use_t1'],
@@ -135,22 +136,68 @@ def main():
             train_steps_per_epoch = -(-train_samples/batch_size)
             val_steps_per_epoch = -(-val_samples / batch_size)
             input_shape = (n_channels,) + patch_size
-            net = Sequential()
-            net.add(Conv3D(
-                filters_list[0],
-                kernel_size=kernel_size_list[0],
-                input_shape=input_shape,
-                activation='relu',
-                data_format='channels_first'
-            ))
-            for filters, kernel_size in zip(filters_list[1:], kernel_size_list[1:]):
+            if sequential:
+                net = Sequential()
+                net.add(Conv3D(
+                    filters_list[0],
+                    kernel_size=kernel_size_list[0],
+                    input_shape=input_shape,
+                    activation='relu',
+                    data_format='channels_first'
+                ))
+                for filters, kernel_size in zip(filters_list[1:], kernel_size_list[1:]):
+                    net.add(Dropout(0.5))
+                    net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first'))
                 net.add(Dropout(0.5))
-                net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first'))
-            net.add(Dropout(0.5))
-            net.add(Flatten())
-            net.add(Dense(dense_size, activation='relu'))
-            net.add(Dropout(0.5))
-            net.add(Dense(num_classes, activation='softmax'))
+                net.add(Flatten())
+                net.add(Dense(dense_size, activation='relu'))
+                net.add(Dropout(0.5))
+                net.add(Dense(num_classes, activation='softmax'))
+            else:
+                flair_input = Input(shape=(1,) + patch_size)
+                t2_input = Input(shape=(1,) + patch_size)
+                t1_input = Input(shape=(2,) + patch_size)
+                flair = flair_input
+                t2 = t2_input
+                t1 = t1_input
+                for filters, kernel_size in zip(filters_list, kernel_size_list):
+                    flair = Conv3D(filters,
+                                   kernel_size=kernel_size,
+                                   input_shape=input_shape,
+                                   activation='relu',
+                                   data_format='channels_first'
+                                   )(flair)
+                    t2 = Conv3D(filters,
+                                kernel_size=kernel_size,
+                                input_shape=input_shape,
+                                activation='relu',
+                                data_format='channels_first'
+                                )(t2)
+                    t1 = Conv3D(filters,
+                                kernel_size=kernel_size,
+                                input_shape=input_shape,
+                                activation='relu',
+                                data_format='channels_first'
+                                )(t1)
+                    flair = Dropout(0.5)(flair)
+                    t2 = Dropout(0.5)(t2)
+                    t1 = Dropout(0.5)(t1)
+                flair = Flatten()(flair)
+                t2 = Flatten()(t2)
+                t1 = Flatten()(t1)
+                t2 = concatenate([flair, t2])
+                t2 = concatenate([t2, t1])
+                flair = Dense(dense_size, activation='relu')(flair)
+                t2 = Dense(dense_size, activation='relu')(t2)
+                t1 = Dense(dense_size, activation='relu')(t1)
+                flair = Dropout(0.5)(flair)
+                t2 = Dropout(0.5)(t2)
+                t1 = Dropout(0.5)(t1)
+                flair = Dense(2, activation='softmax', name='tumor')(flair)
+                t2 = Dense(3, activation='softmax', name='core')(t2)
+                t1 = Dense(num_classes, activation='softmax', name='enhancing')(t1)
+
+                net = Model(inputs=[flair_input, t2_input, t1_input], outputs=[flair, t2, t1])
             net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
@@ -167,7 +214,8 @@ def main():
                     nlabels=num_classes,
                     dfactor=dfactor,
                     preload=preload,
-                    datatype=np.float32,
+                    split=not sequential,
+                    datatype=np.float32
                 ),
                 validation_data=load_patch_batch_train(
                     image_names=val_data,
@@ -178,6 +226,7 @@ def main():
                     nlabels=num_classes,
                     dfactor=dfactor,
                     preload=preload,
+                    split=not sequential,
                     datatype=np.float32
                 ),
                 steps_per_epoch=train_steps_per_epoch,
@@ -204,17 +253,20 @@ def main():
                       '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] +
                       ' (%d samples)>' % test_samples + c['nc'])
                 test_steps_per_epoch = -(-test_samples / batch_size)
-                y_pred = np.argmax(net.predict_generator(
+                y_pr_pred = net.predict_generator(
                     generator=load_patch_batch_generator_test(
                         image_names=p,
                         centers=centers,
                         batch_size=batch_size,
                         size=patch_size,
-                        preload=preload
+                        preload=preload,
+                        split=not sequential
                     ),
                     steps=test_steps_per_epoch,
                     max_q_size=queue
-                ), axis=1)
+                )
+                y_pr_pred = y_pr_pred[-1] if not sequential else y_pr_pred
+                y_pred = np.argmax(y_pr_pred, axis=1)
 
                 [x, y, z] = np.stack(centers, axis=1)
                 image[x, y, z] = y_pred

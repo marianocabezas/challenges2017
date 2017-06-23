@@ -58,7 +58,8 @@ def load_patch_batch_train(
         nlabels,
         dfactor=10,
         datatype=np.float32,
-        preload=False
+        preload=False,
+        split=False,
 ):
     image_list = [[norm(load_nii(image_name).get_data()) for image_name in patient]
                   for patient in image_names] if preload else image_names
@@ -72,7 +73,8 @@ def load_patch_batch_train(
             nlabels=nlabels,
             datatype=datatype,
             dfactor=dfactor,
-            preload=preload
+            preload=preload,
+            split=split
         )
         for x, y in gen:
             yield x, y
@@ -87,6 +89,7 @@ def load_patch_batch_generator_train(
         nlabels,
         dfactor,
         preload=False,
+        split=False,
         datatype=np.float32
 ):
     # The following line is important to understand the goal of the down scaling factor.
@@ -94,6 +97,8 @@ def load_patch_batch_generator_train(
     # to retain the same variability. To accomplish that, at each epoch we shuffle the original samples (represented
     # by the center of the patch) and then get a subsample of this set. By randomly selecting at each step,
     # we can train with a larger dataset while also training each lesion with a smaller pool.
+    # The random shuffle is important to guarantee the sample proportion in the original samples when the numbers
+    # of epochs tends to infinite.
     batch_centers = np.random.permutation(center_list)[::dfactor]
     n_centers = len(batch_centers)
     n_images = len(image_list)
@@ -102,10 +107,29 @@ def load_patch_batch_generator_train(
         x = get_stacked_patches(image_list, centers, size, preload)
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
+        if split:
+            x = np.split(x, [1, 2], axis=1)
         y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
         y = np.concatenate(y)
         y[idx] = y
-        yield (x, keras.utils.to_categorical(y, num_classes=nlabels))
+        if split:
+            y = [
+                keras.utils.to_categorical(
+                    np.array(y == 1).astype(dtype=np.int8),
+                    num_classes=2
+                ),
+                keras.utils.to_categorical(
+                    np.array(y == 1).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
+                    num_classes=3
+                ),
+                keras.utils.to_categorical(
+                    y,
+                    num_classes=nlabels
+                )
+            ]
+        else:
+            y = keras.utils.to_categorical(y, num_classes=nlabels)
+        yield (x, y)
 
 
 def load_patch_batch_generator_test(
@@ -114,7 +138,8 @@ def load_patch_batch_generator_test(
             batch_size,
             size,
             preload=False,
-            datatype=np.float32
+            split=False,
+            datatype=np.float32,
 ):
     while True:
         n_centers = len(centers)
@@ -123,7 +148,10 @@ def load_patch_batch_generator_test(
             print('%f%% tested (step %d)' % (100.0*i/n_centers, (i/batch_size)+1), end='\r')
             sys.stdout.flush()
             x = get_stacked_patches([image_list], [centers[i:i + batch_size]], size, preload)
-            yield np.concatenate(x).astype(dtype=datatype)
+            x = np.concatenate(x).astype(dtype=datatype)
+            if split:
+                x = np.split(x, [1, 2], axis=1)
+            yield x
 
 
 def load_masks(mask_names):
