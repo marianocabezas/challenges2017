@@ -137,6 +137,8 @@ def main():
             val_steps_per_epoch = -(-val_samples / batch_size)
             input_shape = (n_channels,) + patch_size
             if sequential:
+                # Sequential model that merges all 4 images. This architecture is just a set of convolutional blocks
+                # that end in a dense layer. This is supposed to be an original baseline.
                 net = Sequential()
                 net.add(Conv3D(
                     filters_list[0],
@@ -154,6 +156,11 @@ def main():
                 net.add(Dropout(0.5))
                 net.add(Dense(num_classes, activation='softmax'))
             else:
+                # This architecture is based on the functional Keras API to introduce 3 output paths:
+                # - Whole tumor segmentation
+                # - Core segmentation (including whole tumor)
+                # - Whole segmentation (tumor, core and enhancing parts)
+                # The idea is to let the network work on the three parts to improve the multiclass segmentation.
                 flair_input = Input(shape=(1,) + patch_size)
                 t2_input = Input(shape=(1,) + patch_size)
                 t1_input = Input(shape=(2,) + patch_size)
@@ -185,13 +192,13 @@ def main():
                 flair = Flatten()(flair)
                 t2 = Flatten()(t2)
                 t1 = Flatten()(t1)
-                t2 = concatenate([flair, t2])
-                t2 = concatenate([t2, t1])
                 flair = Dense(dense_size, activation='relu')(flair)
-                t2 = Dense(dense_size, activation='relu')(t2)
-                t1 = Dense(dense_size, activation='relu')(t1)
                 flair = Dropout(0.5)(flair)
+                t2 = concatenate([flair, t2])
+                t2 = Dense(dense_size, activation='relu')(t2)
                 t2 = Dropout(0.5)(t2)
+                t1 = concatenate([t2, t1])
+                t1 = Dense(dense_size, activation='relu')(t1)
                 t1 = Dropout(0.5)(t1)
                 flair = Dense(2, activation='softmax', name='tumor')(flair)
                 t2 = Dense(3, activation='softmax', name='core')(t2)
@@ -265,10 +272,20 @@ def main():
                     steps=test_steps_per_epoch,
                     max_q_size=queue
                 )
-                y_pr_pred = y_pr_pred[-1] if not sequential else y_pr_pred
+                [x, y, z] = np.stack(centers, axis=1)
+
+                if not sequential:
+                    print('Number of outputs = %d' % len(y_pr_pred))
+                    tumor = np.argmax(y_pr_pred[0], axis=1)
+                    y_pr_pred = y_pr_pred[-1]
+                    roi = np.zeros_like(roi).astype(dtype=np.uint8)
+                    roi[x, y, z] = tumor
+                    roi_nii.get_data()[:] = roi
+                    roiname = os.path.join(patient_path, 'deep-brats17' + sufix + 'test.roi.nii.gz')
+                    roi_nii.to_filename(roiname)
+
                 y_pred = np.argmax(y_pr_pred, axis=1)
 
-                [x, y, z] = np.stack(centers, axis=1)
                 image[x, y, z] = y_pred
                 # Post-processing (Basically keep the biggest connected region)
                 image = get_biggest_region(image)

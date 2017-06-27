@@ -115,11 +115,11 @@ def load_patch_batch_generator_train(
         if split:
             y = [
                 keras.utils.to_categorical(
-                    np.array(y == 1).astype(dtype=np.int8),
+                    np.copy(y).astype(dtype=np.bool),
                     num_classes=2
                 ),
                 keras.utils.to_categorical(
-                    np.array(y == 1).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
+                    np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
                     num_classes=3
                 ),
                 keras.utils.to_categorical(
