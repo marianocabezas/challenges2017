@@ -192,6 +192,7 @@ def main():
                 flair = Flatten()(flair)
                 t2 = Flatten()(t2)
                 t1 = Flatten()(t1)
+                flair = concatenate([flair, t2])
                 flair = Dense(dense_size, activation='relu')(flair)
                 flair = Dropout(0.5)(flair)
                 t2 = concatenate([flair, t2])
@@ -275,7 +276,6 @@ def main():
                 [x, y, z] = np.stack(centers, axis=1)
 
                 if not sequential:
-                    print('Number of outputs = %d' % len(y_pr_pred))
                     tumor = np.argmax(y_pr_pred[0], axis=1)
                     y_pr_pred = y_pr_pred[-1]
                     roi = np.zeros_like(roi).astype(dtype=np.uint8)
