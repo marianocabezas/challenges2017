@@ -163,13 +163,13 @@ def load_masks(mask_names):
 
 def get_cnn_centers(names, labels_names, balanced=True, neigh_width=15):
     rois = load_masks(names)
-    for roi in rois:
-        print(np.count_nonzero(roi))
     rois_p = list(load_masks(labels_names))
     rois_p_neigh = [log_and(imdilate(roi_p, iterations=neigh_width), log_not(roi_p))
                     for roi_p in rois_p]
     rois_n_global = [log_and(roi, log_not(log_or(roi_pn, roi_p)))
                      for roi, roi_pn, roi_p in izip(rois, rois_p_neigh, rois_p)]
+    for r_p, r_n, r_g in zip(rois_p, rois_p_neigh, rois_n_global):
+        print('%d/%d/%d' % (np.count_nonzero(r_p), np.count_nonzero(r_n), np.count_nonzero(r_g)))
     rois = list()
     for roi_pn, roi_ng, roi_p in izip(rois_p_neigh, rois_n_global, rois_p):
         # The goal of this for is to randomly select the same number of nonlesion and lesion samples for each image.
@@ -183,8 +183,6 @@ def get_cnn_centers(names, labels_names, balanced=True, neigh_width=15):
 
     # In order to be able to permute the centers to randomly select them, or just shuffle them for training, we need
     # to keep the image reference with the center. That's why we are doing the next following lines of code.
-    for roi in rois:
-        print(np.count_nonzero(roi))
     centers_list = [get_mask_voxels(roi) for roi in rois]
     idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
                                          for i, centers in enumerate(centers_list)])
