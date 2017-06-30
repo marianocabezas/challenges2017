@@ -168,8 +168,6 @@ def get_cnn_centers(names, labels_names, balanced=True, neigh_width=15):
                     for roi, roi_p in izip(rois, rois_p)]
     rois_n_global = [log_and(roi, log_not(log_or(roi_pn, roi_p)))
                      for roi, roi_pn, roi_p in izip(rois, rois_p_neigh, rois_p)]
-    for r_p, r_n, r_g in izip(rois_p, rois_p_neigh, rois_n_global):
-        print('Number of voxels = %d/%d/%d' % (np.count_nonzero(r_p), np.count_nonzero(r_n), np.count_nonzero(r_g)))
     rois = list()
     for roi_pn, roi_ng, roi_p in izip(rois_p_neigh, rois_n_global, rois_p):
         # The goal of this for is to randomly select the same number of nonlesion and lesion samples for each image.
