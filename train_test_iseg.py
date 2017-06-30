@@ -59,14 +59,14 @@ def get_names_from_path(options):
     # Prepare the names
     flair_names = [os.path.join(path, p, p.split('/')[-1] + options['flair'])
                    for p in patients] if options['use_flair'] else None
-    t2_names = [os.path.join(path, p, p.split('/')[-1] + options['t2'])
-                for p in patients] if options['use_t2'] else None
     t1_names = [os.path.join(path, p, p.split('/')[-1] + options['t1'])
                 for p in patients] if options['use_t1'] else None
     t1ce_names = [os.path.join(path, p, p.split('/')[-1] + options['t1ce'])
                   for p in patients] if options['use_t1ce'] else None
+    t2_names = [os.path.join(path, p, p.split('/')[-1] + options['t2'])
+                for p in patients] if options['use_t2'] else None
     label_names = np.array([os.path.join(path, p, p.split('/')[-1] + options['labels']) for p in patients])
-    image_names = np.stack(filter(None, [flair_names, t2_names, t1_names, t1ce_names]), axis=1)
+    image_names = np.stack(filter(None, [flair_names, t1_names, t1ce_names, t2_names]), axis=1)
 
     return image_names, label_names
 
@@ -107,9 +107,9 @@ def main():
     sufix = '%s.D%d%s.p%d.c%s.n%s.d%d.e%d.pad_%s.' % params_s
     n_channels = np.count_nonzero([
         options['use_flair'],
-        options['use_t2'],
         options['use_t1'],
-        options['use_t1ce']]
+        options['use_t1ce'],
+        options['use_t2']]
     )
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting cross-validation' + c['nc'])
@@ -164,22 +164,14 @@ def main():
                 # - Core segmentation (including whole tumor)
                 # - Whole segmentation (tumor, core and enhancing parts)
                 # The idea is to let the network work on the three parts to improve the multiclass segmentation.
-                merged_inputs = Input(shape=(4,) + patch_size, name='merged_inputs')
-                flair = Reshape((1,) + patch_size)(
-                    Lambda(
-                        lambda l: l[:, 0, :, :, :],
-                        output_shape=(1,) + patch_size)(merged_inputs),
-                )
+                merged_inputs = Input(shape=(2,) + patch_size, name='merged_inputs')
                 t2 = Reshape((1,) + patch_size)(
+                    Lambda(lambda l: l[:, 0, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
+                )
+                t1 = Reshape((1,) + patch_size)(
                     Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
                 )
-                t1 = Lambda(lambda l: l[:, 2:, :, :, :], output_shape=(2,) + patch_size)(merged_inputs)
                 for filters, kernel_size in zip(filters_list, kernel_size_list):
-                    flair = Conv3D(filters,
-                                   kernel_size=kernel_size,
-                                   activation='relu',
-                                   data_format='channels_first'
-                                   )(flair)
                     t2 = Conv3D(filters,
                                 kernel_size=kernel_size,
                                 activation='relu',
