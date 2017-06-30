@@ -117,7 +117,7 @@ def main():
     data_names, label_names = get_names_from_path(options)
     folds = options['folds']
     fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
-    for (train_data, train_labels, val_data, val_labels, test_data), i in fold_generator:
+    for (train_data, train_labels, val_data, val_labels, test_data, test_labels), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d: ' % (i+1, folds) + c['g'] +
               'Number of training/validation/testing images (%d=%d/%d=%d/%d)'
               % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)) + c['nc'])

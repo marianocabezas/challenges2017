@@ -56,11 +56,12 @@ def nfold_cross_validation(data_list, labels_list, n=5, random_state=42, val_dat
 
     for i in xrange(n):
         indices = shuffled_indices[i::n]
-        test_data = data_list[indices]
-        train_labels = labels_list[[idx for idx in shuffled_indices if idx not in indices]]
-        train_data = data_list[[idx for idx in shuffled_indices if idx not in indices]]
-        val_len = int(len(train_data) * val_data)
-        yield train_data[val_len:], train_labels[val_len:], train_data[:val_len], train_labels[:val_len], test_data
+        tst_data = data_list[indices]
+        tst_labels = labels_list[indices]
+        tr_labels = labels_list[[idx for idx in shuffled_indices if idx not in indices]]
+        tr_data = data_list[[idx for idx in shuffled_indices if idx not in indices]]
+        val_len = int(len(tr_data) * val_data)
+        yield tr_data[val_len:], tr_labels[val_len:], tr_data[:val_len], tr_labels[:val_len], tst_data, tst_labels
 
 
 def get_biggest_region(labels):
