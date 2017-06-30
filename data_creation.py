@@ -116,8 +116,7 @@ def load_patch_batch_generator_train(
         y[idx] = y
         if split:
             if iseg:
-                vals = [0] + np.unique(y.flatten())
-                print(vals)
+                vals = [0, 10, 150, 250]
                 y_cat = np.sum(
                     map(lambda (lab, val): np.array(y == val, dtype=np.uint8)*lab, enumerate(vals)), axis=0
                 )
