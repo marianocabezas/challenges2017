@@ -18,14 +18,14 @@ from data_manipulation.generate_features import get_mask_voxels
 def parse_inputs():
     # I decided to separate this function, for easier acces to the command line parameters
     parser = argparse.ArgumentParser(description='Test different nets with 3D data.')
-    parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/DATA/Brats17CBICA/')
+    parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/DATA/iSeg2017/')
     parser.add_argument('-F', '--n-fold', dest='folds', type=int, default=5)
     parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=13)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
-    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=500)
+    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=1)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=10)
@@ -34,15 +34,11 @@ def parse_inputs():
     parser.add_argument('-r', '--recurrent', action='store_true', dest='recurrent', default=False)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
-    parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
-    parser.add_argument('--no-t1ce', action='store_false', dest='use_t1ce', default=True)
     parser.add_argument('--no-t2', action='store_false', dest='use_t2', default=True)
-    parser.add_argument('--flair', action='store', dest='flair', default='_flair.nii.gz')
-    parser.add_argument('--t1', action='store', dest='t1', default='_t1.nii.gz')
-    parser.add_argument('--t1ce', action='store', dest='t1ce', default='_t1ce.nii.gz')
-    parser.add_argument('--t2', action='store', dest='t2', default='_t2.nii.gz')
-    parser.add_argument('--labels', action='store', dest='labels', default='_seg.nii.gz')
+    parser.add_argument('--t1', action='store', dest='t1', default='-T1.hdr')
+    parser.add_argument('--t2', action='store', dest='t2', default='-T2.hdr')
+    parser.add_argument('--labels', action='store', dest='labels', default='-label.hdr')
     parser.add_argument('-m', '--multi-channel', action='store_true', dest='multi', default=False)
     return vars(parser.parse_args())
 
@@ -54,19 +50,15 @@ def list_directories(path):
 def get_names_from_path(options):
     path = options['dir_name']
 
-    patients = sorted(list_directories(path))
+    patients = range(10)
 
     # Prepare the names
-    flair_names = [os.path.join(path, p, p.split('/')[-1] + options['flair'])
-                   for p in patients] if options['use_flair'] else None
     t1_names = [os.path.join(path, p, p.split('/')[-1] + options['t1'])
                 for p in patients] if options['use_t1'] else None
-    t1ce_names = [os.path.join(path, p, p.split('/')[-1] + options['t1ce'])
-                  for p in patients] if options['use_t1ce'] else None
     t2_names = [os.path.join(path, p, p.split('/')[-1] + options['t2'])
                 for p in patients] if options['use_t2'] else None
     label_names = np.array([os.path.join(path, p, p.split('/')[-1] + options['labels']) for p in patients])
-    image_names = np.stack(filter(None, [flair_names, t1_names, t1ce_names, t2_names]), axis=1)
+    image_names = np.stack(filter(None, [t1_names, t2_names]), axis=1)
 
     return image_names, label_names
 
@@ -106,16 +98,14 @@ def main():
     params_s = (ub_s, dfactor, s_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
     sufix = '%s.D%d%s.p%d.c%s.n%s.d%d.e%d.pad_%s.' % params_s
     n_channels = np.count_nonzero([
-        options['use_flair'],
         options['use_t1'],
-        options['use_t1ce'],
         options['use_t2']]
     )
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting cross-validation' + c['nc'])
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
     data_names, label_names = get_names_from_path(options)
-    folds = options['folds']
+    folds = data_names.shape[0]
     fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
     for (train_data, train_labels, val_data, val_labels, test_data), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d: ' % (i+1, folds) + c['g'] +
@@ -165,10 +155,10 @@ def main():
                 # - Whole segmentation (tumor, core and enhancing parts)
                 # The idea is to let the network work on the three parts to improve the multiclass segmentation.
                 merged_inputs = Input(shape=(2,) + patch_size, name='merged_inputs')
-                t2 = Reshape((1,) + patch_size)(
+                t1 = Reshape((1,) + patch_size)(
                     Lambda(lambda l: l[:, 0, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
                 )
-                t1 = Reshape((1,) + patch_size)(
+                t2 = Reshape((1,) + patch_size)(
                     Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
                 )
                 for filters, kernel_size in zip(filters_list, kernel_size_list):
@@ -182,21 +172,11 @@ def main():
                                 activation='relu',
                                 data_format='channels_first'
                                 )(t1)
-                    flair = Dropout(0.5)(flair)
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
 
                 # We only apply the RCNN to the multioutput approach (we keep the simple one, simple)
                 if recurrent:
-                    flair = Conv3D(
-                        dense_size,
-                        kernel_size=(1, 1, 1),
-                        activation='relu',
-                        data_format='channels_first',
-                        name='fcn_flair'
-                    )(flair)
-                    flair = Dropout(0.5)(flair)
-                    t2 = concatenate([flair, t2], axis=1)
                     t2 = Conv3D(
                         dense_size,
                         kernel_size=(1, 1, 1),
@@ -214,32 +194,30 @@ def main():
                         name='fcn_t1'
                     )(t1)
                     t1 = Dropout(0.5)(t1)
-                    flair = Dropout(0.5)(flair)
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
                     lstm_instance = LSTM(dense_size, implementation=1, name='rf_layer')
-                    flair = lstm_instance(Permute((2, 1))(Reshape((dense_size, -1))(flair)))
                     t2 = lstm_instance(Permute((2, 1))(Reshape((dense_size, -1))(t2)))
                     t1 = lstm_instance(Permute((2, 1))(Reshape((dense_size, -1))(t1)))
 
                 else:
-                    flair = Flatten()(flair)
                     t2 = Flatten()(t2)
                     t1 = Flatten()(t1)
-                    flair = Dense(dense_size, activation='relu')(flair)
-                    flair = Dropout(0.5)(flair)
-                    t2 = concatenate([flair, t2])
                     t2 = Dense(dense_size, activation='relu')(t2)
                     t2 = Dropout(0.5)(t2)
-                    t1 = concatenate([t2, t1])
                     t1 = Dense(dense_size, activation='relu')(t1)
                     t1 = Dropout(0.5)(t1)
 
-                tumor = Dense(2, activation='softmax', name='tumor')(flair)
-                core = Dense(3, activation='softmax', name='core')(t2)
-                enhancing = Dense(num_classes, activation='softmax', name='enhancing')(t1)
+                csf = Dense(2, activation='softmax', name='core')(t1)
+                gm = Dense(2, activation='softmax', name='core')(t2)
+                wm = Dense(2, activation='softmax', name='core')(t2)
 
-                net = Model(inputs=merged_inputs, outputs=[tumor, core, enhancing])
+                merged = concatenate([t2, t1, csf, gm, wm])
+                merged = Dropout(0.5)(merged)
+
+                brain = Dense(4, activation='softmax', name='enhancing')(merged)
+
+                net = Model(inputs=merged_inputs, outputs=[csf, gm, wm, brain])
 
             net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
@@ -254,10 +232,11 @@ def main():
                     centers=train_centers,
                     batch_size=batch_size,
                     size=patch_size,
-                    nlabels=num_classes,
+                    nlabels=4,
                     dfactor=dfactor,
                     preload=preload,
                     split=not sequential,
+                    iseg=True,
                     datatype=np.float32
                 ),
                 validation_data=load_patch_batch_train(
@@ -266,10 +245,11 @@ def main():
                     centers=val_centers,
                     batch_size=batch_size,
                     size=patch_size,
-                    nlabels=num_classes,
+                    nlabels=4,
                     dfactor=dfactor,
                     preload=preload,
                     split=not sequential,
+                    iseg=True,
                     datatype=np.float32
                 ),
                 steps_per_epoch=train_steps_per_epoch,

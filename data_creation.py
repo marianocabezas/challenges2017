@@ -60,6 +60,7 @@ def load_patch_batch_train(
         datatype=np.float32,
         preload=False,
         split=False,
+        iseg=False
 ):
     image_list = [[norm(load_nii(image_name).get_data()) for image_name in patient]
                   for patient in image_names] if preload else image_names
@@ -75,6 +76,7 @@ def load_patch_batch_train(
             dfactor=dfactor,
             preload=preload,
             split=split,
+            iseg=iseg
         )
         for x, y in gen:
             yield x, y
@@ -90,6 +92,7 @@ def load_patch_batch_generator_train(
         dfactor,
         preload=False,
         split=False,
+        iseg=False,
         datatype=np.float32
 ):
     # The following line is important to understand the goal of the down scaling factor.
@@ -111,20 +114,24 @@ def load_patch_batch_generator_train(
         y = np.concatenate(y)
         y[idx] = y
         if split:
-            y = [
-                keras.utils.to_categorical(
-                    np.copy(y).astype(dtype=np.bool),
-                    num_classes=2
-                ),
-                keras.utils.to_categorical(
-                    np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
-                    num_classes=3
-                ),
-                keras.utils.to_categorical(
-                    y,
-                    num_classes=nlabels
-                )
-            ]
+            if iseg:
+                y = [keras.utils.to_categorical(y == (l+1), num_classes=2) for l in range(nlabels-1)] +\
+                    [keras.utils.to_categorical(y, num_classes=nlabels)]
+            else:
+                y = [
+                    keras.utils.to_categorical(
+                        np.copy(y).astype(dtype=np.bool),
+                        num_classes=2
+                    ),
+                    keras.utils.to_categorical(
+                        np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
+                        num_classes=3
+                    ),
+                    keras.utils.to_categorical(
+                        y,
+                        num_classes=nlabels
+                    )
+                ]
         else:
             y = keras.utils.to_categorical(y, num_classes=nlabels)
         yield (x, y)
