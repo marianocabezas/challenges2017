@@ -182,8 +182,7 @@ def get_cnn_centers(names, labels_names, balanced=True, neigh_width=15):
 
     # In order to be able to permute the centers to randomly select them, or just shuffle them for training, we need
     # to keep the image reference with the center. That's why we are doing the next following lines of code.
-    print(rois[0].shape)
-    centers_list = [get_mask_voxels(roi) for roi in rois]
+    centers_list = [get_mask_voxels(np.squeeze(roi)) for roi in rois]
     idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
                                          for i, centers in enumerate(centers_list)])
 
