@@ -107,6 +107,7 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting cross-validation' + c['nc'])
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
     data_names, label_names = get_names_from_path(options)
+    folds = len(data_names)
     fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
     dsc_results = list()
     for (train_data, train_labels, val_data, val_labels, test_data, test_labels), i in fold_generator:
