@@ -60,6 +60,7 @@ def get_names_from_path(options):
                 for p in patients] if options['use_t2'] else None
     label_names = np.array([os.path.join(path, 'subject-%d' % (p+1) + options['labels']) for p in patients])
     image_names = np.stack(filter(None, [t1_names, t2_names]), axis=1)
+    print(image_names.shape)
 
     return image_names, label_names
 
@@ -106,7 +107,7 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting cross-validation' + c['nc'])
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
     data_names, label_names = get_names_from_path(options)
-    folds = data_names.shape[0]
+    folds = len(data_names)
     fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
     for (train_data, train_labels, val_data, val_labels, test_data, test_labels), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d: ' % (i+1, folds) + c['g'] +
