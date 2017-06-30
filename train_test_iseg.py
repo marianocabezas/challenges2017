@@ -107,8 +107,8 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting cross-validation' + c['nc'])
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
     data_names, label_names = get_names_from_path(options)
-    folds = len(data_names)
     fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
+    dsc_results = list()
     for (train_data, train_labels, val_data, val_labels, test_data, test_labels), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d: ' % (i+1, folds) + c['g'] +
               'Number of training/validation/testing images (%d=%d/%d=%d/%d)'
@@ -123,7 +123,9 @@ def main():
         except IOError:
             # NET definition using Keras
             train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
+            print(train_centers)
             val_centers = get_cnn_centers(val_data[:, 0], val_labels, balanced=balanced)
+            print(val_centers)
             train_samples = len(train_centers)/dfactor
             val_samples = len(val_centers) / dfactor
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
@@ -309,11 +311,14 @@ def main():
                     dsc_seg(gt_mask == 1, image == 1),
                     dsc_seg(gt_mask == 2, image == 2),
                     dsc_seg(gt_mask == 3, image == 3))
+                dsc_results.append(results)
                 print('DSC: %f/%f/%f', results)
 
                 print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
                 roi_nii.get_data()[:] = image
                 roi_nii.to_filename(outputname)
+    f_dsc = tuple(np.array(dsc_results).mean())
+    print('Final results DSC: %f/%f/%f' % f_dsc)
 
 
 if __name__ == '__main__':
