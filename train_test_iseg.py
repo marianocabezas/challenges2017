@@ -60,7 +60,6 @@ def get_names_from_path(options):
                 for p in patients] if options['use_t2'] else None
     label_names = np.array([os.path.join(path, 'subject-%d' % (p+1) + options['labels']) for p in patients])
     image_names = np.stack(filter(None, [t1_names, t2_names]), axis=1)
-    print(image_names.shape)
 
     return image_names, label_names
 

@@ -185,6 +185,7 @@ def get_cnn_centers(names, labels_names, balanced=True, neigh_width=15):
     for roi in rois:
         print(np.count_nonzero(roi))
     centers_list = [get_mask_voxels(roi) for roi in rois]
+    print(centers_list)
     idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
                                          for i, centers in enumerate(centers_list)])
 
