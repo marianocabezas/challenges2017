@@ -174,7 +174,6 @@ def main():
                                 )(t1)
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
-
                 # We only apply the RCNN to the multioutput approach (we keep the simple one, simple)
                 if recurrent:
                     t2 = Conv3D(
