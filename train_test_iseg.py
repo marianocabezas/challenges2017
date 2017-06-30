@@ -123,7 +123,6 @@ def main():
         except IOError:
             # NET definition using Keras
             train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
-            print(train_centers)
             val_centers = get_cnn_centers(val_data[:, 0], val_labels, balanced=balanced)
             train_samples = len(train_centers)/dfactor
             val_samples = len(val_centers) / dfactor

@@ -24,7 +24,8 @@ def subsample(center_list, sizes, random_state):
 
 
 def get_image_patches(image_list, centers, size, preload):
-    print(len(image_list), centers, size)
+    print(image_list[0].shape)
+    print(image_list[1].shape)
     patches = [get_patches(image, centers, size) for image in image_list] if preload\
         else [get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_list]
     return np.stack(patches, axis=1)
