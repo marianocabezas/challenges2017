@@ -13,6 +13,7 @@ import keras
 
 
 def norm(image):
+    image = np.squeeze(image)
     return (image - image[np.nonzero(image)].mean()) / image[np.nonzero(image)].std()
 
 
@@ -24,8 +25,6 @@ def subsample(center_list, sizes, random_state):
 
 
 def get_image_patches(image_list, centers, size, preload):
-    print(image_list[0].shape)
-    print(image_list[1].shape)
     patches = [get_patches(image, centers, size) for image in image_list] if preload\
         else [get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_list]
     return np.stack(patches, axis=1)
@@ -48,7 +47,7 @@ def centers_and_idx(centers, n_images):
 
 def labels_generator(image_names):
     for patient in image_names:
-        yield load_nii(patient).get_data()
+        yield np.squeeze(load_nii(patient).get_data())
 
 
 def load_patch_batch_train(
@@ -160,7 +159,7 @@ def load_patch_batch_generator_test(
 
 def load_masks(mask_names):
     for image_name in mask_names:
-        yield load_nii(image_name).get_data().astype(dtype=np.bool)
+        yield np.squeeze(load_nii(image_name).get_data().astype(dtype=np.bool))
 
 
 def get_cnn_centers(names, labels_names, balanced=True, neigh_width=15):
@@ -183,7 +182,7 @@ def get_cnn_centers(names, labels_names, balanced=True, neigh_width=15):
 
     # In order to be able to permute the centers to randomly select them, or just shuffle them for training, we need
     # to keep the image reference with the center. That's why we are doing the next following lines of code.
-    centers_list = [get_mask_voxels(np.squeeze(roi)) for roi in rois]
+    centers_list = [get_mask_voxels(roi) for roi in rois]
     idx_lesion_centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
                                          for i, centers in enumerate(centers_list)])
 
