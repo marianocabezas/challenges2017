@@ -24,6 +24,7 @@ def subsample(center_list, sizes, random_state):
 
 
 def get_image_patches(image_list, centers, size, preload):
+    print(len(image_list), len(centers), size)
     patches = [get_patches(image, centers, size) for image in image_list] if preload\
         else [get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_list]
     return np.stack(patches, axis=1)
@@ -107,7 +108,6 @@ def load_patch_batch_generator_train(
     n_images = len(image_list)
     for i in range(0, n_centers, batch_size):
         centers, idx = centers_and_idx(batch_centers[i:i + batch_size], n_images)
-        print(centers, idx)
         x = get_patches_list(image_list, centers, size, preload)
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
