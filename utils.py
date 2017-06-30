@@ -69,4 +69,3 @@ def get_biggest_region(labels):
     big_region = np.argmax(np.bincount(blobs.ravel())[1:])
     nu_labels[blobs != big_region + 1] = 0
     return nu_labels
-

@@ -5,7 +5,8 @@ from time import strftime
 import numpy as np
 import keras
 from keras.models import Sequential, Model
-from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate
+from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda, Permute
+from keras.layers.recurrent import LSTM
 from nibabel import load as load_nii
 from utils import color_codes, nfold_cross_validation, get_biggest_region
 from itertools import izip
@@ -30,6 +31,7 @@ def parse_inputs():
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=10)
     parser.add_argument('-u', '--unbalanced', action='store_false', dest='balanced', default=True)
     parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
+    parser.add_argument('-r', '--recurrent', action='store_true', dest='recurrent', default=False)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
@@ -90,6 +92,7 @@ def main():
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     balanced = options['balanced']
+    recurrent = options['recurrent']
     # Data loading parameters
     preload = options['preload']
     queue = options['queue']
@@ -161,51 +164,91 @@ def main():
                 # - Core segmentation (including whole tumor)
                 # - Whole segmentation (tumor, core and enhancing parts)
                 # The idea is to let the network work on the three parts to improve the multiclass segmentation.
-                flair_input = Input(shape=(1,) + patch_size)
-                t2_input = Input(shape=(1,) + patch_size)
-                t1_input = Input(shape=(2,) + patch_size)
-                flair = flair_input
-                t2 = t2_input
-                t1 = t1_input
+                merged_inputs = Input(shape=(4,) + patch_size, name='merged_inputs')
+                flair = Reshape((1,) + patch_size)(
+                    Lambda(
+                        lambda l: l[:, 0, :, :, :],
+                        output_shape=(1,) + patch_size)(merged_inputs),
+                )
+                t2 = Reshape((1,) + patch_size)(
+                    Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
+                )
+                t1 = Lambda(lambda l: l[:, 2:, :, :, :], output_shape=(2,) + patch_size)(merged_inputs)
                 for filters, kernel_size in zip(filters_list, kernel_size_list):
                     flair = Conv3D(filters,
                                    kernel_size=kernel_size,
-                                   input_shape=input_shape,
                                    activation='relu',
                                    data_format='channels_first'
                                    )(flair)
                     t2 = Conv3D(filters,
                                 kernel_size=kernel_size,
-                                input_shape=input_shape,
                                 activation='relu',
                                 data_format='channels_first'
                                 )(t2)
                     t1 = Conv3D(filters,
                                 kernel_size=kernel_size,
-                                input_shape=input_shape,
                                 activation='relu',
                                 data_format='channels_first'
                                 )(t1)
                     flair = Dropout(0.5)(flair)
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
-                flair = Flatten()(flair)
-                t2 = Flatten()(t2)
-                t1 = Flatten()(t1)
-                flair = concatenate([flair, t2])
-                flair = Dense(dense_size, activation='relu')(flair)
-                flair = Dropout(0.5)(flair)
-                t2 = concatenate([flair, t2])
-                t2 = Dense(dense_size, activation='relu')(t2)
-                t2 = Dropout(0.5)(t2)
-                t1 = concatenate([t2, t1])
-                t1 = Dense(dense_size, activation='relu')(t1)
-                t1 = Dropout(0.5)(t1)
-                flair = Dense(2, activation='softmax', name='tumor')(flair)
-                t2 = Dense(3, activation='softmax', name='core')(t2)
-                t1 = Dense(num_classes, activation='softmax', name='enhancing')(t1)
 
-                net = Model(inputs=[flair_input, t2_input, t1_input], outputs=[flair, t2, t1])
+                # We only apply the RCNN to the multioutput approach (we keep the simple one, simple)
+                if recurrent:
+                    flair = Conv3D(
+                        dense_size,
+                        kernel_size=(1, 1, 1),
+                        activation='relu',
+                        data_format='channels_first',
+                        name='fcn_flair'
+                    )(flair)
+                    flair = Dropout(0.5)(flair)
+                    t2 = concatenate([flair, t2], axis=1)
+                    t2 = Conv3D(
+                        dense_size,
+                        kernel_size=(1, 1, 1),
+                        activation='relu',
+                        data_format='channels_first',
+                        name='fcn_t2'
+                    )(t2)
+                    t2 = Dropout(0.5)(t2)
+                    t1 = concatenate([t2, t1], axis=1)
+                    t1 = Conv3D(
+                        dense_size,
+                        kernel_size=(1, 1, 1),
+                        activation='relu',
+                        data_format='channels_first',
+                        name='fcn_t1'
+                    )(t1)
+                    t1 = Dropout(0.5)(t1)
+                    flair = Dropout(0.5)(flair)
+                    t2 = Dropout(0.5)(t2)
+                    t1 = Dropout(0.5)(t1)
+                    lstm_instance = LSTM(dense_size, implementation=1, name='rf_layer')
+                    flair = lstm_instance(Permute((2, 1))(Reshape((dense_size, -1))(flair)))
+                    t2 = lstm_instance(Permute((2, 1))(Reshape((dense_size, -1))(t2)))
+                    t1 = lstm_instance(Permute((2, 1))(Reshape((dense_size, -1))(t1)))
+
+                else:
+                    flair = Flatten()(flair)
+                    t2 = Flatten()(t2)
+                    t1 = Flatten()(t1)
+                    flair = Dense(dense_size, activation='relu')(flair)
+                    flair = Dropout(0.5)(flair)
+                    t2 = concatenate([flair, t2])
+                    t2 = Dense(dense_size, activation='relu')(t2)
+                    t2 = Dropout(0.5)(t2)
+                    t1 = concatenate([t2, t1])
+                    t1 = Dense(dense_size, activation='relu')(t1)
+                    t1 = Dropout(0.5)(t1)
+
+                tumor = Dense(2, activation='softmax', name='tumor')(flair)
+                core = Dense(3, activation='softmax', name='core')(t2)
+                enhancing = Dense(num_classes, activation='softmax', name='enhancing')(t1)
+
+                net = Model(inputs=merged_inputs, outputs=[tumor, core, enhancing])
+
             net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
@@ -268,7 +311,6 @@ def main():
                         batch_size=batch_size,
                         size=patch_size,
                         preload=preload,
-                        split=not sequential
                     ),
                     steps=test_steps_per_epoch,
                     max_q_size=queue

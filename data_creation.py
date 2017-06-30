@@ -1,10 +1,10 @@
 from __future__ import print_function
 import sys
-from operator import itemgetter
+from operator import itemgetter, add
 import numpy as np
 from nibabel import load as load_nii
 from data_manipulation.generate_features import get_mask_voxels, get_patches
-from itertools import izip, chain
+from itertools import izip, chain, product
 from scipy.ndimage.morphology import binary_dilation as imdilate
 from numpy import logical_and as log_and
 from numpy import logical_or as log_or
@@ -26,11 +26,11 @@ def subsample(center_list, sizes, random_state):
 def get_image_patches(image_list, centers, size, preload):
     patches = [get_patches(image, centers, size) for image in image_list] if preload\
         else [get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_list]
-    return patches
+    return np.stack(patches, axis=1)
 
 
-def get_stacked_patches(list_of_image_list, centers_list, size, preload):
-    patch_list = [np.stack(get_image_patches(image_list, centers, size, preload), axis=1)
+def get_patches_list(list_of_image_list, centers_list, size, preload):
+    patch_list = [get_image_patches(image_list, centers, size, preload)
                   for image_list, centers in izip(list_of_image_list, centers_list) if centers]
     return patch_list
 
@@ -74,7 +74,7 @@ def load_patch_batch_train(
             datatype=datatype,
             dfactor=dfactor,
             preload=preload,
-            split=split
+            split=split,
         )
         for x, y in gen:
             yield x, y
@@ -104,11 +104,9 @@ def load_patch_batch_generator_train(
     n_images = len(image_list)
     for i in range(0, n_centers, batch_size):
         centers, idx = centers_and_idx(batch_centers[i:i + batch_size], n_images)
-        x = get_stacked_patches(image_list, centers, size, preload)
+        x = get_patches_list(image_list, centers, size, preload)
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
-        if split:
-            x = np.split(x, [1, 2], axis=1)
         y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
         y = np.concatenate(y)
         y[idx] = y
@@ -133,13 +131,12 @@ def load_patch_batch_generator_train(
 
 
 def load_patch_batch_generator_test(
-            image_names,
-            centers,
-            batch_size,
-            size,
-            preload=False,
-            split=False,
-            datatype=np.float32,
+        image_names,
+        centers,
+        batch_size,
+        size,
+        preload=False,
+        datatype=np.float32,
 ):
     while True:
         n_centers = len(centers)
@@ -147,10 +144,8 @@ def load_patch_batch_generator_test(
         for i in range(0, n_centers, batch_size):
             print('%f%% tested (step %d)' % (100.0*i/n_centers, (i/batch_size)+1), end='\r')
             sys.stdout.flush()
-            x = get_stacked_patches([image_list], [centers[i:i + batch_size]], size, preload)
+            x = get_patches_list([image_list], [centers[i:i + batch_size]], size, preload)
             x = np.concatenate(x).astype(dtype=datatype)
-            if split:
-                x = np.split(x, [1, 2], axis=1)
             yield x
 
 
