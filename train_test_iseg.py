@@ -57,7 +57,7 @@ def get_names_from_path(options):
                 for p in patients] if options['use_t1'] else None
     t2_names = [os.path.join(path, 'subject-%d' % (p+1) + options['t2'])
                 for p in patients] if options['use_t2'] else None
-    label_names = np.array([os.path.join(path, 'subject-%d' % p + options['labels']) for p in patients])
+    label_names = np.array([os.path.join(path, 'subject-%d' % (p+1) + options['labels']) for p in patients])
     image_names = np.stack(filter(None, [t1_names, t2_names]), axis=1)
 
     return image_names, label_names
@@ -174,6 +174,7 @@ def main():
                                 )(t1)
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
+
                 # We only apply the RCNN to the multioutput approach (we keep the simple one, simple)
                 if recurrent:
                     t2 = Conv3D(
