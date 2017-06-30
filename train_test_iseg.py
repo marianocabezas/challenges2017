@@ -126,7 +126,6 @@ def main():
             train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
             print(train_centers)
             val_centers = get_cnn_centers(val_data[:, 0], val_labels, balanced=balanced)
-            print(val_centers)
             train_samples = len(train_centers)/dfactor
             val_samples = len(val_centers) / dfactor
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
