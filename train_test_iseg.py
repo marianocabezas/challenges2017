@@ -53,11 +53,9 @@ def get_names_from_path(options):
     patients = range(10)
 
     # Prepare the names
-    t1_names = [os.path.join(path, p, p.split('/')[-1] + options['t1'])
-                for p in patients] if options['use_t1'] else None
-    t2_names = [os.path.join(path, p, p.split('/')[-1] + options['t2'])
-                for p in patients] if options['use_t2'] else None
-    label_names = np.array([os.path.join(path, p, p.split('/')[-1] + options['labels']) for p in patients])
+    t1_names = [os.path.join(path, 'subject-%d' % p + options['t1']) for p in patients] if options['use_t1'] else None
+    t2_names = [os.path.join(path, 'subject-%d' % p + options['t2']) for p in patients] if options['use_t2'] else None
+    label_names = np.array([os.path.join(path, 'subject-%d' % p + options['labels']) for p in patients])
     image_names = np.stack(filter(None, [t1_names, t2_names]), axis=1)
 
     return image_names, label_names
