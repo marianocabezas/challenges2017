@@ -217,7 +217,7 @@ def main():
                 merged = concatenate([t2, t1, csf, gm, wm])
                 merged = Dropout(0.5)(merged)
 
-                brain = Dense(3, activation='softmax', name='brain')(merged)
+                brain = Dense(4, activation='softmax', name='brain')(merged)
 
                 net = Model(inputs=merged_inputs, outputs=[csf, gm, wm, brain])
 
