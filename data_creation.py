@@ -116,9 +116,12 @@ def load_patch_batch_generator_train(
         y[idx] = y
         if split:
             if iseg:
-                labels = np.unique(y.flatten())
-                y = [keras.utils.to_categorical(y == l, num_classes=2) for l in labels] +\
-                    [keras.utils.to_categorical(y, num_classes=labels.max())]
+                vals = np.unique(y.flatten())
+                y_cat = np.sum(
+                    map(lambda (lab, val): np.array(y == val, dtype=np.uint8)*lab, enumerate(vals)), axis=0
+                )
+                y = [keras.utils.to_categorical(y == l, num_classes=2) for l in vals[1:]] +\
+                    [keras.utils.to_categorical(y_cat, num_classes=len(vals))]
             else:
                 y = [
                     keras.utils.to_categorical(

@@ -305,6 +305,10 @@ def main():
                 image[x, y, z] = y_pred
 
                 gt_mask = load_nii(gt).get_data()
+                vals = np.unique(gt_mask.flatten())
+                gt_mask = np.sum(
+                    map(lambda (l, val): np.array(gt_mask == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
+                )
                 results = (
                     dsc_seg(gt_mask == 1, image == 1),
                     dsc_seg(gt_mask == 2, image == 2),
