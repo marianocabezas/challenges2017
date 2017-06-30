@@ -116,8 +116,9 @@ def load_patch_batch_generator_train(
         y[idx] = y
         if split:
             if iseg:
-                y = [keras.utils.to_categorical(y == (l+1), num_classes=2) for l in range(nlabels-1)] +\
-                    [keras.utils.to_categorical(y, num_classes=nlabels)]
+                labels = np.unique(y.flatten())
+                y = [keras.utils.to_categorical(y == l, num_classes=2) for l in labels] +\
+                    [keras.utils.to_categorical(y, num_classes=labels.max())]
             else:
                 y = [
                     keras.utils.to_categorical(
