@@ -163,6 +163,8 @@ def load_masks(mask_names):
 
 def get_cnn_centers(names, labels_names, balanced=True, neigh_width=15):
     rois = load_masks(names)
+    for roi in rois:
+        print(np.count_nonzero(roi))
     rois_p = list(load_masks(labels_names))
     rois_p_neigh = [log_and(imdilate(roi_p, iterations=neigh_width), log_not(roi_p))
                     for roi_p in rois_p]
