@@ -270,7 +270,7 @@ def main():
                 load_nii(outputname)
             except IOError:
                 roi_nii = load_nii(p[0])
-                roi = roi_nii.get_data().astype(dtype=np.bool)
+                roi = np.squeeze(roi_nii.get_data().astype(dtype=np.bool))
                 centers = get_mask_voxels(roi)
                 test_samples = np.count_nonzero(roi)
                 image = np.zeros_like(roi).astype(dtype=np.uint8)
