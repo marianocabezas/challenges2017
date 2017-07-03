@@ -116,7 +116,7 @@ def main():
               % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)) + c['nc'])
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
-        net_name = os.path.join(path, 'baseline-brats2017.fold%d' % i + sufix + 'mdl')
+        net_name = os.path.join(path, 'exp-brats2017.fold%d' % i + sufix + 'mdl')
 
         # First we check that we did not train for that patient, in order to save time
         try:
@@ -214,10 +214,10 @@ def main():
                 csf = Dense(2, activation='softmax', name='csf')(t1)
                 gm = Dense(2, activation='softmax', name='gm')(t2)
                 wm = Dense(2, activation='softmax', name='wm')(t2)
-
-                merged = concatenate([t2, t1, csf, gm, wm])
-                merged = Dropout(0.5)(merged)
                 brain_patch = Conv3D(4, kernel_size=(1, 1, 1), activation='softmax', name='brain_patch')(merged)
+
+                merged = concatenate([t2, t1, csf, gm, wm, brain, Flatten()(brain_patch)])
+                merged = Dropout(0.5)(merged)
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
                 net = Model(inputs=merged_inputs, outputs=[csf, gm, wm, brain_patch, brain])
