@@ -139,6 +139,7 @@ def load_patch_batch_generator_train(
                 )
                 y = [keras.utils.to_categorical(y == l, num_classes=2) for l in vals[1:]] + y_patch_cat +\
                     [keras.utils.to_categorical(y_cat, num_classes=labels)]
+                print(len(y))
             else:
                 y = [
                     keras.utils.to_categorical(
