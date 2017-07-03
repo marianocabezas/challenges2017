@@ -1,10 +1,10 @@
 from __future__ import print_function
 import sys
-from operator import itemgetter, add
+from operator import itemgetter
 import numpy as np
 from nibabel import load as load_nii
 from data_manipulation.generate_features import get_mask_voxels, get_patches
-from itertools import izip, chain, product
+from itertools import izip, chain
 from scipy.ndimage.morphology import binary_dilation as imdilate
 from numpy import logical_and as log_and
 from numpy import logical_or as log_or
@@ -116,12 +116,20 @@ def load_patch_batch_generator_train(
         y[idx] = y
         if split:
             if iseg:
+                y_patch = get_patches_list(labels_generator(label_names), centers, size, preload)
+                y_patch = np.concatenate(y_patch)
+                y_patch[idx] = y_patch
                 vals = [0, 10, 150, 250]
+                labels = len(vals)
                 y_cat = np.sum(
                     map(lambda (lab, val): np.array(y == val, dtype=np.uint8)*lab, enumerate(vals)), axis=0
                 )
+                y_patch_cat = np.sum(
+                    map(lambda (lab, val): np.array(y == val, dtype=np.uint8) * lab, enumerate(vals)), axis=0
+                )
                 y = [keras.utils.to_categorical(y == l, num_classes=2) for l in vals[1:]] +\
-                    [keras.utils.to_categorical(y_cat, num_classes=len(vals))]
+                    [np.reshape(keras.utils.to_categorical(y_patch_cat, num_classes=labels), y_patch.shape + (4,))] +\
+                    [keras.utils.to_categorical(y_cat, num_classes=labels)]
             else:
                 y = [
                     keras.utils.to_categorical(
