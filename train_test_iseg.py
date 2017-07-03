@@ -323,7 +323,7 @@ def main():
                     dsc_seg(gt_mask == 2, image == 2),
                     dsc_seg(gt_mask == 3, image == 3))
                 dsc_results.append(results)
-                print('DSC: %f/%f/%f', results)
+                print('DSC: %f/%f/%f' % results)
 
     f_dsc = tuple(np.array(dsc_results).mean())
     print('Final results DSC: %f/%f/%f' % f_dsc)
