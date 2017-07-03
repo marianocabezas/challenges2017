@@ -118,7 +118,8 @@ def main():
               % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)) + c['nc'])
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
-        net_name = os.path.join(path, 'exp-brats2017.fold%d' % i + sufix + 'mdl')
+        method_name = 'exp-' if experimental else 'baseline-'
+        net_name = os.path.join(path, method_name + 'brats2017.fold%d' % i + sufix + 'mdl')
 
         # First we check that we did not train for that patient, in order to save time
         try:
@@ -228,7 +229,9 @@ def main():
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
-                net = Model(inputs=merged_inputs, outputs=[csf, gm, wm, brain_patch, brain])
+                outputs = [csf, gm, wm, brain] if not experimental else [csf, gm, wm, brain_patch, brain]
+
+                net = Model(inputs=merged_inputs, outputs=outputs)
 
             net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
@@ -274,7 +277,7 @@ def main():
         for p, gt in zip(test_data, test_labels):
             p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
-            outputname = os.path.join(patient_path, 'deep-' + p_name + 'brain.roi.hdr')
+            outputname = os.path.join(patient_path, method_name + p_name + 'brain.roi.hdr')
             gt_nii = load_nii(gt)
             gt = np.copy(np.squeeze(gt_nii.get_data()))
             try:
