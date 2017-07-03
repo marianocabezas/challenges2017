@@ -212,6 +212,7 @@ def main():
                             4,
                             kernel_size=(1, 1, 1),
                             activation='softmax',
+                            data_format='channels_first',
                             name='brain_patch'
                         )(concatenate([t2, t1], axis=1))
                         brain_patch_f = Flatten()(Dropout(0.5)(brain_patch))
