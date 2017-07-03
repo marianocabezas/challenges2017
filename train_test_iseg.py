@@ -207,19 +207,19 @@ def main():
                     t1 = lstm_instance(Permute((2, 1))(Reshape((dense_size, -1))(t1)))
 
                 else:
+                    if experimental:
+                        brain_patch = Conv3D(
+                            4,
+                            kernel_size=(1, 1, 1),
+                            activation='softmax',
+                            name='brain_patch'
+                        )(concatenate([t2, t1]), axis=1)
                     t2 = Flatten()(t2)
                     t1 = Flatten()(t1)
                     t2 = Dense(dense_size, activation='relu')(t2)
                     t2 = Dropout(0.5)(t2)
                     t1 = Dense(dense_size, activation='relu')(t1)
                     t1 = Dropout(0.5)(t1)
-                if experimental:
-                    brain_patch = Conv3D(
-                        4,
-                        kernel_size=(1, 1, 1),
-                        activation='softmax',
-                        name='brain_patch'
-                    )(concatenate([t2, t1]), axis=1)
                 csf = Dense(2, activation='softmax', name='csf')(t1)
                 gm = Dense(2, activation='softmax', name='gm')(t2)
                 wm = Dense(2, activation='softmax', name='wm')(t2)

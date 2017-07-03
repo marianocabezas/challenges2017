@@ -122,13 +122,16 @@ def load_patch_batch_generator_train(
                 vals = [0, 10, 150, 250]
                 labels = len(vals)
                 if experimental:
-                    y_patch = get_patches_list(labels_generator(label_names), centers, size, preload)
+                    y_patch = get_patches_list(labels_generator(label_names), centers, (7, 7, 7), preload)
                     y_patch = np.concatenate(y_patch)
                     y_patch[idx] = y_patch
                     y_patch_cat = np.sum(
                         map(lambda (lab, val): np.array(y == val, dtype=np.uint8) * lab, enumerate(vals)), axis=0
                     )
-                    y_patch_cat = [np.reshape(keras.utils.to_categorical(y_patch_cat, num_classes=labels), y_patch.shape + (4,))]
+                    y_patch_cat = [np.reshape(
+                        keras.utils.to_categorical(y_patch_cat, num_classes=labels),
+                        y_patch.shape + (4,)
+                    )]
                 else:
                     y_patch_cat = []
                 y_cat = np.sum(
