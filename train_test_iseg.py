@@ -193,9 +193,9 @@ def main():
                     t2_e = Dropout(0.5)(t2_e)
                     t1_e = Dropout(0.5)(t1_e)
                     brain_patch_in = Flatten()(concatenate([t2_e, t1_e], axis=1))
-                    brain_patch_f = Dense(108, activation='softmax', name='brain_patch')(brain_patch_in)
+                    brain_patch_f = Dense(108, activation='softmax')(brain_patch_in)
                     brain_patch_f = [Dropout(0.5)(brain_patch_f)]
-                    brain_patch = [Reshape((4, 3, 3, 3))(brain_patch_f[0])]
+                    brain_patch = [Reshape((4, 3, 3, 3), name='brain_patch')(brain_patch_f[0])]
                 else:
                     brain_patch = []
                     brain_patch_f = []
