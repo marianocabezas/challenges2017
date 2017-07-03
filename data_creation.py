@@ -129,6 +129,7 @@ def load_patch_batch_generator_train(
                     ) for c, im in zip(centers, labels_generator(label_names)) if c]
                     y_patch = np.concatenate(y_patch)
                     y_patch[idx] = y_patch
+                    print(y_patch.shape)
                     y_patch_cat = np.sum(
                         map(lambda (lab, val): np.array(y == val, dtype=np.uint8) * lab, enumerate(vals)), axis=0
                     )
