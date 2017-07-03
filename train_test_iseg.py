@@ -208,14 +208,12 @@ def main():
 
                 else:
                     if experimental:
-                        brain_patch = Conv3D(
-                            4,
-                            kernel_size=(1, 1, 1),
-                            activation='softmax',
-                            data_format='channels_first',
-                            name='brain_patch'
-                        )(concatenate([t2, t1], axis=1))
-                        brain_patch_f = Flatten()(Dropout(0.5)(brain_patch))
+                        brain_patch_f = Dense(1372, activation='softmax', name='brain')(concatenate([t2, t1], axis=1))
+                        brain_patch_f = Dropout(0.5)(brain_patch_f)
+                        brain_patch = Reshape(size=(4, 7, 7, 7))(brain_patch)
+                    else:
+                        brain_patch = []
+                        brain_patch_f = []
                     t2 = Flatten()(t2)
                     t1 = Flatten()(t1)
                     t2 = Dense(dense_size, activation='relu')(t2)
@@ -226,13 +224,12 @@ def main():
                 gm = Dense(2, activation='softmax', name='gm')(t2)
                 wm = Dense(2, activation='softmax', name='wm')(t2)
 
-                merged = concatenate([t2, t1, csf, gm, wm, brain_patch_f]) if experimental else\
-                    concatenate([t2, t1, csf, gm, wm])
+                merged = concatenate([t2, t1, csf, gm, wm] + brain_patch_f)
                 merged = Dropout(0.5)(merged)
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
-                outputs = [csf, gm, wm, brain] if not experimental else [csf, gm, wm, brain_patch, brain]
+                outputs = [csf, gm, wm] + brain_patch + [brain]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
