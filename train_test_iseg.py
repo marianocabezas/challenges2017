@@ -267,8 +267,8 @@ def main():
             p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, 'deep-' + p_name + '-brain.roi.hdr')
-            roi_nii = load_nii(gt)
-            roi = np.squeeze(roi_nii.get_data())
+            gt_nii = load_nii(gt)
+            gt = np.copy(np.squeeze(gt_nii.get_data()))
             try:
                 image = np.squeeze(load_nii(outputname).get_data())
             except IOError:
@@ -293,11 +293,11 @@ def main():
                 [x, y, z] = np.stack(centers, axis=1)
 
                 if not sequential:
-                    roi = np.zeros_like(roi).astype(dtype=np.uint8)
+                    roi = np.zeros_like(gt).astype(dtype=np.uint8)
                     for num, results in enumerate(y_pr_pred):
                         brain = np.argmax(results, axis=1)
                         roi[x, y, z] = brain
-                        roi_nii.get_data()[:] = np.expand_dims(roi, axis=3)
+                        gt_nii.get_data()[:] = np.expand_dims(roi, axis=3)
                         if num is 0:
                             im = sufix + '-csf.'
                         elif num is 1:
@@ -308,7 +308,7 @@ def main():
                             im = sufix + '-brain.'
                         roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
                         print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
-                        save_nii(roi_nii, roiname)
+                        save_nii(gt_nii, roiname)
 
                 y_pred = np.argmax(y_pr_pred[-1], axis=1)
 
@@ -316,7 +316,7 @@ def main():
 
             vals = np.unique(roi.flatten())
             gt_mask = np.sum(
-                map(lambda (l, val): np.array(roi == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
+                map(lambda (l, val): np.array(gt == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
             )
             results = (
                 dsc_seg(gt_mask == 1, image == 1),
