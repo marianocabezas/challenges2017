@@ -266,7 +266,7 @@ def main():
         for p, gt in zip(test_data, test_labels):
             p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
-            outputname = os.path.join(patient_path, 'deep-' + p_name + '-brain.roi.hdr')
+            outputname = os.path.join(patient_path, 'deep-' + p_name + 'brain.roi.hdr')
             gt_nii = load_nii(gt)
             gt = np.copy(np.squeeze(gt_nii.get_data()))
             try:
@@ -299,13 +299,13 @@ def main():
                         image[x, y, z] = brain
                         gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
                         if num is 0:
-                            im = sufix + '-csf.'
+                            im = sufix + 'csf.'
                         elif num is 1:
-                            im = sufix + '-gm.'
+                            im = sufix + 'gm.'
                         elif num is 2:
-                            im = sufix + '-wm.'
+                            im = sufix + 'wm.'
                         else:
-                            im = sufix + '-brain.'
+                            im = sufix + 'brain.'
                         roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
                         print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
                         save_nii(gt_nii, roiname)
