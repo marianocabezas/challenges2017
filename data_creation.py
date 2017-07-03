@@ -122,7 +122,12 @@ def load_patch_batch_generator_train(
                 vals = [0, 10, 150, 250]
                 labels = len(vals)
                 if experimental:
-                    y_patch = get_patches_list(labels_generator(label_names), centers, (7, 7, 7), preload)
+                    y_patch = get_patches_list(
+                        np.squeeze(labels_generator(label_names)),
+                        centers,
+                        (7, 7, 7),
+                        preload
+                    )
                     y_patch = np.concatenate(y_patch)
                     y_patch[idx] = y_patch
                     y_patch_cat = np.sum(
