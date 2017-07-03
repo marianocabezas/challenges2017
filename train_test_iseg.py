@@ -214,6 +214,9 @@ def main():
                             activation='softmax',
                             name='brain_patch'
                         )(concatenate([t2, t1], axis=1))
+                        brain_patch = [Flatten()(Dropout(0.5)(brain_patch))]
+                    else:
+                        brain_patch = []
                     t2 = Flatten()(t2)
                     t1 = Flatten()(t1)
                     t2 = Dense(dense_size, activation='relu')(t2)
@@ -224,8 +227,7 @@ def main():
                 gm = Dense(2, activation='softmax', name='gm')(t2)
                 wm = Dense(2, activation='softmax', name='wm')(t2)
 
-                merged = concatenate([t2, t1, csf, gm, wm, Flatten()(brain_patch)]) if experimental else\
-                    concatenate([t2, t1, csf, gm, wm])
+                merged = concatenate([t2, t1, csf, gm, wm] + brain_patch)
                 merged = Dropout(0.5)(merged)
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
