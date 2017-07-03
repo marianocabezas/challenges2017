@@ -194,7 +194,7 @@ def main():
                     t1 = Dropout(0.5)(t1)
                     brain_patch_in = concatenate([t2, t1], axis=1)
                     brain_patch_f = Dense(108, activation='softmax', name='brain')(brain_patch_in)
-                    brain_patch_f = [Dropout(0.5)(brain_patch_f)]
+                    brain_patch_f = [Flatten()(Dropout(0.5)(brain_patch_f))]
                     brain_patch = brain_patch_f
                 else:
                     brain_patch = []
