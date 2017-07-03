@@ -272,9 +272,10 @@ def main():
             try:
                 image = np.squeeze(load_nii(outputname).get_data())
             except IOError:
+                roi = np.squeeze(load_nii(p[0]).get_data())
                 centers = get_mask_voxels(roi.astype(dtype=np.bool))
                 test_samples = np.count_nonzero(roi)
-                image = np.zeros_like(roi)
+                image = np.zeros_like(roi).astype(dtype=np.uint8)
                 print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
                       '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] +
                       ' (%d samples)>' % test_samples + c['nc'])
@@ -293,11 +294,10 @@ def main():
                 [x, y, z] = np.stack(centers, axis=1)
 
                 if not sequential:
-                    roi = np.zeros_like(gt).astype(dtype=np.uint8)
                     for num, results in enumerate(y_pr_pred):
                         brain = np.argmax(results, axis=1)
-                        roi[x, y, z] = brain
-                        gt_nii.get_data()[:] = np.expand_dims(roi, axis=3)
+                        image[x, y, z] = brain
+                        gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
                         if num is 0:
                             im = sufix + '-csf.'
                         elif num is 1:
@@ -314,7 +314,7 @@ def main():
 
                 image[x, y, z] = y_pred
 
-            vals = np.unique(roi.flatten())
+            vals = np.unique(gt.flatten())
             gt_mask = np.sum(
                 map(lambda (l, val): np.array(gt == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
             )
