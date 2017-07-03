@@ -214,10 +214,17 @@ def main():
                 csf = Dense(2, activation='softmax', name='csf')(t1)
                 gm = Dense(2, activation='softmax', name='gm')(t2)
                 wm = Dense(2, activation='softmax', name='wm')(t2)
-                brain_patch = Conv3D(4, kernel_size=(1, 1, 1), activation='softmax', name='brain_patch')(merged)
 
-                merged = concatenate([t2, t1, csf, gm, wm, brain, Flatten()(brain_patch)])
+                brain_patch = Conv3D(
+                    4,
+                    kernel_size=(1, 1, 1),
+                    activation='softmax',
+                    name='brain_patch'
+                )(concatenate([t2, t1, csf, gm, wm]))
+
+                merged = concatenate([t2, t1, csf, gm, wm, Flatten()(brain_patch)])
                 merged = Dropout(0.5)(merged)
+
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
                 net = Model(inputs=merged_inputs, outputs=[csf, gm, wm, brain_patch, brain])
