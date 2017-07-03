@@ -305,14 +305,14 @@ def main():
                             im = sufix + 'wm.'
                         else:
                             im = sufix + 'brain.'
-                        roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.nii.gz')
+                        roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.hdr')
                         roi_nii.to_filename(roiname)
 
                 y_pred = np.argmax(y_pr_pred[-1], axis=1)
 
                 image[x, y, z] = y_pred
 
-                gt_mask = load_nii(gt).get_data()
+                gt_mask = np.squeeze(load_nii(gt).get_data())
                 vals = np.unique(gt_mask.flatten())
                 gt_mask = np.sum(
                     map(lambda (l, val): np.array(gt_mask == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
