@@ -265,7 +265,7 @@ def main():
         for p, gt in zip(test_data, test_labels):
             p_name = ''.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
-            outputname = os.path.join(patient_path, 'deep-brats17' + sufix + 'test.nii.gz')
+            outputname = os.path.join(patient_path, 'deep-' + p_name + 'brain.roi.hdr')
             try:
                 load_nii(outputname)
             except IOError:
@@ -305,6 +305,7 @@ def main():
                             im = sufix + 'wm.'
                         else:
                             im = sufix + 'brain.'
+                        print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
                         roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.hdr')
                         roi_nii.to_filename(roiname)
 
@@ -324,9 +325,6 @@ def main():
                 dsc_results.append(results)
                 print('DSC: %f/%f/%f', results)
 
-                print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
-                roi_nii.get_data()[:] = image
-                roi_nii.to_filename(outputname)
     f_dsc = tuple(np.array(dsc_results).mean())
     print('Final results DSC: %f/%f/%f' % f_dsc)
 
