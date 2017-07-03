@@ -107,7 +107,7 @@ def main():
     )
 
     exp_s = c['b'] + '(experimental)' if experimental else c['b'] + '(baseline)'
-    print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting cross-validation' + exp_s + c['nc'])
+    print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting cross-validation ' + exp_s + c['nc'])
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
     data_names, label_names = get_names_from_path(options)
     folds = len(data_names)
