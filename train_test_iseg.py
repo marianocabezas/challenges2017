@@ -253,6 +253,7 @@ def main():
                     preload=preload,
                     split=not sequential,
                     iseg=True,
+                    experimental=experimental,
                     datatype=np.float32
                 ),
                 validation_data=load_patch_batch_train(
@@ -266,6 +267,7 @@ def main():
                     preload=preload,
                     split=not sequential,
                     iseg=True,
+                    experimental=experimental,
                     datatype=np.float32
                 ),
                 steps_per_epoch=train_steps_per_epoch,
