@@ -5,7 +5,7 @@ from time import strftime
 import numpy as np
 import keras
 from keras.models import Sequential, Model
-from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda, Permute
+from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
 from nibabel import load as load_nii
 from nibabel import save as save_nii
 from utils import color_codes, nfold_cross_validation
@@ -193,7 +193,6 @@ def main():
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
                     brain_patch_f = Dense(108, activation='softmax', name='brain')(concatenate([t2, t1], axis=1))
-                    brain_patch_f = Dropout(0.5)(brain_patch_f)
                     brain_patch = Reshape((4, 3, 3, 3))(brain_patch_f)
                 else:
                     brain_patch = []
