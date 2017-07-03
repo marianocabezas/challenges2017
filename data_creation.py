@@ -132,10 +132,10 @@ def load_patch_batch_generator_train(
                     y_patch_cat = np.sum(
                         map(lambda (lab, val): np.array(y_patch == val, dtype=np.uint8) * lab, enumerate(vals)), axis=0
                     )
-                    y_patch_cat = [np.reshape(
+                    y_patch_cat = [np.rollaxis(np.reshape(
                         keras.utils.to_categorical(y_patch_cat, num_classes=labels),
                         y_patch.shape + (4,)
-                    )]
+                    ), 4, 1)]
                 else:
                     y_patch_cat = []
                 y_cat = np.sum(
