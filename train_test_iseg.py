@@ -6,7 +6,6 @@ import numpy as np
 import keras
 from keras.models import Sequential, Model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda, Permute
-from keras.layers.recurrent import LSTM
 from nibabel import load as load_nii
 from nibabel import save as save_nii
 from utils import color_codes, nfold_cross_validation
