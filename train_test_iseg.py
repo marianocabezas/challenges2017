@@ -34,7 +34,6 @@ def parse_inputs():
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=100)
     parser.add_argument('-u', '--unbalanced', action='store_false', dest='balanced', default=True)
     parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
-    parser.add_argument('-r', '--recurrent', action='store_true', dest='recurrent', default=False)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
@@ -87,7 +86,6 @@ def main():
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     balanced = options['balanced']
-    recurrent = options['recurrent']
     experimental = options['experimental']
     # Data loading parameters
     preload = options['preload']
@@ -182,44 +180,31 @@ def main():
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
 
-                # We only apply the RCNN to the multioutput approach (we keep the simple one, simple)
-                if recurrent:
-                    t2 = Conv3D(
-                        dense_size,
-                        kernel_size=(1, 1, 1),
-                        activation='relu',
-                        data_format='channels_first',
-                        name='fcn_t2'
-                    )(t2)
-                    t2 = Dropout(0.5)(t2)
-                    t1 = Conv3D(
-                        dense_size,
-                        kernel_size=(1, 1, 1),
-                        activation='relu',
-                        data_format='channels_first',
-                        name='fcn_t1'
-                    )(t1)
-                    t1 = Dropout(0.5)(t1)
+                if experimental:
+                    t2 = Conv3D(filters,
+                                kernel_size=(5, 5, 5),
+                                activation='relu',
+                                data_format='channels_first'
+                                )(t2)
+                    t1 = Conv3D(filters,
+                                kernel_size=(5, 5, 5),
+                                activation='relu',
+                                data_format='channels_first'
+                                )(t1)
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
-                    lstm_instance = LSTM(dense_size, implementation=1, name='rf_layer')
-                    t2 = lstm_instance(Permute((2, 1))(Reshape((dense_size, -1))(t2)))
-                    t1 = lstm_instance(Permute((2, 1))(Reshape((dense_size, -1))(t1)))
-
+                    brain_patch_f = Dense(108, activation='softmax', name='brain')(concatenate([t2, t1], axis=1))
+                    brain_patch_f = Dropout(0.5)(brain_patch_f)
+                    brain_patch = Reshape((4, 3, 3, 3))(brain_patch)
                 else:
-                    if experimental:
-                        brain_patch_f = Dense(1372, activation='softmax', name='brain')(concatenate([t2, t1], axis=1))
-                        brain_patch_f = Dropout(0.5)(brain_patch_f)
-                        brain_patch = Reshape(size=(4, 7, 7, 7))(brain_patch)
-                    else:
-                        brain_patch = []
-                        brain_patch_f = []
-                    t2 = Flatten()(t2)
-                    t1 = Flatten()(t1)
-                    t2 = Dense(dense_size, activation='relu')(t2)
-                    t2 = Dropout(0.5)(t2)
-                    t1 = Dense(dense_size, activation='relu')(t1)
-                    t1 = Dropout(0.5)(t1)
+                    brain_patch = []
+                    brain_patch_f = []
+                t2 = Flatten()(t2)
+                t1 = Flatten()(t1)
+                t2 = Dense(dense_size, activation='relu')(t2)
+                t2 = Dropout(0.5)(t2)
+                t1 = Dense(dense_size, activation='relu')(t1)
+                t1 = Dropout(0.5)(t1)
                 csf = Dense(2, activation='softmax', name='csf')(t1)
                 gm = Dense(2, activation='softmax', name='gm')(t2)
                 wm = Dense(2, activation='softmax', name='wm')(t2)
