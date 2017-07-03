@@ -219,7 +219,7 @@ def main():
                         kernel_size=(1, 1, 1),
                         activation='softmax',
                         name='brain_patch'
-                    )(concatenate([t2, t1]))
+                    )(concatenate([t2, t1]), axis=1)
                 csf = Dense(2, activation='softmax', name='csf')(t1)
                 gm = Dense(2, activation='softmax', name='gm')(t2)
                 wm = Dense(2, activation='softmax', name='wm')(t2)
