@@ -8,7 +8,8 @@ from keras.models import Sequential, Model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda, Permute
 from keras.layers.recurrent import LSTM
 from nibabel import load as load_nii
-from utils import color_codes, nfold_cross_validation, get_biggest_region
+from nibabel import save as save_nii
+from utils import color_codes, nfold_cross_validation
 from itertools import izip
 from data_creation import load_patch_batch_train, get_cnn_centers
 from data_creation import load_patch_batch_generator_test
@@ -266,14 +267,14 @@ def main():
             p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, 'deep-' + p_name + '-brain.roi.hdr')
+            roi_nii = load_nii(gt)
+            roi = np.squeeze(roi_nii.get_data())
             try:
-                load_nii(outputname)
+                image = np.squeeze(load_nii(outputname).get_data())
             except IOError:
-                roi_nii = load_nii(p[0])
-                roi = np.squeeze(roi_nii.get_data().astype(dtype=np.bool))
-                centers = get_mask_voxels(roi)
+                centers = get_mask_voxels(roi.astype(dtype=np.bool))
                 test_samples = np.count_nonzero(roi)
-                image = np.zeros_like(roi).astype(dtype=np.uint8)
+                image = np.zeros_like(roi)
                 print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
                       '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] +
                       ' (%d samples)>' % test_samples + c['nc'])
@@ -305,25 +306,24 @@ def main():
                             im = sufix + '-wm.'
                         else:
                             im = sufix + '-brain.'
-                        roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.hdr')
+                        roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
                         print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
-                        roi_nii.to_filename(roiname)
+                        save_nii(roi_nii, roiname)
 
                 y_pred = np.argmax(y_pr_pred[-1], axis=1)
 
                 image[x, y, z] = y_pred
 
-                gt_mask = np.squeeze(load_nii(gt).get_data())
-                vals = np.unique(gt_mask.flatten())
-                gt_mask = np.sum(
-                    map(lambda (l, val): np.array(gt_mask == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
-                )
-                results = (
-                    dsc_seg(gt_mask == 1, image == 1),
-                    dsc_seg(gt_mask == 2, image == 2),
-                    dsc_seg(gt_mask == 3, image == 3))
-                dsc_results.append(results)
-                print('DSC: %f/%f/%f' % results)
+            vals = np.unique(roi.flatten())
+            gt_mask = np.sum(
+                map(lambda (l, val): np.array(roi == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
+            )
+            results = (
+                dsc_seg(gt_mask == 1, image == 1),
+                dsc_seg(gt_mask == 2, image == 2),
+                dsc_seg(gt_mask == 3, image == 3))
+            dsc_results.append(results)
+            print('DSC: %f/%f/%f' % results)
 
     f_dsc = tuple(np.array(dsc_results).mean())
     print('Final results DSC: %f/%f/%f' % f_dsc)
