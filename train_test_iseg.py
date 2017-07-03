@@ -263,9 +263,9 @@ def main():
 
         # Then we test the net.
         for p, gt in zip(test_data, test_labels):
-            p_name = ''.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
+            p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
-            outputname = os.path.join(patient_path, 'deep-' + p_name + 'brain.roi.hdr')
+            outputname = os.path.join(patient_path, 'deep-' + p_name + '-brain.roi.hdr')
             try:
                 load_nii(outputname)
             except IOError:
@@ -298,15 +298,15 @@ def main():
                         roi[x, y, z] = brain
                         roi_nii.get_data()[:] = np.expand_dims(roi, axis=3)
                         if num is 0:
-                            im = sufix + 'csf.'
+                            im = sufix + '-csf.'
                         elif num is 1:
-                            im = sufix + 'gm.'
+                            im = sufix + '-gm.'
                         elif num is 2:
-                            im = sufix + 'wm.'
+                            im = sufix + '-wm.'
                         else:
-                            im = sufix + 'brain.'
-                        print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
+                            im = sufix + '-brain.'
                         roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.hdr')
+                        print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
                         roi_nii.to_filename(roiname)
 
                 y_pred = np.argmax(y_pr_pred[-1], axis=1)
