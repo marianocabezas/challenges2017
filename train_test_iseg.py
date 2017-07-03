@@ -263,7 +263,7 @@ def main():
 
         # Then we test the net.
         for p, gt in zip(test_data, test_labels):
-            p_name = p[0].rsplit('/')[-2]
+            p_name = ''.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, 'deep-brats17' + sufix + 'test.nii.gz')
             try:
@@ -292,15 +292,23 @@ def main():
                 [x, y, z] = np.stack(centers, axis=1)
 
                 if not sequential:
-                    tumor = np.argmax(y_pr_pred[0], axis=1)
-                    y_pr_pred = y_pr_pred[-1]
                     roi = np.zeros_like(roi).astype(dtype=np.uint8)
-                    roi[x, y, z] = tumor
-                    roi_nii.get_data()[:] = roi
-                    roiname = os.path.join(patient_path, 'deep-brats17' + sufix + 'test.roi.nii.gz')
-                    roi_nii.to_filename(roiname)
+                    for num, results in enumerate(y_pr_pred):
+                        brain = np.argmax(results, axis=1)
+                        roi[x, y, z] = brain
+                        roi_nii.get_data()[:] = np.expand_dims(roi, axis=3)
+                        if num is 0:
+                            im = sufix + 'csf.'
+                        elif num is 1:
+                            im = sufix + 'gm.'
+                        elif num is 2:
+                            im = sufix + 'wm.'
+                        else:
+                            im = sufix + 'brain.'
+                        roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.nii.gz')
+                        roi_nii.to_filename(roiname)
 
-                y_pred = np.argmax(y_pr_pred, axis=1)
+                y_pred = np.argmax(y_pr_pred[-1], axis=1)
 
                 image[x, y, z] = y_pred
 
