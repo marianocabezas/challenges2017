@@ -213,7 +213,7 @@ def main():
                             kernel_size=(1, 1, 1),
                             activation='softmax',
                             name='brain_patch'
-                        )(concatenate([t2, t1]), axis=1)
+                        )(concatenate([t2, t1], axis=1))
                     t2 = Flatten()(t2)
                     t1 = Flatten()(t1)
                     t2 = Dense(dense_size, activation='relu')(t2)
