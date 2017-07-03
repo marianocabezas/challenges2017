@@ -319,11 +319,13 @@ def main():
                 map(lambda (l, val): np.array(gt == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
             )
             results = (
+                p_name,
                 dsc_seg(gt_mask == 1, image == 1),
                 dsc_seg(gt_mask == 2, image == 2),
-                dsc_seg(gt_mask == 3, image == 3))
+                dsc_seg(gt_mask == 3, image == 3)
+            )
             dsc_results.append(results)
-            print('DSC: %f/%f/%f' % results)
+            print('Subject %s DSC: %f/%f/%f' % results)
 
     f_dsc = tuple(np.array(dsc_results).mean())
     print('Final results DSC: %f/%f/%f' % f_dsc)
