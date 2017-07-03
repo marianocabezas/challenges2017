@@ -180,19 +180,19 @@ def main():
                     t1 = Dropout(0.5)(t1)
 
                 if experimental:
-                    t2 = Conv3D(filters,
-                                kernel_size=(5, 5, 5),
-                                activation='relu',
-                                data_format='channels_first'
-                                )(t2)
-                    t1 = Conv3D(filters,
-                                kernel_size=(5, 5, 5),
-                                activation='relu',
-                                data_format='channels_first'
-                                )(t1)
-                    t2 = Dropout(0.5)(t2)
-                    t1 = Dropout(0.5)(t1)
-                    brain_patch_in = Flatten()(concatenate([t2, t1], axis=1))
+                    t2_e = Conv3D(filters,
+                                  kernel_size=(5, 5, 5),
+                                  activation='relu',
+                                  data_format='channels_first'
+                                  )(t2)
+                    t1_e = Conv3D(filters,
+                                  kernel_size=(5, 5, 5),
+                                  activation='relu',
+                                  data_format='channels_first'
+                                  )(t1)
+                    t2_e = Dropout(0.5)(t2_e)
+                    t1_e = Dropout(0.5)(t1_e)
+                    brain_patch_in = Flatten()(concatenate([t2_e, t1_e], axis=1))
                     brain_patch_f = Dense(108, activation='softmax', name='brain_patch')(brain_patch_in)
                     brain_patch_f = [Dropout(0.5)(brain_patch_f)]
                     brain_patch = [Reshape((4, 3, 3, 3))(brain_patch_f[0])]
