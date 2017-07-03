@@ -61,7 +61,8 @@ def load_patch_batch_train(
         datatype=np.float32,
         preload=False,
         split=False,
-        iseg=False
+        iseg=False,
+        experimental=False
 ):
     image_list = [[norm(load_nii(image_name).get_data()) for image_name in patient]
                   for patient in image_names] if preload else image_names
@@ -77,7 +78,8 @@ def load_patch_batch_train(
             dfactor=dfactor,
             preload=preload,
             split=split,
-            iseg=iseg
+            iseg=iseg,
+            experimental=experimental
         )
         for x, y in gen:
             yield x, y
@@ -94,6 +96,7 @@ def load_patch_batch_generator_train(
         preload=False,
         split=False,
         iseg=False,
+        experimental=False,
         datatype=np.float32
 ):
     # The following line is important to understand the goal of the down scaling factor.
@@ -116,19 +119,22 @@ def load_patch_batch_generator_train(
         y[idx] = y
         if split:
             if iseg:
-                y_patch = get_patches_list(labels_generator(label_names), centers, size, preload)
-                y_patch = np.concatenate(y_patch)
-                y_patch[idx] = y_patch
                 vals = [0, 10, 150, 250]
                 labels = len(vals)
+                if experimental:
+                    y_patch = get_patches_list(labels_generator(label_names), centers, size, preload)
+                    y_patch = np.concatenate(y_patch)
+                    y_patch[idx] = y_patch
+                    y_patch_cat = np.sum(
+                        map(lambda (lab, val): np.array(y == val, dtype=np.uint8) * lab, enumerate(vals)), axis=0
+                    )
+                    y_patch_cat = [np.reshape(keras.utils.to_categorical(y_patch_cat, num_classes=labels), y_patch.shape + (4,))]
+                else:
+                    y_patch_cat = []
                 y_cat = np.sum(
                     map(lambda (lab, val): np.array(y == val, dtype=np.uint8)*lab, enumerate(vals)), axis=0
                 )
-                y_patch_cat = np.sum(
-                    map(lambda (lab, val): np.array(y == val, dtype=np.uint8) * lab, enumerate(vals)), axis=0
-                )
-                y = [keras.utils.to_categorical(y == l, num_classes=2) for l in vals[1:]] +\
-                    [np.reshape(keras.utils.to_categorical(y_patch_cat, num_classes=labels), y_patch.shape + (4,))] +\
+                y = [keras.utils.to_categorical(y == l, num_classes=2) for l in vals[1:]] + y_patch_cat +\
                     [keras.utils.to_categorical(y_cat, num_classes=labels)]
             else:
                 y = [

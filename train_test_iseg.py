@@ -30,6 +30,7 @@ def parse_inputs():
     parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=1)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
+    parser.add_argument('-E', '--experimental', action='store_true', dest='experimental', default=False)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=100)
     parser.add_argument('-u', '--unbalanced', action='store_false', dest='balanced', default=True)
     parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
@@ -87,6 +88,7 @@ def main():
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     balanced = options['balanced']
     recurrent = options['recurrent']
+    experimental = options['experimental']
     # Data loading parameters
     preload = options['preload']
     queue = options['queue']
@@ -188,7 +190,6 @@ def main():
                         name='fcn_t2'
                     )(t2)
                     t2 = Dropout(0.5)(t2)
-                    t1 = concatenate([t2, t1], axis=1)
                     t1 = Conv3D(
                         dense_size,
                         kernel_size=(1, 1, 1),
@@ -210,19 +211,19 @@ def main():
                     t2 = Dropout(0.5)(t2)
                     t1 = Dense(dense_size, activation='relu')(t1)
                     t1 = Dropout(0.5)(t1)
-
+                if experimental:
+                    brain_patch = Conv3D(
+                        4,
+                        kernel_size=(1, 1, 1),
+                        activation='softmax',
+                        name='brain_patch'
+                    )(concatenate([t2, t1]))
                 csf = Dense(2, activation='softmax', name='csf')(t1)
                 gm = Dense(2, activation='softmax', name='gm')(t2)
                 wm = Dense(2, activation='softmax', name='wm')(t2)
 
-                brain_patch = Conv3D(
-                    4,
-                    kernel_size=(1, 1, 1),
-                    activation='softmax',
-                    name='brain_patch'
-                )(concatenate([t2, t1, csf, gm, wm]))
-
-                merged = concatenate([t2, t1, csf, gm, wm, Flatten()(brain_patch)])
+                merged = concatenate([t2, t1, csf, gm, wm, Flatten()(brain_patch)]) if experimental else\
+                    concatenate([t2, t1, csf, gm, wm])
                 merged = Dropout(0.5)(merged)
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
