@@ -209,8 +209,8 @@ def main():
                 gm = Dense(2, activation='softmax', name='gm')(t2)
                 wm = Dense(2, activation='softmax', name='wm')(t2)
 
-                merged = concatenate([t2, t1, csf, gm, wm] + brain_patch_f)
-                merged = Dropout(0.5)(merged)
+                merged = concatenate([t2, t1])#, csf, gm, wm] + brain_patch_f)
+                #merged = Dropout(0.5)(merged)
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
