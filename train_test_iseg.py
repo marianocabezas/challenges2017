@@ -201,8 +201,10 @@ def main():
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
-                outputs = outputs + [Average(name='merge')([brain, patch_center])] if experimental\
-                    else outputs + [brain]
+                if experimental:
+                    outputs = outputs + [brain, patch_center, Average(name='merge')([brain, patch_center])]
+                else:
+                    outputs = outputs + [brain]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 

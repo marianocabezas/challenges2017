@@ -125,7 +125,8 @@ def load_patch_batch_generator_train(
                 y_cat = np.sum(
                     map(lambda (lab, val): np.array(y == val, dtype=np.uint8)*lab, enumerate(vals)), axis=0
                 )
-                y = y_labels + [keras.utils.to_categorical(y_cat, num_classes=labels)]
+                y_cat = [keras.utils.to_categorical(y_cat, num_classes=labels)]
+                y = y_labels + y_cat if not experimental else y_labels + y_cat*3
             else:
                 y = [
                     keras.utils.to_categorical(
