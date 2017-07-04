@@ -190,19 +190,7 @@ def main():
                 wm = Dense(2, activation='softmax', name='wm')(t2_f)
 
                 if experimental:
-                    t2_e = Conv3D(filters,
-                                  kernel_size=(5, 5, 5),
-                                  activation='relu',
-                                  data_format='channels_first'
-                                  )(t2)
-                    t1_e = Conv3D(filters,
-                                  kernel_size=(5, 5, 5),
-                                  activation='relu',
-                                  data_format='channels_first'
-                                  )(t1)
-                    t2_e = Dropout(0.5)(t2_e)
-                    t1_e = Dropout(0.5)(t1_e)
-                    brain_patch_in = Permute((2, 3, 4, 1))(concatenate([t2_e, t1_e], axis=1))
+                    brain_patch_in = Permute((2, 3, 4, 1))(concatenate([t2, t1], axis=1))
                     brain_patch = Dense(4, activation='softmax', name='patch_dense')(brain_patch_in)
                     brain_patch = Permute((4, 1, 2, 3), name='brain_patch')(Dropout(0.5)(brain_patch))
                     patch_center = Permute((2, 1))(Reshape((4, -1))(brain_patch))
@@ -217,7 +205,8 @@ def main():
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
-                outputs = outputs + [Average()([brain, patch_center])] if experimental else outputs + [brain]
+                outputs = outputs + [Average(name='merge')([brain, patch_center])] if experimental\
+                    else outputs + [brain]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
