@@ -188,7 +188,6 @@ def main():
                 csf = Dense(2, activation='softmax', name='csf')(t1_f)
                 gm = Dense(2, activation='softmax', name='gm')(t2_f)
                 wm = Dense(2, activation='softmax', name='wm')(t2_f)
-                outputs = [csf, gm, wm]
 
                 if experimental:
                     brain_patch_in = Permute((2, 3, 4, 1))(concatenate([t2, t1], axis=1))
@@ -204,10 +203,10 @@ def main():
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
+                outputs = [csf, gm, wm, brain]
+
                 if experimental:
-                    outputs = outputs + [brain, patch_center, Average(name='merge')([brain, patch_center])]
-                else:
-                    outputs + [brain]
+                    outputs = outputs + [patch_center, Average(name='merge')([brain, patch_center])]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
@@ -286,7 +285,7 @@ def main():
 
                 if not sequential:
                     for num, results in enumerate(y_pr_pred):
-                        if num is not 3:
+                        if num not in [3, 4]:
                             brain = np.argmax(results, axis=1)
                             image[x, y, z] = brain
                             gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
