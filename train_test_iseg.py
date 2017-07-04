@@ -191,19 +191,7 @@ def main():
                 outputs = [csf, gm, wm]
 
                 if experimental:
-                    t2_e = Conv3D(filters,
-                                  kernel_size=(5, 5, 5),
-                                  activation='relu',
-                                  data_format='channels_first'
-                                  )(t2)
-                    t1_e = Conv3D(filters,
-                                  kernel_size=(5, 5, 5),
-                                  activation='relu',
-                                  data_format='channels_first'
-                                  )(t1)
-                    t2_e = Dropout(0.5)(t2_e)
-                    t1_e = Dropout(0.5)(t1_e)
-                    patch_center = Permute((2, 1))(Reshape((4, -1))(concatenate([t2_e, t1_e], axis=1)))
+                    patch_center = Permute((2, 1))(Reshape((4, -1))(concatenate([t2, t1], axis=1)))
                     patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(patch_center)
                     merged = concatenate([t2_f, t1_f])
                 else:
