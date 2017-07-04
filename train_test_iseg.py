@@ -188,7 +188,6 @@ def main():
                 csf = Dense(2, activation='softmax', name='csf')(t1_f)
                 gm = Dense(2, activation='softmax', name='gm')(t2_f)
                 wm = Dense(2, activation='softmax', name='wm')(t2_f)
-                outputs = [csf, gm, wm]
 
                 if experimental:
                     t2_e = Conv3D(filters,
@@ -203,14 +202,15 @@ def main():
                                   )(t1)
                     t2_e = Dropout(0.5)(t2_e)
                     t1_e = Dropout(0.5)(t1_e)
-                    brain_patch_in = Flatten()(concatenate([t2_e, t1_e], axis=1))
-                    brain_patch_f = Dense(108, activation='softmax')(brain_patch_in)
-                    brain_patch_f = Dropout(0.5)(brain_patch_f)
-                    brain_patch = Reshape((4, 3, 3, 3), name='brain_patch')(brain_patch_f)
+                    brain_patch_in = Permute((4, 1))(concatenate([t2_e, t1_e], axis=1))
+                    brain_patch = Dense(4, activation='softmax')(brain_patch_in)
+                    brain_patch = Permute((4, 1))(Dropout(0.5)(brain_patch))
                     patch_center = Permute((2, 1))(Reshape((4, -1))(brain_patch))
                     patch_center = LSTM(4, implementation=1, name='rf_layer')(patch_center)
                     merged = concatenate([t2_f, t1_f])
+                    outputs = [csf, gm, wm, brain_patch]
                 else:
+                    outputs = [csf, gm, wm]
                     patch_center = None
                     merged = concatenate([t2_f, t1_f, csf, gm, wm])
                     merged = Dropout(0.5)(merged)
