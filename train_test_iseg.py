@@ -5,7 +5,7 @@ from time import strftime
 import numpy as np
 import keras
 from keras.models import Sequential, Model
-from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
+from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda, Average
 from nibabel import load as load_nii
 from nibabel import save as save_nii
 from utils import color_codes, nfold_cross_validation
@@ -179,6 +179,13 @@ def main():
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
 
+                t2_f = Flatten()(t2)
+                t1_f = Flatten()(t1)
+                t2_f = Dense(dense_size, activation='relu')(t2_f)
+                t2_f = Dropout(0.5)(t2_f)
+                t1_f = Dense(dense_size, activation='relu')(t1_f)
+                t1_f = Dropout(0.5)(t1_f)
+
                 if experimental:
                     t2_e = Conv3D(filters,
                                   kernel_size=(5, 5, 5),
@@ -194,28 +201,23 @@ def main():
                     t1_e = Dropout(0.5)(t1_e)
                     brain_patch_in = Flatten()(concatenate([t2_e, t1_e], axis=1))
                     brain_patch_f = Dense(108, activation='softmax')(brain_patch_in)
-                    brain_patch_f = [Dropout(0.5)(brain_patch_f)]
-                    brain_patch = [Reshape((4, 3, 3, 3), name='brain_patch')(brain_patch_f[0])]
+                    brain_patch_f = Dropout(0.5)(brain_patch_f)
+                    brain_patch = Reshape((4, 3, 3, 3), name='brain_patch')(brain_patch_f)
+                    patch_center = Lambda(lambda l: l[:, :, 1, 1, 1], output_shape=(4,))(brain_patch)
+                    merged = concatenate([t2_f, t1_f])
+                    outputs = [brain_patch]
                 else:
-                    brain_patch = []
-                    brain_patch_f = []
-                t2 = Flatten()(t2)
-                t1 = Flatten()(t1)
-                t2 = Dense(dense_size, activation='relu')(t2)
-                t2 = Dropout(0.5)(t2)
-                t1 = Dense(dense_size, activation='relu')(t1)
-                t1 = Dropout(0.5)(t1)
-                csf = Dense(2, activation='softmax', name='csf')(t1)
-                gm = Dense(2, activation='softmax', name='gm')(t2)
-                wm = Dense(2, activation='softmax', name='wm')(t2)
+                    csf = Dense(2, activation='softmax', name='csf')(t1_f)
+                    gm = Dense(2, activation='softmax', name='gm')(t2_f)
+                    wm = Dense(2, activation='softmax', name='wm')(t2_f)
+                    patch_center = None
+                    merged = concatenate([t2_f, t1_f, csf, gm, wm])
+                    merged = Dropout(0.5)(merged)
+                    outputs = [csf, gm, wm]
 
-                merged = concatenate([t2, t1, csf, gm, wm] + brain_patch_f)
-                merged = Dropout(0.5)(merged)
+                brain = Dense(4, activation='softmax', name='brain')(merged)
 
-                brain = Dense(4, activation='softmax', name='brain')(merged) if not experimental else\
-                    Lambda(lambda l: l[:, :, 1, 1, 1], output_shape=(4,))(brain_patch[0])
-
-                outputs = [csf, gm, wm] + brain_patch + [brain]
+                outputs = outputs + [Average()([brain, patch_center])] if experimental else outputs + [brain]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
