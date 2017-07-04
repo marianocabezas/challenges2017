@@ -126,7 +126,7 @@ def load_patch_batch_generator_train(
                     y_patch = [get_patches(
                         np.squeeze(im),
                         c,
-                        (3, 3, 3)
+                        (7, 7, 7)
                     ) for c, im in zip(centers, labels_generator(label_names)) if c]
                     y_patch = np.concatenate(y_patch)
                     y_patch[idx] = y_patch
