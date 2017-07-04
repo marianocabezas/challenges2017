@@ -213,7 +213,7 @@ def main():
                 merged = Dropout(0.5)(merged)
 
                 brain = Dense(4, activation='softmax', name='brain')(merged) if not experimental else\
-                    Reshape((4, -1))(Lambda(lambda l: l[:, :, 1, 1, 1], output_shape=(1,) + patch_size)(brain_patch))
+                    Lambda(lambda l: l[:, :, 1, 1, 1], output_shape=(4,))(brain_patch)
 
                 outputs = [csf, gm, wm] + brain_patch + [brain]
 
