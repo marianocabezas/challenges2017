@@ -152,7 +152,6 @@ def main():
                 net.add(Dense(dense_size, activation='relu'))
                 net.add(Dropout(0.5))
                 net.add(Dense(num_classes, activation='softmax'))
-                weights = 1.0
             else:
                 # This architecture is based on the functional Keras API to introduce 3 output paths:
                 # - Whole tumor segmentation
@@ -192,33 +191,26 @@ def main():
 
                 if experimental:
                     brain_patch_in = Permute((2, 3, 4, 1))(concatenate([t2, t1], axis=1))
-                    # brain_patch = Reshape((-1, dense_size))(Dense(dense_size, name='patch_dense')(brain_patch_in))
-                    brain_patch = Reshape((-1, filters_list[-1]*2))(brain_patch_in)
-                    patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(brain_patch)
+                    brain_patch = Dense(dense_size, name='patch_dense')(brain_patch_in)
+                    # patch_center = Permute((2, 1))(Reshape((4, -1))(concatenate([t2, t1], axis=1)))
+                    patch_center = Reshape((-1, dense_size))(brain_patch)
+                    patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(patch_center)
                     merged = concatenate([t2_f, t1_f])
-                    weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
                     patch_center = None
                     merged = concatenate([t2_f, t1_f, csf, gm, wm])
                     merged = Dropout(0.5)(merged)
-                    weights = [0.2, 0.5, 0.5, 1.0]
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
                 outputs = [csf, gm, wm, brain]
 
                 if experimental:
-                    avg_inputs = [Dropout(0.5)(brain), Dropout(0.5)(patch_center)]
-                    outputs = outputs + [patch_center, Average(name='merge')(avg_inputs)]
+                    outputs = outputs + [patch_center, Average(name='merge')([brain, patch_center])]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
-            net.compile(
-                optimizer='adadelta',
-                loss='categorical_crossentropy',
-                metrics=['accuracy'],
-                loss_weights=weights
-            )
+            net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
                   c['g'] + 'Training the model with a generator for ' +
