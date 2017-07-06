@@ -195,7 +195,7 @@ def main():
                     brain_patch = Reshape((-1, dense_size))(Dense(dense_size, name='patch_dense')(brain_patch_in))
                     patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(brain_patch)
                     merged = concatenate([t2_f, t1_f])
-                    weights = [0.2, 0.5, 0.5, 1.0, 1.0]
+                    weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
                     patch_center = None
                     merged = concatenate([t2_f, t1_f, csf, gm, wm])
@@ -207,7 +207,8 @@ def main():
                 outputs = [csf, gm, wm, brain]
 
                 if experimental:
-                    outputs = outputs + [patch_center, Average(name='merge')([brain, patch_center])]
+                    avg_inputs = [Dropout(0.5)(brain), Dropout(0.5)(patch_center)]
+                    outputs = outputs + [patch_center, Average(name='merge')(avg_inputs)]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
