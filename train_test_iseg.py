@@ -270,11 +270,11 @@ def main():
             net.save(net_name)
 
         # Then we test the net.
-        for p, gt in zip(test_data, test_labels):
+        for p, gt_name in zip(test_data, test_labels):
             p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, method_name + p_name + 'brain.roi.hdr')
-            gt_nii = load_nii(gt)
+            gt_nii = load_nii(gt_name)
             gt = np.copy(np.squeeze(gt_nii.get_data()))
             try:
                 image = np.squeeze(load_nii(outputname).get_data())

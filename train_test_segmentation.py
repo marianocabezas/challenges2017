@@ -13,6 +13,7 @@ from itertools import izip
 from data_creation import load_patch_batch_train, get_cnn_centers
 from data_creation import load_patch_batch_generator_test
 from data_manipulation.generate_features import get_mask_voxels
+from data_manipulation.metrics import dsc_seg
 
 
 def parse_inputs():
@@ -117,6 +118,7 @@ def main():
     data_names, label_names = get_names_from_path(options)
     folds = options['folds']
     fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
+    dsc_results = list()
     for (train_data, train_labels, val_data, val_labels, test_data, test_labels), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d: ' % (i+1, folds) + c['g'] +
               'Number of training/validation/testing images (%d=%d/%d=%d/%d)'
@@ -288,10 +290,12 @@ def main():
             net.save(net_name)
 
         # Then we test the net.
-        for p in test_data:
+        for p, gt_name in zip(test_data, test_labels):
             p_name = p[0].rsplit('/')[-2]
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, 'deep-brats17' + sufix + 'test.nii.gz')
+            gt_nii = load_nii(gt_name)
+            gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
             try:
                 load_nii(outputname)
             except IOError:
@@ -331,6 +335,11 @@ def main():
                 image[x, y, z] = y_pred
                 # Post-processing (Basically keep the biggest connected region)
                 image = get_biggest_region(image)
+                labels = np.unique(gt.flatten())
+                results = (p_name,) + tuple([dsc_seg(gt == l, image == l) for l in labels[1:]])
+                text = 'Subject %s DSC: ' + '/'.join(['%f' for _ in labels[1:]])
+                print(text % results)
+                dsc_results.append(results)
 
                 print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
                 roi_nii.get_data()[:] = image
