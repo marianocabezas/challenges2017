@@ -152,6 +152,7 @@ def main():
                 net.add(Dense(dense_size, activation='relu'))
                 net.add(Dropout(0.5))
                 net.add(Dense(num_classes, activation='softmax'))
+                weights = 1.0
             else:
                 # This architecture is based on the functional Keras API to introduce 3 output paths:
                 # - Whole tumor segmentation
@@ -190,13 +191,16 @@ def main():
                 wm = Dense(2, activation='softmax', name='wm')(t2_f)
 
                 if experimental:
-                    patch_center = Permute((2, 1))(Reshape((filters_list[-1], -1))(concatenate([t2, t1], axis=1)))
+                    patch_center = Reshape((filters_list[-1]*2, -1))(concatenate([t2, t1], axis=1))
+                    patch_center = Permute((2, 1))(patch_center)
                     patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(patch_center)
                     merged = concatenate([t2_f, t1_f])
+                    weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
                     patch_center = None
                     merged = concatenate([t2_f, t1_f, csf, gm, wm])
                     merged = Dropout(0.5)(merged)
+                    weights = [0.2, 0.5, 0.5, 1.0]
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
@@ -207,7 +211,12 @@ def main():
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
-            net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+            net.compile(
+                optimizer='adadelta',
+                loss='categorical_crossentropy',
+                loss_weights=weights,
+                metrics=['accuracy']
+            )
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
                   c['g'] + 'Training the model with a generator for ' +
