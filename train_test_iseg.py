@@ -178,8 +178,6 @@ def main():
                                 activation='relu',
                                 data_format='channels_first'
                                 )(t1)
-                    t2 = BatchNormalization()(t2)
-                    t1 = BatchNormalization()(t1)
                     t2 = Dropout(0.5)(t2)
                     t1 = Dropout(0.5)(t1)
 
