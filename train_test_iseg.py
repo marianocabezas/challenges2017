@@ -193,7 +193,7 @@ def main():
                 if experimental:
                     brain_patch_in = Permute((2, 3, 4, 1))(concatenate([t2, t1], axis=1))
                     # brain_patch = Reshape((-1, dense_size))(Dense(dense_size, name='patch_dense')(brain_patch_in))
-                    brain_patch = Reshape((-1, filters))(brain_patch_in)
+                    brain_patch = Reshape((-1, filters_list[-1]*2))(brain_patch_in)
                     patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(brain_patch)
                     merged = concatenate([t2_f, t1_f])
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
