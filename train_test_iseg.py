@@ -190,10 +190,7 @@ def main():
                 wm = Dense(2, activation='softmax', name='wm')(t2_f)
 
                 if experimental:
-                    brain_patch_in = Permute((2, 3, 4, 1))(concatenate([t2, t1], axis=1))
-                    brain_patch = Dense(dense_size, name='patch_dense')(brain_patch_in)
-                    # patch_center = Permute((2, 1))(Reshape((4, -1))(concatenate([t2, t1], axis=1)))
-                    patch_center = Reshape((-1, dense_size))(brain_patch)
+                    patch_center = Permute((2, 1))(Reshape((filters_list[-1], -1))(concatenate([t2, t1], axis=1)))
                     patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(patch_center)
                     merged = concatenate([t2_f, t1_f])
                 else:
