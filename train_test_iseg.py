@@ -6,7 +6,7 @@ import numpy as np
 import keras
 from keras.models import Sequential, Model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
-from keras.layers import BatchNormalization, LSTM, Permute
+from keras.layers import BatchNormalization, LSTM, Permute, Average
 from nibabel import load as load_nii
 from nibabel import save as save_nii
 from utils import color_codes, nfold_cross_validation
@@ -210,14 +210,15 @@ def main():
                 outputs = [csf, gm, wm, brain]
 
                 if experimental:
-                    final_layers = concatenate([
-                        Dropout(0.5)(brain),
-                        Dropout(0.5)(rf),
-                        Dropout(0.5)(csf),
-                        Dropout(0.5)(gm),
-                        Dropout(0.5)(wm)
-                    ])
-                    final = Dense(4, name='merge', activation='softmax')(final_layers)
+                    # final_layers = concatenate([
+                    #     Dropout(0.5)(brain),
+                    #     Dropout(0.5)(rf),
+                    #     Dropout(0.5)(csf),
+                    #     Dropout(0.5)(gm),
+                    #     Dropout(0.5)(wm)
+                    # ])
+                    # final = Dense(4, name='merge', activation='softmax')(final_layers)
+                    final = Average()([Dropout(0.5)(brain), Dropout(0.5)(rf)])
                     outputs = outputs + [rf, final]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
