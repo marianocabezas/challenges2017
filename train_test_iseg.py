@@ -193,7 +193,7 @@ def main():
                 if experimental:
                     patch_center = Reshape((filters_list[-1]*2, -1))(concatenate([t2, t1], axis=1))
                     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
-                    patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(patch_center)
+                    patch_center = LSTM(4, implementation=1, name='rf', activation='softmax')(patch_center)
                     merged = concatenate([t2_f, t1_f])
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
@@ -207,14 +207,7 @@ def main():
                 outputs = [csf, gm, wm, brain]
 
                 if experimental:
-                    final_layers = concatenate([
-                        Dropout(0.5)(brain),
-                        Dropout(0.5)(patch_center),
-                        Dropout(0.5)(csf),
-                        Dropout(0.5)(gm),
-                        Dropout(0.5)(wm)
-                    ])
-                    final = Dense(4, name='merge', activation='softmax')(final_layers)
+                    final = Average(name='merge')([Dropout(0.5)(brain), Dropout(0.5)(patch_center)])
                     outputs = outputs + [patch_center, final]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
