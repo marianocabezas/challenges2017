@@ -203,11 +203,11 @@ def main():
                     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
                     patch_center = BatchNormalization()(patch_center)
                     rf = LSTM(4, implementation=1, name='rf', activation='relu')(patch_center)
-                    rf_out = Activation('softmax')
+                    rf_out = Activation('softmax')(rf)
                     merged = concatenate([t2_f, t1_f])
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
-                    patch_center = None
+                    rf = None
                     merged = concatenate([t2_f, t1_f, csf, gm, wm])
                     merged = Dropout(0.5)(merged)
                     weights = [0.2, 0.5, 0.5, 1.0]
@@ -220,7 +220,7 @@ def main():
                 if experimental:
                     final_layers = concatenate([
                         Dropout(0.5)(brain),
-                        Dropout(0.5)(patch_center),
+                        Dropout(0.5)(rf),
                         Dropout(0.5)(csf),
                         Dropout(0.5)(gm),
                         Dropout(0.5)(wm)
