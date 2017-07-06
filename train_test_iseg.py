@@ -152,6 +152,7 @@ def main():
                 net.add(Dense(dense_size, activation='relu'))
                 net.add(Dropout(0.5))
                 net.add(Dense(num_classes, activation='softmax'))
+                weights=1.0
             else:
                 # This architecture is based on the functional Keras API to introduce 3 output paths:
                 # - Whole tumor segmentation
@@ -208,9 +209,14 @@ def main():
                 if experimental:
                     outputs = outputs + [patch_center, Average(name='merge')([brain, patch_center])]
 
-                net = Model(inputs=merged_inputs, outputs=outputs, loss_weights=weights)
+                net = Model(inputs=merged_inputs, outputs=outputs)
 
-            net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+            net.compile(
+                optimizer='adadelta',
+                loss='categorical_crossentropy',
+                metrics=['accuracy'],
+                loss_weights=weights
+            )
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
                   c['g'] + 'Training the model with a generator for ' +
