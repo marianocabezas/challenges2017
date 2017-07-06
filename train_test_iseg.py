@@ -192,14 +192,14 @@ def main():
                 if experimental:
                     brain_patch_in = Permute((2, 3, 4, 1))(concatenate([t2, t1], axis=1))
                     brain_patch = Dense(dense_size, name='patch_dense')(brain_patch_in)
-                    # patch_center = Permute((2, 1))(Reshape((4, -1))(concatenate([t2, t1], axis=1)))
-                    patch_center = Reshape((-1, dense_size))(brain_patch)
-                    patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(patch_center)
+                    patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(brain_patch)
                     merged = concatenate([t2_f, t1_f])
+                    weights = [0.2, 0.5, 0.5, 1.0, 1.0]
                 else:
                     patch_center = None
                     merged = concatenate([t2_f, t1_f, csf, gm, wm])
                     merged = Dropout(0.5)(merged)
+                    weights = [0.2, 0.5, 0.5, 1.0]
 
                 brain = Dense(4, activation='softmax', name='brain')(merged)
 
@@ -208,7 +208,7 @@ def main():
                 if experimental:
                     outputs = outputs + [patch_center, Average(name='merge')([brain, patch_center])]
 
-                net = Model(inputs=merged_inputs, outputs=outputs)
+                net = Model(inputs=merged_inputs, outputs=outputs, loss_weights=weights)
 
             net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
 
