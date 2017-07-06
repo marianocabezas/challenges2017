@@ -207,7 +207,8 @@ def main():
                 outputs = [csf, gm, wm, brain]
 
                 if experimental:
-                    avg_inputs = [Dropout(0.5)(brain), Dropout(0.5)(patch_center)]
+                    # avg_inputs = [Dropout(0.5)(brain), Dropout(0.5)(patch_center)]
+                    avg_inputs = [brain, patch_center]
                     outputs = outputs + [patch_center, Average(name='merge')(avg_inputs)]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
