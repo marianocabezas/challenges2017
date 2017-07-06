@@ -305,22 +305,24 @@ def main():
                     for num, results in enumerate(y_pr_pred):
                         brain = np.argmax(results, axis=1)
                         image[x, y, z] = brain
-                        gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
                         if num is 0:
                             im = sufix + 'csf.'
+                            gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
                         elif num is 1:
                             im = sufix + 'gm.'
+                            gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
                         elif num is 2:
                             im = sufix + 'wm.'
+                            gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
                         elif num is 3:
                             im = sufix + 'brain.'
-                            image[x, y, z] = vals[brain]
+                            gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
                         elif num is 4:
                             im = sufix + 'rf.'
-                            image[x, y, z] = vals[brain]
+                            gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
                         else:
                             im = sufix + 'merge.'
-                            image[x, y, z] = vals[brain]
+                            gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
                         roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
                         print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
                         save_nii(gt_nii, roiname)
