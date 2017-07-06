@@ -192,7 +192,7 @@ def main():
 
                 if experimental:
                     patch_center = Reshape((filters_list[-1]*2, -1))(concatenate([t2, t1], axis=1))
-                    patch_center = Permute((2, 1))(patch_center)
+                    patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
                     patch_center = LSTM(4, implementation=1, name='rf_layer', activation='softmax')(patch_center)
                     merged = concatenate([t2_f, t1_f])
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
