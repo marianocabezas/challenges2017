@@ -304,21 +304,24 @@ def main():
 
                 if not sequential:
                     for num, results in enumerate(y_pr_pred):
-                        if num not in [3, 4]:
-                            brain = np.argmax(results, axis=1)
-                            image[x, y, z] = brain
-                            gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
-                            if num is 0:
-                                im = sufix + 'csf.'
-                            elif num is 1:
-                                im = sufix + 'gm.'
-                            elif num is 2:
-                                im = sufix + 'wm.'
-                            else:
-                                im = sufix + 'brain.'
-                            roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
-                            print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
-                            save_nii(gt_nii, roiname)
+                        brain = np.argmax(results, axis=1)
+                        image[x, y, z] = brain
+                        gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
+                        if num is 0:
+                            im = sufix + 'csf.'
+                        elif num is 1:
+                            im = sufix + 'gm.'
+                        elif num is 2:
+                            im = sufix + 'wm.'
+                        elif num is 3:
+                            im = sufix + 'brain.'
+                        elif num is 4:
+                            im = sufix + 'rf.'
+                        else:
+                            im = sufix + 'merge.'
+                        roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
+                        print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
+                        save_nii(gt_nii, roiname)
 
                 y_pred = np.argmax(y_pr_pred[-1], axis=1)
 
