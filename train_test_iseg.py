@@ -183,6 +183,8 @@ def main():
 
                 t2_f = Flatten()(t2)
                 t1_f = Flatten()(t1)
+                t2_f = BatchNormalization()(t2_f)
+                t1_f = BatchNormalization()(t1_f)
                 t2_f = Dense(dense_size, activation='relu')(t2_f)
                 t2_f = Dropout(0.5)(t2_f)
                 t1_f = Dense(dense_size, activation='relu')(t1_f)
