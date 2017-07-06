@@ -189,8 +189,6 @@ def main():
                 t2_f = Dropout(0.5)(t2_f)
                 t1_f = Dense(dense_size, activation='relu')(t1_f)
                 t1_f = Dropout(0.5)(t1_f)
-                t2_f = BatchNormalization()(t2_f)
-                t1_f = BatchNormalization()(t1_f)
                 csf = Dense(2, activation='softmax', name='csf')(t1_f)
                 gm = Dense(2, activation='softmax', name='gm')(t2_f)
                 wm = Dense(2, activation='softmax', name='wm')(t2_f)
