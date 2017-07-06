@@ -6,7 +6,7 @@ import numpy as np
 import keras
 from keras.models import Sequential, Model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
-from keras.layers import BatchNormalization, LSTM, Permute, Average
+from keras.layers import BatchNormalization, LSTM, Permute, Activation
 from nibabel import load as load_nii
 from nibabel import save as save_nii
 from utils import color_codes, nfold_cross_validation
@@ -189,14 +189,18 @@ def main():
                 t2_f = Dropout(0.5)(t2_f)
                 t1_f = Dense(dense_size, activation='relu')(t1_f)
                 t1_f = Dropout(0.5)(t1_f)
-                csf = Dense(2, activation='softmax', name='csf')(t1_f)
-                gm = Dense(2, activation='softmax', name='gm')(t2_f)
-                wm = Dense(2, activation='softmax', name='wm')(t2_f)
+                csf = Dense(2, activation='prelu', name='csf')(t1_f)
+                csf_out = Activation('softmax')(csf)
+                gm = Dense(2, activation='prelu', name='gm')(t2_f)
+                gm_out = Activation('softmax')(gm)
+                wm = Dense(2, activation='prelu', name='wm')(t2_f)
+                wm_out = Activation('softmax')(wm)
 
                 if experimental:
                     patch_center = Reshape((filters_list[-1]*2, -1))(concatenate([t2, t1], axis=1))
                     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
-                    rf = LSTM(4, implementation=1, name='rf', activation='softmax')(patch_center)
+                    rf = LSTM(4, implementation=1, name='rf', activation='prelu')(patch_center)
+                    rf_out = Activation('softmax')(rf)
                     merged = concatenate([t2_f, t1_f])
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
@@ -205,9 +209,10 @@ def main():
                     merged = Dropout(0.5)(merged)
                     weights = [0.2, 0.5, 0.5, 1.0]
 
-                brain = Dense(4, activation='softmax', name='brain')(merged)
+                brain = Dense(4, activation='prelu', name='brain')(merged)
+                brain_out = Activation('softmax')(brain)
 
-                outputs = [csf, gm, wm, brain]
+                outputs = [csf_out, gm_out, wm_out, brain_out]
 
                 if experimental:
                     final_layers = concatenate([
@@ -218,7 +223,7 @@ def main():
                         Dropout(0.5)(wm)
                     ])
                     final = Dense(4, name='merge', activation='softmax')(final_layers)
-                    outputs = outputs + [rf, final]
+                    outputs = outputs + [rf_out, final]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
