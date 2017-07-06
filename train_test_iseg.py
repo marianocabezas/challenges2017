@@ -276,6 +276,7 @@ def main():
             outputname = os.path.join(patient_path, method_name + p_name + 'brain.roi.hdr')
             gt_nii = load_nii(gt_name)
             gt = np.copy(np.squeeze(gt_nii.get_data()))
+            vals = np.unique(gt.flatten())
             try:
                 image = np.squeeze(load_nii(outputname).get_data())
             except IOError:
@@ -313,10 +314,13 @@ def main():
                             im = sufix + 'wm.'
                         elif num is 3:
                             im = sufix + 'brain.'
+                            image[x, y, z] = vals[brain]
                         elif num is 4:
                             im = sufix + 'rf.'
+                            image[x, y, z] = vals[brain]
                         else:
                             im = sufix + 'merge.'
+                            image[x, y, z] = vals[brain]
                         roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
                         print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
                         save_nii(gt_nii, roiname)
@@ -325,7 +329,6 @@ def main():
 
                 image[x, y, z] = y_pred
 
-            vals = np.unique(gt.flatten())
             gt_mask = np.sum(
                 map(lambda (l, val): np.array(gt == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
             )
