@@ -207,7 +207,15 @@ def main():
                 outputs = [csf, gm, wm, brain]
 
                 if experimental:
-                    outputs = outputs + [patch_center, Average(name='merge')([brain, patch_center])]
+                    final_layers = concatenate([
+                        Dropout(0.5)(brain),
+                        Dropout(0.5)(patch_center),
+                        Dropout(0.5)(csf),
+                        Dropout(0.5)(gm),
+                        Dropout(0.5)(wm)
+                    ])
+                    final = Dense(4, name='merge', activation='softmax')(final_layers)
+                    outputs = outputs + [patch_center, final]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
