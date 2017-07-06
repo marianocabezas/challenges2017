@@ -189,18 +189,17 @@ def main():
                 t2_f = Dropout(0.5)(t2_f)
                 t1_f = Dense(dense_size, activation='relu')(t1_f)
                 t1_f = Dropout(0.5)(t1_f)
-                csf = Dense(2, activation='prelu', name='csf')(t1_f)
+                csf = Dense(2, activation='relu', name='csf')(t1_f)
                 csf_out = Activation('softmax')(csf)
-                gm = Dense(2, activation='prelu', name='gm')(t2_f)
+                gm = Dense(2, activation='relu', name='gm')(t2_f)
                 gm_out = Activation('softmax')(gm)
-                wm = Dense(2, activation='prelu', name='wm')(t2_f)
+                wm = Dense(2, activation='relu', name='wm')(t2_f)
                 wm_out = Activation('softmax')(wm)
 
                 if experimental:
                     patch_center = Reshape((filters_list[-1]*2, -1))(concatenate([t2, t1], axis=1))
                     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
-                    rf = LSTM(4, implementation=1, name='rf', activation='prelu')(patch_center)
-                    rf_out = Activation('softmax')(rf)
+                    rf = LSTM(4, implementation=1, name='rf', activation='relu')(patch_center)
                     merged = concatenate([t2_f, t1_f])
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
@@ -209,7 +208,7 @@ def main():
                     merged = Dropout(0.5)(merged)
                     weights = [0.2, 0.5, 0.5, 1.0]
 
-                brain = Dense(4, activation='prelu', name='brain')(merged)
+                brain = Dense(4, activation='relu', name='brain')(merged)
                 brain_out = Activation('softmax')(brain)
 
                 outputs = [csf_out, gm_out, wm_out, brain_out]
@@ -222,6 +221,7 @@ def main():
                         Dropout(0.5)(gm),
                         Dropout(0.5)(wm)
                     ])
+                    rf_out = Activation('softmax')(rf)
                     final = Dense(4, name='merge', activation='softmax')(final_layers)
                     outputs = outputs + [rf_out, final]
 
