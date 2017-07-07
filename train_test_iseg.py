@@ -6,7 +6,7 @@ import numpy as np
 import keras
 from keras.models import Sequential, Model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
-from keras.layers import BatchNormalization, LSTM, Permute, Activation
+from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU
 from nibabel import load as load_nii
 from nibabel import save as save_nii
 from utils import color_codes, nfold_cross_validation
@@ -196,7 +196,8 @@ def main():
                 if experimental:
                     patch_center = Reshape((filters_list[-1]*2, -1))(concatenate([t2, t1], axis=1))
                     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
-                    rf = LSTM(4, implementation=1, name='rf')(patch_center)
+                    rf = LSTM(4, implementation=1)(patch_center)
+                    rf = PReLU(name='rf')(rf)
                     merged = concatenate([t2_f, t1_f])
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
@@ -205,9 +206,11 @@ def main():
                     merged = Dropout(0.5)(merged)
                     weights = [0.2, 0.5, 0.5, 1.0]
 
-                brain = Dense(4, activation='softmax', name='brain')(merged)
+                brain = Dense(4)(merged)
+                brain = PReLU(name='brain')(brain)
+                brain_out = Activation('softmax', name='brain_out')(brain)
 
-                outputs = [csf, gm, wm, brain]
+                outputs = [csf, gm, wm, brain_out]
 
                 if experimental:
                     final_layers = concatenate([
@@ -218,7 +221,7 @@ def main():
                         Dropout(0.5)(wm)
                     ])
                     final = Dense(4, name='merge', activation='softmax')(final_layers)
-                    rf_out = Activation('softmax')(rf)
+                    rf_out = Activation('softmax', name='rf_out')(rf)
                     outputs = outputs + [rf_out, final]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
