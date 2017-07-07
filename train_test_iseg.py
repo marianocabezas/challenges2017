@@ -6,7 +6,7 @@ import numpy as np
 import keras
 from keras.models import Sequential, Model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
-from keras.layers import BatchNormalization, LSTM, Permute
+from keras.layers import BatchNormalization, LSTM, Permute, Activation
 from nibabel import load as load_nii
 from nibabel import save as save_nii
 from utils import color_codes, nfold_cross_validation
@@ -196,7 +196,7 @@ def main():
                 if experimental:
                     patch_center = Reshape((filters_list[-1]*2, -1))(concatenate([t2, t1], axis=1))
                     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
-                    rf = LSTM(4, implementation=1, name='rf', activation='softmax')(patch_center)
+                    rf = LSTM(4, implementation=1, name='rf')(patch_center)
                     merged = concatenate([t2_f, t1_f])
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
@@ -218,7 +218,8 @@ def main():
                         Dropout(0.5)(wm)
                     ])
                     final = Dense(4, name='merge', activation='softmax')(final_layers)
-                    outputs = outputs + [rf, final]
+                    rf_out = Activation('softmax')(rf)
+                    outputs = outputs + [rf_out, final]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
