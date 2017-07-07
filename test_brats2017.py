@@ -256,7 +256,7 @@ def main():
         # Now let's create the domain network and train it
         new_net = create_new_network(patch_size, filters_list, kernel_size_list)
         for l_new, l_orig in zip(new_net.layers, net_orig.layers[:len(new_net.layers)]):
-            l_new.set_weights(l_orig)
+            l_new.set_weights(l_orig.get_weights)
         # Getting the "labeled data"
         conv_data = np.array([new_net.predict(c, batch_size=1) for c in conv_input], dtype=np.float32)
 
@@ -271,7 +271,7 @@ def main():
 
         # Now we transfer the new weights an re-test
         for l_new, l_orig in zip(new_net.layers, net_orig.layers[:len(new_net.layers)]):
-            l_orig.set_weights(l_new)
+            l_orig.set_weights(l_new.get_weights)
 
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing ' +
               c['b'] + 'domain' + c['nc'] + c['g'] + ' network' + c['nc'])
