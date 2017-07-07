@@ -21,7 +21,7 @@ def parse_inputs():
     parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=13)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
-    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
+    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=1048576)
     parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=50)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
@@ -249,7 +249,7 @@ def main():
         image_o, p_name = test_network(net_orig, p, batch_size, patch_size, queue, sufix='orig')
 
         results_o = [dsc_seg(gt == l, image_o == l) for l in labels[1:]]
-        text = 'Subject %s DSC: ' + '/'.join(['%f' for _ in labels[1:]])
+        text = 'Subject %s DSC: ' + '/'.join(['%f']*len(results_o))
         results = (p_name,) + tuple(results_o)
         print(text % results)
 
@@ -278,14 +278,14 @@ def main():
         image_d, p_name = test_network(net_orig, p, batch_size, patch_size, queue, sufix='domain')
 
         results_d = [dsc_seg(gt == l, image_d == l) for l in labels[1:]]
-        text = 'Subject %s DSC: ' + '/'.join(['%f' for _ in labels[1:]])
+        text = 'Subject %s DSC: ' + '/'.join(['%f']*len(results_d))
         results = (p_name,) + tuple(results_d)
         print(text % results)
 
         dsc_results.append(results_o + results_d)
 
     f_dsc = tuple(np.array(dsc_results).mean())
-    print('Final results DSC: ' + '/'.join(['%f' for _ in labels[1:]]) % f_dsc)
+    print('Final results DSC: ' + '/'.join(['%f']*len(f_dsc)) % f_dsc)
 
 
 if __name__ == '__main__':
