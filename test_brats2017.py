@@ -109,65 +109,6 @@ def test_network(net, p, batch_size, patch_size, queue, sufix=''):
     return image, p_name
 
 
-def create_original_network(patch_size, filters_list, kernel_size_list, dense_size, num_classes):
-    # This architecture is based on the functional Keras API to introduce 3 output paths:
-    # - Whole tumor segmentation
-    # - Core segmentation (including whole tumor)
-    # - Whole segmentation (tumor, core and enhancing parts)
-    # The idea is to let the network work on the three parts to improve the multiclass segmentation.
-    merged_inputs = Input(shape=(4,) + patch_size, name='merged_inputs')
-    flair = Reshape((1,) + patch_size)(
-        Lambda(
-            lambda l: l[:, 0, :, :, :],
-            output_shape=(1,) + patch_size)(merged_inputs),
-    )
-    t2 = Reshape((1,) + patch_size)(
-        Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
-    )
-    t1 = Lambda(lambda l: l[:, 2:, :, :, :], output_shape=(2,) + patch_size)(merged_inputs)
-    for filters, kernel_size in zip(filters_list, kernel_size_list):
-        flair = Conv3D(filters,
-                       kernel_size=kernel_size,
-                       activation='relu',
-                       data_format='channels_first'
-                       )(flair)
-        t2 = Conv3D(filters,
-                    kernel_size=kernel_size,
-                    activation='relu',
-                    data_format='channels_first'
-                    )(t2)
-        t1 = Conv3D(filters,
-                    kernel_size=kernel_size,
-                    activation='relu',
-                    data_format='channels_first'
-                    )(t1)
-        flair = Dropout(0.5)(flair)
-        t2 = Dropout(0.5)(t2)
-        t1 = Dropout(0.5)(t1)
-
-    flair = Flatten()(flair)
-    t2 = Flatten()(t2)
-    t1 = Flatten()(t1)
-    flair = Dense(dense_size, activation='relu')(flair)
-    flair = Dropout(0.5)(flair)
-    t2 = concatenate([flair, t2])
-    t2 = Dense(dense_size, activation='relu')(t2)
-    t2 = Dropout(0.5)(t2)
-    t1 = concatenate([t2, t1])
-    t1 = Dense(dense_size, activation='relu')(t1)
-    t1 = Dropout(0.5)(t1)
-
-    tumor = Dense(2, activation='softmax', name='tumor')(flair)
-    core = Dense(3, activation='softmax', name='core')(t2)
-    enhancing = Dense(num_classes, activation='softmax', name='enhancing')(t1)
-
-    net = Model(inputs=merged_inputs, outputs=[tumor, core, enhancing])
-
-    net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
-
-    return net
-
-
 def create_new_network(patch_size, filters_list, kernel_size_list):
     # This architecture is based on the functional Keras API to introduce 3 output paths:
     # - Whole tumor segmentation
@@ -234,7 +175,7 @@ def main():
     queue = options['queue']
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
-    conv_input = [load_norm_list(p) for p in train_data]
+    conv_input = np.random.permutation(np.array([load_norm_list(p) for p in train_data], dtype=np.float32))[:15]
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
     dsc_results = list()
     for p, gt_name in zip(test_data, test_labels):
@@ -249,33 +190,36 @@ def main():
         image_o, p_name = test_network(net_orig, p, batch_size, patch_size, queue, sufix='orig')
 
         results_o = [dsc_seg(gt == l, image_o == l) for l in labels[1:]]
-        text = 'Subject %s DSC: ' + '/'.join(['%f']*len(results_o))
-        results = (p_name,) + tuple(results_o)
-        print(text % results)
+        text = 'subject %s DSC: ' + '/'.join(['%f']*len(results_o))
 
         # Now let's create the domain network and train it
-        new_net_name = os.path.join(path, 'domain-brats2017.' + p_name + '.mdl')
+        net_new_name = os.path.join(path, 'domain-brats2017.' + p_name + '.mdl')
         try:
-            net_new = keras.models.load_model(new_net_name)
+            net_new = keras.models.load_model(net_new_name)
         except IOError:
-            net_new = create_new_network(patch_size, filters_list, kernel_size_list)
+            data = np.array([load_norm_list(p)]*len(conv_input), dtype=np.float32)
+
+            net_new = create_new_network(data.shape[2:], filters_list, kernel_size_list)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
-            net_orig_conv_layers = [l for l in net_orig.layers if 'conv' in l.name]
-            for l_o, l_d in zip(net_new_conv_layers, net_orig_conv_layers):
-                print(l_o.name, l_d.name)
+            net_orig_conv_layers = sorted(
+                [l for l in net_orig.layers if 'conv' in l.name],
+                lambda x, y: int(x.name[7:]) - int(y.name[7:])
+            )
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_new.set_weights(l_orig.get_weights())
             # Getting the "labeled data"
-            conv_data = np.array([new_net.predict(c, batch_size=1) for c in conv_input], dtype=np.float32)
+            conv_data = np.array(
+                [net_new.predict(np.expand_dims(c, axis=0), batch_size=1) for c in conv_input],
+                dtype=np.float32)
+            print(conv_data.shape)
 
             # Training part
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
                   c['g'] + 'Training the model with %d images' % len(conv_input) +
-                  c['b'] + '(%d parameters)' % new_net.count_params() + c['nc'])
+                  c['b'] + '(%d parameters)' % net_new.count_params() + c['nc'])
             print(net_new.summary())
-            data = np.array([load_norm_list(p)]*len(conv_input), dtype=np.float32)
             net_new.fit(data, conv_data, epochs=epochs, batch_size=1)
-            net_new.save(new_net_name)
+            net_new.save(net_new_name)
 
         # Now we transfer the new weights an re-test
         for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
@@ -286,9 +230,10 @@ def main():
         image_d, p_name = test_network(net_orig, p, batch_size, patch_size, queue, sufix='domain')
 
         results_d = [dsc_seg(gt == l, image_d == l) for l in labels[1:]]
-        text = 'Subject %s DSC: ' + '/'.join(['%f']*len(results_d))
+        results = (p_name,) + tuple(results_o)
+        print('Original ' + text % results)
         results = (p_name,) + tuple(results_d)
-        print(text % results)
+        print('Domain ' + text % results)
 
         dsc_results.append(results_o + results_d)
 
