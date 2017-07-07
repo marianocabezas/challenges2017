@@ -216,9 +216,6 @@ def main():
                     final_layers = concatenate([
                         Dropout(0.5)(brain),
                         Dropout(0.5)(rf),
-                        Dropout(0.5)(csf),
-                        Dropout(0.5)(gm),
-                        Dropout(0.5)(wm)
                     ])
                     final = Dense(4, name='merge', activation='softmax')(final_layers)
                     rf_out = Activation('softmax', name='rf_out')(rf)

@@ -17,6 +17,10 @@ def norm(image):
     return (image - image[np.nonzero(image)].mean()) / image[np.nonzero(image)].std()
 
 
+def load_norm_list(image_list):
+    return [norm(load_nii(image).get_data()) for image in image_list]
+
+
 def subsample(center_list, sizes, random_state):
     np.random.seed(random_state)
     indices = [np.random.permutation(range(0, len(centers))).tolist()[:size]
@@ -64,7 +68,7 @@ def load_patch_batch_train(
         iseg=False,
         experimental=False
 ):
-    image_list = [[norm(load_nii(image_name).get_data()) for image_name in patient]
+    image_list = [load_norm_list(patient)
                   for patient in image_names] if preload else image_names
     while True:
         gen = load_patch_batch_generator_train(
@@ -157,7 +161,7 @@ def load_patch_batch_generator_test(
 ):
     while True:
         n_centers = len(centers)
-        image_list = [norm(load_nii(image_name).get_data()) for image_name in image_names] if preload else image_names
+        image_list = load_norm_list(image_names) if preload else image_names
         for i in range(0, n_centers, batch_size):
             print('%f%% tested (step %d)' % (100.0*i/n_centers, (i/batch_size)+1), end='\r')
             sys.stdout.flush()
