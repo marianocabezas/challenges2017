@@ -238,7 +238,7 @@ def main():
                   c['g'] + 'Training the model with %d images ' % len(conv_data) +
                   c['b'] + '(%d parameters)' % net_new.count_params() + c['nc'])
             print(net_new.summary())
-            conv_data = [np.squeeze(c) for c in np.split(conv_data, 3, axis=1)]
+            conv_data = [np.squeeze(conv) for conv in np.split(conv_data, 3, axis=1)]
             net_new.fit(data, conv_data, epochs=epochs, batch_size=1)
             net_new.save(net_new_name)
 
