@@ -262,7 +262,7 @@ def main():
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             net_orig_conv_layers = [l for l in net_orig.layers if 'conv' in l.name]
             for l_o, l_d in zip(net_new_conv_layers, net_orig_conv_layers):
-                print(l_o, l_d)
+                print(l_o.name, l_d.name)
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_new.set_weights(l_orig.get_weights())
             # Getting the "labeled data"
