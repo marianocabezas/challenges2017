@@ -158,11 +158,13 @@ def create_new_network(patch_size, filters_list, kernel_size_list):
     return net
 
 
-def training_data_generator(net, image_list, n_images):
+def training_data_generator(net, image_list, base_shape, n_images):
     image_list_rand = np.random.permutation(image_list)[:n_images]
     for i, p in enumerate(image_list_rand):
         print('              Case number %d' % i)
-        c = zoom(np.array(load_norm_list(p), dtype=np.float32), [1, 0.5, 0.5, 0.5])
+        im = np.array(load_norm_list(p), dtype=np.float32)
+        shape_diff = map(lambda (x, y): x - y, zip(im.shape, base_shape))
+        c = zoom(np.pad(im, tuple(map(lambda x: (x/2, x-x/2), shape_diff))), [1, 0.5, 0.5, 0.5])
         yield net.predict(np.expand_dims(c, axis=0), batch_size=1)
 
 
@@ -226,7 +228,7 @@ def main():
             # Getting the "labeled data"
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
                   c['b'] + 'training data' + c['nc'])
-            conv_data = np.array(list(training_data_generator(net_new, train_data, n_images)))
+            conv_data = np.array(list(training_data_generator(net_new, train_data, image.shape, n_images)))
             data = np.array([image]*len(conv_data), dtype=np.float32)
             # Training part
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
