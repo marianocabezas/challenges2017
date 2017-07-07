@@ -12,6 +12,7 @@ from data_creation import load_norm_list
 from data_creation import load_patch_batch_generator_test
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
+from scipy.ndimage.interpolation import zoom
 
 
 def parse_inputs():
@@ -24,6 +25,7 @@ def parse_inputs():
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=1048576)
     parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=50)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
+    parser.add_argument('-N', '--num-images', action='store', dest='n_images', type=int, default=5)
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=100)
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
@@ -152,6 +154,14 @@ def create_new_network(patch_size, filters_list, kernel_size_list):
     return net
 
 
+def training_data_generator(net, image_list, n_images):
+    image_list_rand = np.random.permutation(image_list)[:n_images]
+    for i, p in enumerate(image_list_rand):
+        print('              Case number %d' % i)
+        c = zoom(np.array(load_norm_list(p), dtype=np.float32), [1, 0.5, 0.5, 0.5])
+        yield net.predict(np.expand_dims(c, axis=0), batch_size=1)
+
+
 def main():
     options = parse_inputs()
     c = color_codes()
@@ -173,9 +183,9 @@ def main():
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     # Data loading parameters
     queue = options['queue']
+    n_images = options['n_images']
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
-    conv_input = np.random.permutation(np.array([load_norm_list(p) for p in train_data], dtype=np.float32))[:15]
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
     dsc_results = list()
     for p, gt_name in zip(test_data, test_labels):
@@ -204,25 +214,22 @@ def main():
             net_new = keras.models.load_model(net_new_name)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
         except IOError:
-            image = load_norm_list(p)
+            image = zoom(np.array(load_norm_list(p), dtype=np.float32), [1, 0.5, 0.5, 0.5])
             net_new = create_new_network(image.shape[1:], filters_list, kernel_size_list)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_new.set_weights(l_orig.get_weights())
             # Getting the "labeled data"
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
-                  c['b'] + 'training data' + c['nc'] + c['g'] + ' net' + c['nc'])
-            data = np.array([image]*len(conv_input), dtype=np.float32)
-            conv_data = np.array(
-                [net_new.predict(np.expand_dims(c, axis=0), batch_size=1) for c in conv_input],
-                dtype=np.float32)
-            print(conv_data.shape)
-
+                  c['b'] + 'training data' + c['nc'])
+            conv_data = np.array(list(training_data_generator(net_new, train_data, n_images)))
+            data = np.array([image]*len(conv_data), dtype=np.float32)
             # Training part
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-                  c['g'] + 'Training the model with %d images' % len(conv_input) +
+                  c['g'] + 'Training the model with %d images ' % len(conv_data) +
                   c['b'] + '(%d parameters)' % net_new.count_params() + c['nc'])
             print(net_new.summary())
+            conv_data = [np.squeeze(c) for c in np.split(conv_data, 3, axis=1)]
             net_new.fit(data, conv_data, epochs=epochs, batch_size=1)
             net_new.save(net_new_name)
 
