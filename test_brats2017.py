@@ -164,7 +164,8 @@ def training_data_generator(net, image_list, base_shape, n_images):
         print('              Case number %d' % i)
         im = np.array(load_norm_list(p), dtype=np.float32)
         shape_diff = map(lambda (x, y): x - y, zip(im.shape, base_shape))
-        c = zoom(np.pad(im, tuple(map(lambda x: (x/2, x-x/2), shape_diff))), [1, 0.5, 0.5, 0.5])
+        im = np.pad(im, tuple(map(lambda x: (x/2, x-x/2), shape_diff)), 'constant')
+        c = zoom(im, [1, 0.5, 0.5, 0.5])
         yield net.predict(np.expand_dims(c, axis=0), batch_size=1)
 
 
@@ -220,7 +221,7 @@ def main():
             net_new = keras.models.load_model(net_new_name)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
         except IOError:
-            image = zoom(np.array(load_norm_list(p), dtype=np.float32), [1, 0.5, 0.5, 0.5])
+            image = np.array(load_norm_list(p), dtype=np.float32)
             net_new = create_new_network(image.shape[1:], filters_list, kernel_size_list)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
@@ -229,7 +230,7 @@ def main():
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
                   c['b'] + 'training data' + c['nc'])
             conv_data = np.array(list(training_data_generator(net_new, train_data, image.shape, n_images)))
-            data = np.array([image]*len(conv_data), dtype=np.float32)
+            data = np.array([zoom(image, [1, 0.5, 0.5, 0.5])]*len(conv_data), dtype=np.float32)
             # Training part
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
                   c['g'] + 'Training the model with %d images ' % len(conv_data) +
