@@ -181,6 +181,10 @@ def main():
     for p, gt_name in zip(test_data, test_labels):
         # First let's test the original network
         net_orig = keras.models.load_model(net_name)
+        net_orig_conv_layers = sorted(
+            [l for l in net_orig.layers if 'conv' in l.name],
+            lambda x, y: int(x.name[7:]) - int(y.name[7:])
+        )
         gt_nii = load_nii(gt_name)
         gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
         labels = np.unique(gt.flatten())
@@ -194,20 +198,21 @@ def main():
 
         # Now let's create the domain network and train it
         net_new_name = os.path.join(path, 'domain-brats2017.' + p_name + '.mdl')
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
+              c['b'] + 'domain' + c['nc'] + c['g'] + ' net' + c['nc'])
         try:
             net_new = keras.models.load_model(net_new_name)
-        except IOError:
-            data = np.array([load_norm_list(p)]*len(conv_input), dtype=np.float32)
-
-            net_new = create_new_network(data.shape[2:], filters_list, kernel_size_list)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
-            net_orig_conv_layers = sorted(
-                [l for l in net_orig.layers if 'conv' in l.name],
-                lambda x, y: int(x.name[7:]) - int(y.name[7:])
-            )
+        except IOError:
+            image = load_norm_list(p)
+            net_new = create_new_network(image.shape[1:], filters_list, kernel_size_list)
+            net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_new.set_weights(l_orig.get_weights())
             # Getting the "labeled data"
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
+                  c['b'] + 'training data' + c['nc'] + c['g'] + ' net' + c['nc'])
+            data = np.array([image]*len(conv_input), dtype=np.float32)
             conv_data = np.array(
                 [net_new.predict(np.expand_dims(c, axis=0), batch_size=1) for c in conv_input],
                 dtype=np.float32)
