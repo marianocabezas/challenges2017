@@ -219,7 +219,6 @@ def main():
     test_data, test_labels = get_names_from_path(path, options)
     train_data, _ = get_names_from_path(os.path.join(path, 'Training'), options)
     net_name = os.path.join(path, 'baseline-brats2017.D50.f.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
-    net_orig = keras.models.load_model(net_name)
 
     # Prepare the net hyperparameters
     epochs = options['epochs']
@@ -240,6 +239,7 @@ def main():
     dsc_results = list()
     for p, gt_name in zip(test_data, test_labels):
         # First let's test the original network
+        net_orig = keras.models.load_model(net_name)
         gt_nii = load_nii(gt_name)
         gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
         labels = np.unique(gt.flatten())
@@ -254,24 +254,32 @@ def main():
         print(text % results)
 
         # Now let's create the domain network and train it
-        new_net = create_new_network(patch_size, filters_list, kernel_size_list)
-        for l_new, l_orig in zip(new_net.layers, net_orig.layers[:len(new_net.layers)]):
-            l_new.set_weights(l_orig.get_weights)
-        # Getting the "labeled data"
-        conv_data = np.array([new_net.predict(c, batch_size=1) for c in conv_input], dtype=np.float32)
+        new_net_name = os.path.join(path, 'domain-brats2017.' + p_name + '.mdl')
+        try:
+            net_new = keras.models.load_model(new_net_name)
+        except IOError:
+            net_new = create_new_network(patch_size, filters_list, kernel_size_list)
+            net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
+            net_orig_conv_layers = [l for l in net_orig.layers if 'conv' in l.name]
+            for l_o, l_d in zip(net_new_conv_layers, net_orig_conv_layers):
+                print(l_o, l_d)
+            for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
+                l_new.set_weights(l_orig.get_weights())
+            # Getting the "labeled data"
+            conv_data = np.array([new_net.predict(c, batch_size=1) for c in conv_input], dtype=np.float32)
 
-        # Training part
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-              c['g'] + 'Training the model with %d images' % len(conv_input) +
-              c['b'] + '(%d parameters)' % new_net.count_params() + c['nc'])
-        print(new_net.summary())
-        data = np.array([load_norm_list(p)]*len(conv_input), dtype=np.float32)
-        new_net.fit(data, conv_data, epochs=epochs, batch_size=1)
-        new_net.save('domain-brats2017.D50.f.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
+            # Training part
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
+                  c['g'] + 'Training the model with %d images' % len(conv_input) +
+                  c['b'] + '(%d parameters)' % new_net.count_params() + c['nc'])
+            print(net_new.summary())
+            data = np.array([load_norm_list(p)]*len(conv_input), dtype=np.float32)
+            net_new.fit(data, conv_data, epochs=epochs, batch_size=1)
+            net_new.save(new_net_name)
 
         # Now we transfer the new weights an re-test
-        for l_new, l_orig in zip(new_net.layers, net_orig.layers[:len(new_net.layers)]):
-            l_orig.set_weights(l_new.get_weights)
+        for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
+            l_orig.set_weights(l_new.get_weights())
 
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing ' +
               c['b'] + 'domain' + c['nc'] + c['g'] + ' network' + c['nc'])
