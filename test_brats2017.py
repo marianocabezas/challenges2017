@@ -5,7 +5,7 @@ from time import strftime
 import numpy as np
 import keras
 from keras.models import Model
-from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
+from keras.layers import Conv3D, Dropout, PReLU, Input, Reshape, Lambda
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
 from data_creation import load_norm_list
@@ -146,6 +146,10 @@ def create_new_network(patch_size, filters_list, kernel_size_list):
         flair = Dropout(0.5)(flair)
         t2 = Dropout(0.5)(t2)
         t1 = Dropout(0.5)(t1)
+
+    flair = PReLU(name='flair')(flair)
+    t2 = PReLU(name='t2')(t2)
+    t1 = PReLU(name='t1')(t1)
 
     net = Model(inputs=merged_inputs, outputs=[flair, t2, t1])
 
