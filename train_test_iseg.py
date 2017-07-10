@@ -168,6 +168,8 @@ def main():
                     Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
                 )
                 for filters, kernel_size in zip(filters_list, kernel_size_list):
+                    t2 = BatchNormalization()(t2)
+                    t1 = BatchNormalization()(t1)
                     t2 = Conv3D(filters,
                                 kernel_size=kernel_size,
                                 activation='relu',

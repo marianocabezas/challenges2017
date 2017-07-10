@@ -1,6 +1,7 @@
 from __future__ import print_function
 import argparse
 import os
+import sys
 from time import strftime
 import numpy as np
 import keras
@@ -90,6 +91,8 @@ def test_network(net, p, batch_size, patch_size, queue, sufix=''):
             steps=test_steps_per_epoch,
             max_q_size=queue
         )
+        print(' '.join(['']*50), end='\r')
+        sys.stdout.flush()
         [x, y, z] = np.stack(centers, axis=1)
 
         tumor = np.argmax(y_pr_pred[0], axis=1)
@@ -101,8 +104,6 @@ def test_network(net, p, batch_size, patch_size, queue, sufix=''):
         roi_nii.to_filename(roiname)
 
         y_pred = np.argmax(y_pr_pred, axis=1)
-
-        print('Max label = %d' % y_pred.max())
 
         image[x, y, z] = y_pred
         # Post-processing (Basically keep the biggest connected region)
@@ -129,7 +130,7 @@ def create_new_network(patch_size, filters_list, kernel_size_list):
         Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
     )
     t1 = Lambda(lambda l: l[:, 2:, :, :, :], output_shape=(2,) + patch_size)(merged_inputs)
-    for filters, kernel_size in zip(filters_list, kernel_size_list):
+    for filters, kernel_size in zip(filters_list[:-1], kernel_size_list[:-1]):
         flair = Conv3D(filters,
                        kernel_size=kernel_size,
                        activation='relu',
@@ -149,9 +150,24 @@ def create_new_network(patch_size, filters_list, kernel_size_list):
         t2 = Dropout(0.5)(t2)
         t1 = Dropout(0.5)(t1)
 
-    flair = LeakyReLU(name='flair')(flair)
-    t2 = LeakyReLU(name='t2')(t2)
-    t1 = LeakyReLU(name='t1')(t1)
+    flair = Conv3D(filters_list[-1],
+                   kernel_size=kernel_size_list[-1],
+                   activation='relu',
+                   data_format='channels_first',
+                   name='flair'
+                   )(flair)
+    t2 = Conv3D(filters_list[-1],
+                kernel_size=kernel_size_list[-1],
+                activation='relu',
+                data_format='channels_first',
+                name='t2'
+                )(t2)
+    t1 = Conv3D(filters_list[-1],
+                kernel_size=kernel_size_list[-1],
+                activation='relu',
+                data_format='channels_first',
+                name='t1'
+                )(t1)
 
     net = Model(inputs=merged_inputs, outputs=[flair, t2, t1])
 
