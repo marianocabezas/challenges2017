@@ -189,19 +189,25 @@ def main():
                 t2_f = Dropout(0.5)(t2_f)
                 t1_f = Dense(dense_size, activation='relu')(t1_f)
                 t1_f = Dropout(0.5)(t1_f)
-                csf = Dense(2, activation='softmax', name='csf')(t1_f)
-                gm = Dense(2, activation='softmax', name='gm')(t2_f)
-                wm = Dense(2, activation='softmax', name='wm')(t2_f)
 
                 if experimental:
-                    patch_center = Reshape((filters_list[-1]*2, -1))(concatenate([t2, t1], axis=1))
+                    csf = Dense(2, activation='relu', name='csf')(t1_f)
+                    gm = Dense(2, activation='relu', name='gm')(t1_f)
+                    wm = Dense(2, activation='relu', name='wm')(t1_f)
+                    merged = concatenate([csf, gm, wm, t1_f])
+                    csf = Activation('softmax')(csf)
+                    gm = Activation('softmax')(gm)
+                    wm = Activation('softmax')(wm)
+                    patch_center = Reshape((filters_list[-1]*2, -1))(t1)
                     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
                     rf = LSTM(4, implementation=1)(patch_center)
                     rf = PReLU(name='rf')(rf)
-                    merged = concatenate([t2_f, t1_f])
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
                     rf = None
+                    csf = Dense(2, activation='softmax', name='csf')(t1_f)
+                    gm = Dense(2, activation='softmax', name='gm')(t2_f)
+                    wm = Dense(2, activation='softmax', name='wm')(t2_f)
                     merged = concatenate([t2_f, t1_f, csf, gm, wm])
                     merged = Dropout(0.5)(merged)
                     weights = [0.2, 0.5, 0.5, 1.0]
