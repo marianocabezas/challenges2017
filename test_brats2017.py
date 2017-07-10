@@ -22,7 +22,7 @@ def parse_inputs():
     parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=13)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
-    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=4096)
+    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
     parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=50)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-N', '--num-images', action='store', dest='n_images', type=int, default=25)
@@ -101,6 +101,8 @@ def test_network(net, p, batch_size, patch_size, queue, sufix=''):
         roi_nii.to_filename(roiname)
 
         y_pred = np.argmax(y_pr_pred, axis=1)
+
+        print('Max label = %d' % y_pred.max())
 
         image[x, y, z] = y_pred
         # Post-processing (Basically keep the biggest connected region)
