@@ -118,7 +118,7 @@ def main():
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
         method_name = 'exp-' if experimental else 'baseline-'
-        net_name = os.path.join(path, method_name + 'brats2017.fold%d' % i + sufix + 'mdl')
+        net_name = os.path.join(path, method_name + 'iseg2017.fold%d' % i + sufix + 'mdl')
 
         # First we check that we did not train for that patient, in order to save time
         try:
@@ -198,7 +198,7 @@ def main():
                     csf = Activation('softmax')(csf)
                     gm = Activation('softmax')(gm)
                     wm = Activation('softmax')(wm)
-                    patch_center = Reshape((filters_list[-1]*2, -1))(t1)
+                    patch_center = Reshape((filters_list[-1], -1))(t1)
                     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
                     rf = LSTM(4, implementation=1)(patch_center)
                     rf = PReLU(name='rf')(rf)
