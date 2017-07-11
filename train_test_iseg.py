@@ -173,10 +173,10 @@ def main():
                                         )(merged)
                         merged = Dropout(0.5)(merged)
                     # LSTM stuff
-                    patch_center = Reshape((filters_list[-1], -1))(merged)
-                    patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
-                    rf = LSTM(4, implementation=1)(patch_center)
-                    rf = PReLU(name='rf')(rf)
+                    # patch_center = Reshape((filters_list[-1], -1))(merged)
+                    # patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
+                    # rf = LSTM(4, implementation=1)(patch_center)
+                    # rf = PReLU(name='rf')(rf)
                     # Normal stuff
                     merged_f = Flatten()(merged)
                     merged_f = BatchNormalization()(merged_f)
@@ -191,7 +191,6 @@ def main():
                     wm = Activation('softmax', name='wm')(wm)
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
-                    rf = None
                     t1 = Reshape((1,) + patch_size)(
                         Lambda(lambda l: l[:, 0, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
                     )
@@ -235,14 +234,14 @@ def main():
 
                 outputs = [csf, gm, wm, brain_out]
 
-                if experimental:
-                    final_layers = concatenate([
-                        Dropout(0.5)(brain),
-                        Dropout(0.5)(rf),
-                    ])
-                    final = Dense(4, name='merge', activation='softmax')(final_layers)
-                    rf_out = Activation('softmax', name='rf_out')(rf)
-                    outputs = outputs + [rf_out, final]
+                #if experimental:
+                #    final_layers = concatenate([
+                #        Dropout(0.5)(brain),
+                #        Dropout(0.5)(rf),
+                #    ])
+                #    final = Dense(4, name='merge', activation='softmax')(final_layers)
+                #    rf_out = Activation('softmax', name='rf_out')(rf)
+                #    outputs = outputs + [rf_out, final]
 
                 net = Model(inputs=merged_inputs, outputs=outputs)
 
