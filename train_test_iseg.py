@@ -65,6 +65,130 @@ def get_names_from_path(options):
     return image_names, label_names
 
 
+def get_network_1(merged_inputs, patch_size, filters_list, kernel_size_list, dense_size):
+    t1 = Reshape((1,) + patch_size)(
+        Lambda(lambda l: l[:, 0, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
+    )
+    t2 = Reshape((1,) + patch_size)(
+        Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
+    )
+    for filters, kernel_size in zip(filters_list, kernel_size_list):
+        t2 = BatchNormalization()(t2)
+        t1 = BatchNormalization()(t1)
+        t2 = Conv3D(filters,
+                    kernel_size=kernel_size,
+                    activation='relu',
+                    data_format='channels_first'
+                    )(t2)
+        t1 = Conv3D(filters,
+                    kernel_size=kernel_size,
+                    activation='relu',
+                    data_format='channels_first'
+                    )(t1)
+        t2 = Dropout(0.5)(t2)
+        t1 = Dropout(0.5)(t1)
+
+    t2_f = Flatten()(t2)
+    t1_f = Flatten()(t1)
+    t2_f = BatchNormalization()(t2_f)
+    t1_f = BatchNormalization()(t1_f)
+    t2_f = Dense(dense_size, activation='relu')(t2_f)
+    t2_f = Dropout(0.5)(t2_f)
+    t1_f = Dense(dense_size, activation='relu')(t1_f)
+    t1_f = Dropout(0.5)(t1_f)
+    csf = Dense(2, activation='softmax', name='csf')(t1_f)
+    gm = Dense(2, activation='softmax', name='gm')(t2_f)
+    wm = Dense(2, activation='softmax', name='wm')(t2_f)
+    merged = concatenate([t2_f, t1_f, csf, gm, wm])
+    merged = Dropout(0.5)(merged)
+
+    brain = Dense(4)(merged)
+    brain = PReLU(name='brain')(brain)
+    brain_out = Activation('softmax', name='brain_out')(brain)
+
+    weights = [0.2, 0.5, 0.5, 1.0]
+    outputs = [csf, gm, wm, brain_out]
+
+    return weights, outputs
+
+
+def get_network_2(merged_inputs, filters_list, kernel_size_list, dense_size):
+    merged = merged_inputs
+    for filters, kernel_size in zip(filters_list, kernel_size_list):
+        merged = BatchNormalization()(merged)
+        merged = Conv3D(filters,
+                        kernel_size=kernel_size,
+                        activation='relu',
+                        data_format='channels_first'
+                        )(merged)
+        merged = Dropout(0.5)(merged)
+    # LSTM stuff
+    patch_center = Reshape((filters_list[-1], -1))(merged)
+    patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
+    rf = LSTM(4, implementation=1)(patch_center)
+    rf = PReLU(name='rf')(rf)
+    # Normal stuff
+    merged_f = Flatten()(merged)
+    merged_f = BatchNormalization()(merged_f)
+    merged_f = Dense(dense_size, activation='relu')(merged_f)
+    merged_f = Dropout(0.5)(merged_f)
+    csf = Dense(2, activation='relu')(merged_f)
+    gm = Dense(2, activation='relu')(merged_f)
+    wm = Dense(2, activation='relu')(merged_f)
+    merged = concatenate([csf, gm, wm, merged_f])
+    csf = Activation('softmax', name='csf')(csf)
+    gm = Activation('softmax', name='gm')(gm)
+    wm = Activation('softmax', name='wm')(wm)
+
+    brain = Dense(4)(merged)
+    brain = PReLU(name='brain')(brain)
+    brain_out = Activation('softmax', name='brain_out')(brain)
+
+    final_layers = concatenate([
+        Dropout(0.5)(brain),
+        Dropout(0.5)(rf),
+    ])
+    final = Dense(4, name='merge', activation='softmax')(final_layers)
+    rf_out = Activation('softmax', name='rf_out')(rf)
+
+    weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
+    outputs = [csf, gm, wm, brain_out, rf_out, final]
+
+    return weights, outputs
+
+
+def get_network_3(merged, filters_list, kernel_size_list, dense_size):
+    for filters, kernel_size in zip(filters_list, kernel_size_list):
+        merged = BatchNormalization()(merged)
+        merged = Conv3D(filters,
+                        kernel_size=kernel_size,
+                        activation='relu',
+                        data_format='channels_first'
+                        )(merged)
+        merged = Dropout(0.5)(merged)
+    # Normal stuff
+    merged_f = Flatten()(merged)
+    merged_f = BatchNormalization()(merged_f)
+    merged_f = Dense(dense_size, activation='relu')(merged_f)
+    merged_f = Dropout(0.5)(merged_f)
+    csf = Dense(2, activation='relu')(merged_f)
+    gm = Dense(2, activation='relu')(merged_f)
+    wm = Dense(2, activation='relu')(merged_f)
+    merged = concatenate([csf, gm, wm, merged_f])
+    csf = Activation('softmax', name='csf')(csf)
+    gm = Activation('softmax', name='gm')(gm)
+    wm = Activation('softmax', name='wm')(wm)
+
+    brain = Dense(4)(merged)
+    brain = PReLU(name='brain')(brain)
+    brain_out = Activation('softmax', name='brain_out')(brain)
+
+    weights = [0.2, 0.5, 0.5, 1.0]
+    outputs = [csf, gm, wm, brain_out]
+
+    return weights, outputs
+
+
 def main():
     options = parse_inputs()
     c = color_codes()
