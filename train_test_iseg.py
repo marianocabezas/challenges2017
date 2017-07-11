@@ -189,7 +189,8 @@ def main():
                     csf = Activation('softmax', name='csf')(csf)
                     gm = Activation('softmax', name='gm')(gm)
                     wm = Activation('softmax', name='wm')(wm)
-                    weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
+                    # weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
+                    weights = [0.2, 0.5, 0.5, 1.0]
                 else:
                     t1 = Reshape((1,) + patch_size)(
                         Lambda(lambda l: l[:, 0, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
