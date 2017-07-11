@@ -14,6 +14,7 @@ from data_creation import load_patch_batch_generator_test
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
 from scipy.ndimage.interpolation import zoom
+from skimage.measure import compare_ssim as ssim
 
 
 def parse_inputs():
@@ -176,15 +177,19 @@ def create_new_network(patch_size, filters_list, kernel_size_list):
     return net
 
 
-def training_data_generator(net, image_list, base_shape, n_images):
-    image_list_rand = np.random.permutation(image_list)[:n_images]
-    for i, p in enumerate(image_list_rand):
-        print('              Case number %d' % i)
+def get_best_image(base_image, image_list, base_shape):
+    best_rank = 0
+    best_image = None
+    for p in image_list:
         im = np.array(load_norm_list(p), dtype=np.float32)
         shape_diff = map(lambda (x, y): x - y, zip(im.shape, base_shape))
         im = np.pad(im, tuple(map(lambda x: (x/2, x-x/2), shape_diff)), 'constant')
-        c = zoom(im, [1, 0.5, 0.5, 0.5])
-        yield net.predict(np.expand_dims(c, axis=0), batch_size=1)
+        nu_rank = ssim(base_image.flatten(), im.flatten())
+        if nu_rank > best_rank:
+            best_rank = nu_rank
+            best_image = im
+        print(''.join([' ']*14) + 'Image %s - SSIM = %f' % (p[0].rsplit('/')[-2], nu_rank))
+    return best_image
 
 
 def main():
@@ -208,7 +213,6 @@ def main():
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     # Data loading parameters
     queue = options['queue']
-    n_images = options['n_images']
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
@@ -239,25 +243,25 @@ def main():
             net_new = keras.models.load_model(net_new_name)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
         except IOError:
+            # We get the base image and the training image downscaled (maybe I could break them in "big patches")
             image = np.array(load_norm_list(p), dtype=np.float32)
-            base_shape = image.shape
-            image = zoom(image, [1, 0.5, 0.5, 0.5])
-            net_new = create_new_network(image.shape[1:], filters_list, kernel_size_list)
+            train_image = zoom(get_best_image(image, train_data, image.shape), [1, 0.5, 0.5, 0.5])
+            data = zoom(image, [1, 0.5, 0.5, 0.5])
+            # We create the domain network
+            net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_new.set_weights(l_orig.get_weights())
             # Getting the "labeled data"
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
                   c['b'] + 'training data' + c['nc'])
-            conv_data = np.array(list(training_data_generator(net_new, train_data, base_shape, n_images)))
-            data = np.array([image]*len(conv_data), dtype=np.float32)
+            conv_data = net_new.predict(np.expand_dims(train_image, axis=0), batch_size=1)
             # Training part
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
                   c['g'] + 'Training the model with %d images ' % len(conv_data) +
                   c['b'] + '(%d parameters)' % net_new.count_params() + c['nc'])
             print(net_new.summary())
-            conv_data = [np.squeeze(conv) for conv in np.split(conv_data, 3, axis=1)]
-            net_new.fit(data, conv_data, epochs=epochs, batch_size=1)
+            net_new.fit(np.expand_dims(data, axis=0), conv_data, epochs=epochs, batch_size=1)
             net_new.save(net_new_name)
 
         # Now we transfer the new weights an re-test

@@ -161,52 +161,64 @@ def main():
                 # - Whole segmentation (tumor, core and enhancing parts)
                 # The idea is to let the network work on the three parts to improve the multiclass segmentation.
                 merged_inputs = Input(shape=(2,) + patch_size, name='merged_inputs')
-                t1 = Reshape((1,) + patch_size)(
-                    Lambda(lambda l: l[:, 0, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
-                )
-                t2 = Reshape((1,) + patch_size)(
-                    Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
-                )
-                for filters, kernel_size in zip(filters_list, kernel_size_list):
-                    t2 = BatchNormalization()(t2)
-                    t1 = BatchNormalization()(t1)
-                    t2 = Conv3D(filters,
-                                kernel_size=kernel_size,
-                                activation='relu',
-                                data_format='channels_first'
-                                )(t2)
-                    t1 = Conv3D(filters,
-                                kernel_size=kernel_size,
-                                activation='relu',
-                                data_format='channels_first'
-                                )(t1)
-                    t2 = Dropout(0.5)(t2)
-                    t1 = Dropout(0.5)(t1)
-
-                t2_f = Flatten()(t2)
-                t1_f = Flatten()(t1)
-                t2_f = BatchNormalization()(t2_f)
-                t1_f = BatchNormalization()(t1_f)
-                t2_f = Dense(dense_size, activation='relu')(t2_f)
-                t2_f = Dropout(0.5)(t2_f)
-                t1_f = Dense(dense_size, activation='relu')(t1_f)
-                t1_f = Dropout(0.5)(t1_f)
 
                 if experimental:
-                    csf = Dense(2, activation='relu')(t1_f)
-                    gm = Dense(2, activation='relu')(t1_f)
-                    wm = Dense(2, activation='relu')(t1_f)
-                    merged = concatenate([csf, gm, wm, t1_f])
+                    for filters, kernel_size in zip(filters_list, kernel_size_list):
+                        merged = BatchNormalization()(merged_inputs)
+                        merged = Conv3D(filters,
+                                        kernel_size=kernel_size,
+                                        activation='relu',
+                                        data_format='channels_first'
+                                        )(merged)
+                        merged = Dropout(0.5)(merged)
+                    merged_f = Flatten()(merged)
+                    merged_f = BatchNormalization()(merged_f)
+                    merged_f = Dense(dense_size, activation='relu')(merged_f)
+                    merged_f = Dropout(0.5)(merged_f)
+                    csf = Dense(2, activation='relu')(merged_f)
+                    gm = Dense(2, activation='relu')(merged_f)
+                    wm = Dense(2, activation='relu')(merged_f)
+                    merged = concatenate([csf, gm, wm, merged_f])
                     csf = Activation('softmax', name='csf')(csf)
                     gm = Activation('softmax', name='gm')(gm)
                     wm = Activation('softmax', name='wm')(wm)
-                    patch_center = Reshape((filters_list[-1], -1))(t1)
+                    patch_center = Reshape((filters_list[-1], -1))(merged)
                     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
                     rf = LSTM(4, implementation=1)(patch_center)
                     rf = PReLU(name='rf')(rf)
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
                     rf = None
+                    t1 = Reshape((1,) + patch_size)(
+                        Lambda(lambda l: l[:, 0, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
+                    )
+                    t2 = Reshape((1,) + patch_size)(
+                        Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
+                    )
+                    for filters, kernel_size in zip(filters_list, kernel_size_list):
+                        t2 = BatchNormalization()(t2)
+                        t1 = BatchNormalization()(t1)
+                        t2 = Conv3D(filters,
+                                    kernel_size=kernel_size,
+                                    activation='relu',
+                                    data_format='channels_first'
+                                    )(t2)
+                        t1 = Conv3D(filters,
+                                    kernel_size=kernel_size,
+                                    activation='relu',
+                                    data_format='channels_first'
+                                    )(t1)
+                        t2 = Dropout(0.5)(t2)
+                        t1 = Dropout(0.5)(t1)
+
+                    t2_f = Flatten()(t2)
+                    t1_f = Flatten()(t1)
+                    t2_f = BatchNormalization()(t2_f)
+                    t1_f = BatchNormalization()(t1_f)
+                    t2_f = Dense(dense_size, activation='relu')(t2_f)
+                    t2_f = Dropout(0.5)(t2_f)
+                    t1_f = Dense(dense_size, activation='relu')(t1_f)
+                    t1_f = Dropout(0.5)(t1_f)
                     csf = Dense(2, activation='softmax', name='csf')(t1_f)
                     gm = Dense(2, activation='softmax', name='gm')(t2_f)
                     wm = Dense(2, activation='softmax', name='wm')(t2_f)

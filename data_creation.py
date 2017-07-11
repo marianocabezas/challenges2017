@@ -14,7 +14,8 @@ import keras
 
 def norm(image):
     image = np.squeeze(image)
-    return (image - image[np.nonzero(image)].mean()) / image[np.nonzero(image)].std()
+    image_nonzero = image[np.nonzero(image)]
+    return (image - image_nonzero.mean()) / image_nonzero.std()
 
 
 def load_norm_list(image_list):
