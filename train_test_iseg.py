@@ -163,14 +163,21 @@ def main():
                 merged_inputs = Input(shape=(2,) + patch_size, name='merged_inputs')
 
                 if experimental:
+                    merged = merged_inputs
                     for filters, kernel_size in zip(filters_list, kernel_size_list):
-                        merged = BatchNormalization()(merged_inputs)
+                        merged = BatchNormalization()(merged)
                         merged = Conv3D(filters,
                                         kernel_size=kernel_size,
                                         activation='relu',
                                         data_format='channels_first'
                                         )(merged)
                         merged = Dropout(0.5)(merged)
+                    # LSTM stuff
+                    patch_center = Reshape((filters_list[-1], -1))(merged)
+                    patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
+                    rf = LSTM(4, implementation=1)(patch_center)
+                    rf = PReLU(name='rf')(rf)
+                    # Normal stuff
                     merged_f = Flatten()(merged)
                     merged_f = BatchNormalization()(merged_f)
                     merged_f = Dense(dense_size, activation='relu')(merged_f)
@@ -182,10 +189,6 @@ def main():
                     csf = Activation('softmax', name='csf')(csf)
                     gm = Activation('softmax', name='gm')(gm)
                     wm = Activation('softmax', name='wm')(wm)
-                    patch_center = Reshape((filters_list[-1], -1))(merged)
-                    patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
-                    rf = LSTM(4, implementation=1)(patch_center)
-                    rf = PReLU(name='rf')(rf)
                     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
                 else:
                     rf = None
