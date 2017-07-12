@@ -6,7 +6,7 @@ from time import strftime
 import numpy as np
 import keras
 from keras.models import Model
-from keras.layers import Conv3D, Dropout, LeakyReLU, Input, Reshape, Lambda
+from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
 from data_creation import load_norm_list
@@ -69,9 +69,13 @@ def test_network(net, p, batch_size, patch_size, queue, sufix=''):
     p_name = p[0].rsplit('/')[-2]
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
     outputname = os.path.join(patient_path, 'deep-brats17.test.' + sufix + '.nii.gz')
+    roiname = os.path.join(patient_path, 'deep-brats17.orig.test.' + sufix + '.roi.nii.gz')
     try:
         image = load_nii(outputname).get_data()
+        load_nii(roiname)
     except IOError:
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing ' +
+              c['b'] + sufix + c['nc'] + c['g'] + ' network' + c['nc'])
         roi_nii = load_nii(p[0])
         roi = roi_nii.get_data().astype(dtype=np.bool)
         centers = get_mask_voxels(roi)
@@ -101,7 +105,6 @@ def test_network(net, p, batch_size, patch_size, queue, sufix=''):
         roi = np.zeros_like(roi).astype(dtype=np.uint8)
         roi[x, y, z] = tumor
         roi_nii.get_data()[:] = roi
-        roiname = os.path.join(patient_path, 'deep-brats17.orig.test.roi.nii.gz')
         roi_nii.to_filename(roiname)
 
         y_pred = np.argmax(y_pr_pred, axis=1)
@@ -217,7 +220,9 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
     dsc_results = list()
-    for p, gt_name in zip(test_data, test_labels):
+    for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] +
+              'Case ' + c['c'] + c['b'] + '%d/%d: ' % (i + 1, len(test_data)) + c['nc'])
         # First let's test the original network
         net_orig = keras.models.load_model(net_name)
         net_orig_conv_layers = sorted(
@@ -228,21 +233,21 @@ def main():
         gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
         labels = np.unique(gt.flatten())
 
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing ' +
-              c['b'] + 'original' + c['nc'] + c['g'] + ' network' + c['nc'])
-        image_o, p_name = test_network(net_orig, p, batch_size, patch_size, queue, sufix='orig')
+        image_o, p_name = test_network(net_orig, p, batch_size, patch_size, queue, sufix='original')
 
         results_o = [dsc_seg(gt == l, image_o == l) for l in labels[1:]]
-        text = 'subject %s DSC: ' + '/'.join(['%f']*len(results_o))
+        subject_name = c['c'] + c['b'] + '%s' + c['nc']
+        dsc_string = c['g'] + '/'.join(['%f']*len(results_o)) + c['nc']
+        text = subject_name + ' DSC: ' + dsc_string
 
         # Now let's create the domain network and train it
         net_new_name = os.path.join(path, 'domain-brats2017.' + p_name + '.mdl')
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
-              c['b'] + 'domain' + c['nc'] + c['g'] + ' net' + c['nc'])
         try:
             net_new = keras.models.load_model(net_new_name)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
         except IOError:
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
+                  c['b'] + 'domain' + c['nc'] + c['g'] + ' net' + c['nc'])
             # We get the base image and the training image downscaled (maybe I could break them in "big patches")
             image = np.array(load_norm_list(p), dtype=np.float32)
             train_image = zoom(get_best_image(image, train_data, image.shape), [1, 0.5, 0.5, 0.5])
@@ -268,15 +273,13 @@ def main():
         for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
             l_orig.set_weights(l_new.get_weights())
 
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing ' +
-              c['b'] + 'domain' + c['nc'] + c['g'] + ' network' + c['nc'])
         image_d, p_name = test_network(net_orig, p, batch_size, patch_size, queue, sufix='domain')
 
         results_d = [dsc_seg(gt == l, image_d == l) for l in labels[1:]]
         results = (p_name,) + tuple(results_o)
-        print('Original ' + text % results)
+        print(''.join([' ']*14) + 'Original ' + text % results)
         results = (p_name,) + tuple(results_d)
-        print('Domain ' + text % results)
+        print(''.join([' ']*14) + 'Domain   ' + text % results)
 
         dsc_results.append(results_o + results_d)
 

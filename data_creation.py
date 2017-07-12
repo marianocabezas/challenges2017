@@ -148,7 +148,7 @@ def load_patch_batch_generator_train(
                     )
                 ]
         else:
-            y = keras.utils.to_categorical(y, num_classes=nlabels)
+            y = keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=2)
         yield (x, y)
 
 

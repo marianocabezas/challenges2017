@@ -32,7 +32,6 @@ def parse_inputs():
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
     parser.add_argument('-E', '--experimental', action='store_true', dest='experimental', default=False)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=100)
-    parser.add_argument('-u', '--unbalanced', action='store_false', dest='balanced', default=True)
     parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('--padding', action='store', dest='padding', default='valid')
@@ -209,7 +208,6 @@ def main():
     filters_list = n_filters if len(n_filters) > 1 else n_filters*conv_blocks
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
-    balanced = options['balanced']
     experimental = options['experimental']
     # Data loading parameters
     preload = options['preload']
@@ -220,8 +218,8 @@ def main():
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     s_s = '.s' if sequential else '.f'
-    ub_s = '.ub' if not balanced else ''
-    params_s = (ub_s, dfactor, s_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
+    e_s = '.E' if not experimental else ''
+    params_s = (e_s, dfactor, s_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
     sufix = '%s.D%d%s.p%d.c%s.n%s.d%d.e%d.pad_%s.' % params_s
     n_channels = np.count_nonzero([
         options['use_t1'],
@@ -249,8 +247,8 @@ def main():
             net = keras.models.load_model(net_name)
         except IOError:
             # NET definition using Keras
-            train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
-            val_centers = get_cnn_centers(val_data[:, 0], val_labels, balanced=balanced)
+            train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=False)
+            val_centers = get_cnn_centers(val_data[:, 0], val_labels, balanced=False)
             train_samples = len(train_centers)/dfactor
             val_samples = len(val_centers) / dfactor
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
