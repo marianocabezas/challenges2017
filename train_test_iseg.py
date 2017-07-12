@@ -300,7 +300,7 @@ def main():
                     # rf = PReLU(name='rf')(rf)
                     # Normal stuff
                     merged_f = Flatten()(merged)
-                    merged_f = BatchNormalization()(merged_f)
+                    merged_f = BatchNormalization(axis=1)(merged_f)
                     merged_f = Dense(dense_size, activation='relu')(merged_f)
                     merged_f = Dropout(0.5)(merged_f)
                     csf = Dense(2, activation='relu')(merged_f)
@@ -337,8 +337,8 @@ def main():
 
                     t2_f = Flatten()(t2)
                     t1_f = Flatten()(t1)
-                    t2_f = BatchNormalization()(t2_f)
-                    t1_f = BatchNormalization()(t1_f)
+                    t2_f = BatchNormalization(axis=1)(t2_f)
+                    t1_f = BatchNormalization(axis=1)(t1_f)
                     t2_f = Dense(dense_size, activation='relu')(t2_f)
                     t2_f = Dropout(0.5)(t2_f)
                     t1_f = Dense(dense_size, activation='relu')(t1_f)
