@@ -68,10 +68,20 @@ def get_convolutional_block(input_l, filters_list, kernel_size_list, activation=
     return input_l
 
 
+def get_tissue_binary_stuff(input_l):
+    csf = Dense(2)(input_l)
+    gm = Dense(2)(input_l)
+    wm = Dense(2)(input_l)
+    csf_out = Activation('softmax', name='csf')(csf)
+    gm_out = Activation('softmax', name='gm')(gm)
+    wm_out = Activation('softmax', name='wm')(wm)
+
+    return csf, gm, wm, csf_out, gm_out, wm_out
+
+
 def get_network_1(merged_inputs, filters_list, kernel_size_list, dense_size):
     # Input splitting
     output_shape = merged_inputs.shape
-    print(output_shape)
     output_shape[1] /= 2
     t1 = Lambda(lambda l: K.expand_dims(l[:, 0, :, :, :], axis=1), output_shape=output_shape)(merged_inputs)
     t2 = Lambda(lambda l: K.expand_dims(l[:, 1, :, :, :], axis=1), output_shape=output_shape)(merged_inputs)
@@ -88,12 +98,7 @@ def get_network_1(merged_inputs, filters_list, kernel_size_list, dense_size):
     t1_f = Dense(dense_size, activation='relu')(t1_f)
     t1_f = Dropout(0.5)(t1_f)
     merged = concatenate([t2_f, t1_f])
-    csf = Dense(2)(merged)
-    gm = Dense(2)(merged)
-    wm = Dense(2)(merged)
-    csf_out = Activation('softmax', name='csf')(csf)
-    gm_out = Activation('softmax', name='gm')(gm)
-    wm_out = Activation('softmax', name='wm')(wm)
+    csf, gm, wm, csf_out, gm_out, wm_out = get_tissue_binary_stuff(merged)
 
     # Final labeling
     merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm)])
@@ -108,6 +113,28 @@ def get_network_1(merged_inputs, filters_list, kernel_size_list, dense_size):
 
 
 def get_network_2(merged_inputs, filters_list, kernel_size_list, dense_size):
+    # Convolutional stuff
+    merged = get_convolutional_block(merged_inputs, filters_list, kernel_size_list)
+
+    # Tissue binary stuff
+    merged_f = Flatten()(merged)
+    merged_f = Dense(dense_size, activation='relu')(merged_f)
+    merged_f = Dropout(0.5)(merged_f)
+    csf, gm, wm, csf_out, gm_out, wm_out = get_tissue_binary_stuff(merged_f)
+
+    # Final labeling stuff
+    merged = concatenate([PReLU()(csf), PReLU()(gm), PReLU()(wm), merged_f])
+    merged = Dropout(0.5)(merged)
+    brain = Dense(4, activation='softmax', name='brain')(merged)
+
+    # Weights and outputs
+    weights = [0.2, 0.5, 0.5, 1.0]
+    outputs = [csf_out, gm_out, wm_out, brain]
+
+    return weights, outputs
+
+
+def get_network_3(merged_inputs, filters_list, kernel_size_list, dense_size):
     # Convolutional part
     merged = get_convolutional_block(merged_inputs, filters_list, kernel_size_list)
 
@@ -122,12 +149,7 @@ def get_network_2(merged_inputs, filters_list, kernel_size_list, dense_size):
     merged_f = Flatten()(merged)
     merged_f = Dense(dense_size, activation='relu')(merged_f)
     merged_f = Dropout(0.5)(merged_f)
-    csf = Dense(2)(merged_f)
-    gm = Dense(2)(merged_f)
-    wm = Dense(2)(merged_f)
-    csf_out = Activation('softmax', name='csf')(csf)
-    gm_out = Activation('softmax', name='gm')(gm)
-    wm_out = Activation('softmax', name='wm')(wm)
+    csf, gm, wm, csf_out, gm_out, wm_out = get_tissue_binary_stuff(merged_f)
 
     # Brain labeling
     merged = concatenate([PReLU()(csf), PReLU()(gm), PReLU()(wm), merged_f])
@@ -146,33 +168,6 @@ def get_network_2(merged_inputs, filters_list, kernel_size_list, dense_size):
     # Weights and outputs
     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
     outputs = [csf_out, gm_out, wm_out, brain_out, rf_out, final]
-
-    return weights, outputs
-
-
-def get_network_3(merged_inputs, filters_list, kernel_size_list, dense_size):
-    # Convolutional stuff
-    merged = get_convolutional_block(merged_inputs, filters_list, kernel_size_list)
-
-    # Tissue binary stuff
-    merged_f = Flatten()(merged)
-    merged_f = Dense(dense_size, activation='relu')(merged_f)
-    merged_f = Dropout(0.5)(merged_f)
-    csf = Dense(2)(merged_f)
-    gm = Dense(2)(merged_f)
-    wm = Dense(2)(merged_f)
-    csf_out = Activation('softmax', name='csf')(csf)
-    gm_out = Activation('softmax', name='gm')(gm)
-    wm_out = Activation('softmax', name='wm')(wm)
-
-    # Final labeling stuff
-    merged = concatenate([PReLU()(csf), PReLU()(gm), PReLU()(wm), merged_f])
-    merged = Dropout(0.5)(merged)
-    brain = Dense(4, activation='softmax', name='brain')(merged)
-
-    # Weights and outputs
-    weights = [0.2, 0.5, 0.5, 1.0]
-    outputs = [csf_out, gm_out, wm_out, brain]
 
     return weights, outputs
 
