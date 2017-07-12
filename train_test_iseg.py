@@ -33,13 +33,9 @@ def parse_inputs():
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=100)
     parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
-    parser.add_argument('--padding', action='store', dest='padding', default='valid')
-    parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
-    parser.add_argument('--no-t2', action='store_false', dest='use_t2', default=True)
     parser.add_argument('--t1', action='store', dest='t1', default='-T1.hdr')
     parser.add_argument('--t2', action='store', dest='t2', default='-T2.hdr')
     parser.add_argument('--labels', action='store', dest='labels', default='-label.hdr')
-    parser.add_argument('-m', '--multi-channel', action='store_true', dest='multi', default=False)
     return vars(parser.parse_args())
 
 
@@ -53,74 +49,67 @@ def get_names_from_path(options):
     patients = range(10)
 
     # Prepare the names
-    t1_names = [os.path.join(path, 'subject-%d' % (p+1) + options['t1'])
-                for p in patients] if options['use_t1'] else None
-    t2_names = [os.path.join(path, 'subject-%d' % (p+1) + options['t2'])
-                for p in patients] if options['use_t2'] else None
+    t1_names = [os.path.join(path, 'subject-%d' % (p+1) + options['t1']) for p in patients]
+    t2_names = [os.path.join(path, 'subject-%d' % (p+1) + options['t2']) for p in patients]
     label_names = np.array([os.path.join(path, 'subject-%d' % (p+1) + options['labels']) for p in patients])
-    image_names = np.stack(filter(None, [t1_names, t2_names]), axis=1)
+    image_names = np.stack([t1_names, t2_names], axis=1)
 
     return image_names, label_names
 
 
+def get_convolutional_block(input_l, filters_list, kernel_size_list, activation=PReLU, drop=0.5):
+    for filters, kernel_size in zip(filters_list, kernel_size_list):
+        input_l = Conv3D(filters, kernel_size=kernel_size, data_format='channels_first')(input_l)
+        input_l = BatchNormalization(axis=1)(input_l)
+        input_l = activation()(input_l)
+        input_l = Dropout(drop)(input_l)
+
+    return input_l
+
+
 def get_network_1(merged_inputs, patch_size, filters_list, kernel_size_list, dense_size):
+    # Input splitting
     t1 = Reshape((1,) + patch_size)(
         Lambda(lambda l: l[:, 0, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
     )
     t2 = Reshape((1,) + patch_size)(
         Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
     )
-    for filters, kernel_size in zip(filters_list, kernel_size_list):
-        t2 = Conv3D(filters,
-                    kernel_size=kernel_size,
-                    data_format='channels_first'
-                    )(t2)
-        t1 = Conv3D(filters,
-                    kernel_size=kernel_size,
-                    data_format='channels_first'
-                    )(t1)
-        t2 = BatchNormalization(axis=1)(t2)
-        t1 = BatchNormalization(axis=1)(t1)
-        t2 = PReLU()(t2)
-        t1 = PReLU()(t1)
-        t2 = Dropout(0.5)(t2)
-        t1 = Dropout(0.5)(t1)
 
+    # Convolutional part
+    t2 = get_convolutional_block(t2, filters_list, kernel_size_list)
+    t1 = get_convolutional_block(t1, filters_list, kernel_size_list)
+
+    # Tissue binary stuff
     t2_f = Flatten()(t2)
     t1_f = Flatten()(t1)
     t2_f = Dense(dense_size, activation='relu')(t2_f)
     t2_f = Dropout(0.5)(t2_f)
     t1_f = Dense(dense_size, activation='relu')(t1_f)
     t1_f = Dropout(0.5)(t1_f)
-    csf = Dense(2, name='csf')(t1_f)
-    gm = Dense(2, name='gm')(t2_f)
-    wm = Dense(2, name='wm')(t2_f)
+    csf = Dense(2)(t1_f)
+    gm = Dense(2)(t2_f)
+    wm = Dense(2)(t2_f)
+    csf_out = Activation('softmax', name='csf')(csf)
+    gm_out = Activation('softmax', name='gm')(gm)
+    wm_out = Activation('softmax', name='wm')(wm)
+
+    # Final labeling
     merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm)])
     merged = Dropout(0.5)(merged)
-    csf = Activation('softmax', name='csf')(csf)
-    gm = Activation('softmax', name='gm')(gm)
-    wm = Activation('softmax', name='wm')(wm)
+    brain = Dense(4, name='brain', activation='softmax')(merged)
 
-    brain = Dense(4)(merged)
-    brain = PReLU(name='brain')(brain)
-    brain_out = Activation('softmax', name='brain_out')(brain)
-
+    # Weights and outputs
     weights = [0.2, 0.5, 0.5, 1.0]
-    outputs = [csf, gm, wm, brain_out]
+    outputs = [csf_out, gm_out, wm_out, brain]
 
     return weights, outputs
 
 
 def get_network_2(merged_inputs, filters_list, kernel_size_list, dense_size):
-    merged = merged_inputs
-    for filters, kernel_size in zip(filters_list, kernel_size_list):
-        merged = Conv3D(filters,
-                        kernel_size=kernel_size,
-                        data_format='channels_first'
-                        )(merged)
-        merged = BatchNormalization(axis=1)(merged)
-        merged = PReLU(merged)
-        merged = Dropout(0.5)(merged)
+    # Convolutional part
+    merged = get_convolutional_block(merged_inputs, filters_list, kernel_size_list)
+
     # LSTM stuff
     patch_center = Reshape((filters_list[-1], -1))(merged)
     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
@@ -128,62 +117,61 @@ def get_network_2(merged_inputs, filters_list, kernel_size_list, dense_size):
     rf_out = Activation('softmax', name='rf_out')(rf)
     rf = PReLU(name='rf')(rf)
 
-    # Normal stuff
+    # Tissue binary stuff
     merged_f = Flatten()(merged)
     merged_f = Dense(dense_size, activation='relu')(merged_f)
     merged_f = Dropout(0.5)(merged_f)
     csf = Dense(2)(merged_f)
     gm = Dense(2)(merged_f)
     wm = Dense(2)(merged_f)
+    csf_out = Activation('softmax', name='csf')(csf)
+    gm_out = Activation('softmax', name='gm')(gm)
+    wm_out = Activation('softmax', name='wm')(wm)
+
+    # Brain labeling
     merged = concatenate([PReLU(csf), PReLU(gm), PReLU(wm), merged_f])
     merged = Dropout(0.5)(merged)
-    csf = Activation('softmax', name='csf')(csf)
-    gm = Activation('softmax', name='gm')(gm)
-    wm = Activation('softmax', name='wm')(wm)
-
     brain = Dense(4)(merged)
     brain_out = Activation('softmax', name='brain_out')(brain)
     brain = PReLU(name='brain')(brain)
 
+    # Final labeling
     final_layers = concatenate([
         Dropout(0.5)(brain),
         Dropout(0.5)(rf),
     ])
     final = Dense(4, name='merge', activation='softmax')(final_layers)
 
+    # Weights and outputs
     weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
-    outputs = [csf, gm, wm, brain_out, rf_out, final]
+    outputs = [csf_out, gm_out, wm_out, brain_out, rf_out, final]
 
     return weights, outputs
 
 
-def get_network_3(merged, filters_list, kernel_size_list, dense_size):
-    for filters, kernel_size in zip(filters_list, kernel_size_list):
-        merged = Conv3D(filters,
-                        kernel_size=kernel_size,
-                        data_format='channels_first'
-                        )(merged)
-        merged = BatchNormalization(axis=1)(merged)
-        merged = PReLU(merged)
-        merged = Dropout(0.5)(merged)
-    # Normal stuff
+def get_network_3(merged_inputs, filters_list, kernel_size_list, dense_size):
+    # Convolutional stuff
+    merged = get_convolutional_block(merged_inputs, filters_list, kernel_size_list)
+
+    # Tissue binary stuff
     merged_f = Flatten()(merged)
     merged_f = Dense(dense_size, activation='relu')(merged_f)
     merged_f = Dropout(0.5)(merged_f)
     csf = Dense(2)(merged_f)
     gm = Dense(2)(merged_f)
     wm = Dense(2)(merged_f)
+    csf_out = Activation('softmax', name='csf')(csf)
+    gm_out = Activation('softmax', name='gm')(gm)
+    wm_out = Activation('softmax', name='wm')(wm)
+
+    # Final labeling stuff
     merged = concatenate([PReLU(csf), PReLU(gm), PReLU(wm), merged_f])
     merged = Dropout(0.5)(merged)
-    csf = Activation('softmax', name='csf')(csf)
-    gm = Activation('softmax', name='gm')(gm)
-    wm = Activation('softmax', name='wm')(wm)
+    brain = Dense(4, activation='softmax', name='brain')(merged)
 
-    brain = Dense(4)(merged)
-    brain_out = Activation('softmax', name='brain_out')(brain)
-
+    # Weights and outputs
     weights = [0.2, 0.5, 0.5, 1.0]
-    outputs = [csf, gm, wm, brain_out]
+    outputs = [csf_out, gm_out, wm_out, brain]
 
     return weights, outputs
 
@@ -193,12 +181,9 @@ def main():
     c = color_codes()
 
     # Prepare the net architecture parameters
-    sequential = options['sequential']
     dfactor = options['dfactor']
     # Prepare the net hyperparameters
-    num_classes = 5
     epochs = options['epochs']
-    padding = options['padding']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
     batch_size = options['batch_size']
@@ -217,14 +202,9 @@ def main():
     path = options['dir_name']
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
-    s_s = '.s' if sequential else '.f'
     e_s = '.E' if not experimental else ''
-    params_s = (e_s, dfactor, s_s, patch_width, conv_s, filters_s, dense_size, epochs, padding)
-    sufix = '%s.D%d%s.p%d.c%s.n%s.d%d.e%d.pad_%s.' % params_s
-    n_channels = np.count_nonzero([
-        options['use_t1'],
-        options['use_t2']]
-    )
+    params_s = (e_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
+    sufix = '%s.D%d.p%d.c%s.n%s.d%d.e%d.' % params_s
 
     exp_s = c['b'] + '(experimental)' if experimental else c['b'] + '(baseline)'
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting cross-validation ' + exp_s + c['nc'])
@@ -255,52 +235,31 @@ def main():
                   c['b'] + '(%d samples)' % train_samples + c['nc'])
             train_steps_per_epoch = -(-train_samples/batch_size)
             val_steps_per_epoch = -(-val_samples / batch_size)
-            input_shape = (n_channels,) + patch_size
-            if sequential:
-                # Sequential model that merges all 4 images. This architecture is just a set of convolutional blocks
-                # that end in a dense layer. This is supposed to be an original baseline.
-                net = Sequential()
-                net.add(Conv3D(
-                    filters_list[0],
-                    kernel_size=kernel_size_list[0],
-                    input_shape=input_shape,
-                    activation='relu',
-                    data_format='channels_first'
-                ))
-                for filters, kernel_size in zip(filters_list[1:], kernel_size_list[1:]):
-                    net.add(Dropout(0.5))
-                    net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first'))
-                net.add(Dropout(0.5))
-                net.add(Flatten())
-                net.add(Dense(dense_size, activation='relu'))
-                net.add(Dropout(0.5))
-                net.add(Dense(num_classes, activation='softmax'))
-                weights = 1.0
+            input_shape = (2,) + patch_size
+            # This architecture is based on the functional Keras API to introduce 3 output paths:
+            # - Whole tumor segmentation
+            # - Core segmentation (including whole tumor)
+            # - Whole segmentation (tumor, core and enhancing parts)
+            # The idea is to let the network work on the three parts to improve the multiclass segmentation.
+            merged_inputs = Input(shape=input_shape, name='merged_inputs')
+
+            if experimental:
+                outputs, weights = get_network_2(
+                    merged_inputs,
+                    filters_list,
+                    kernel_size_list,
+                    dense_size
+                )
             else:
-                # This architecture is based on the functional Keras API to introduce 3 output paths:
-                # - Whole tumor segmentation
-                # - Core segmentation (including whole tumor)
-                # - Whole segmentation (tumor, core and enhancing parts)
-                # The idea is to let the network work on the three parts to improve the multiclass segmentation.
-                merged_inputs = Input(shape=(2,) + patch_size, name='merged_inputs')
+                outputs, weights = get_network_1(
+                    merged_inputs,
+                    patch_size,
+                    filters_list,
+                    kernel_size_list,
+                    dense_size
+                )
 
-                if experimental:
-                    outputs, weights = get_network_2(
-                        merged_inputs,
-                        filters_list,
-                        kernel_size_list,
-                        dense_size
-                    )
-                else:
-                    outputs, weights = get_network_1(
-                        merged_inputs,
-                        patch_size,
-                        filters_list,
-                        kernel_size_list,
-                        dense_size
-                    )
-
-                net = Model(inputs=merged_inputs, outputs=outputs)
+            net = Model(inputs=merged_inputs, outputs=outputs)
 
             net.compile(
                 optimizer='adadelta',
@@ -323,7 +282,7 @@ def main():
                     nlabels=4,
                     dfactor=dfactor,
                     preload=preload,
-                    split=not sequential,
+                    split=True,
                     iseg=True,
                     experimental=experimental,
                     datatype=np.float32
@@ -337,7 +296,7 @@ def main():
                     nlabels=4,
                     dfactor=dfactor,
                     preload=preload,
-                    split=not sequential,
+                    split=True,
                     iseg=True,
                     experimental=experimental,
                     datatype=np.float32
@@ -381,31 +340,30 @@ def main():
                 )
                 [x, y, z] = np.stack(centers, axis=1)
 
-                if not sequential:
-                    for num, results in enumerate(y_pr_pred):
-                        brain = np.argmax(results, axis=1)
-                        image[x, y, z] = brain
-                        if num is 0:
-                            im = sufix + 'csf.'
-                            gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
-                        elif num is 1:
-                            im = sufix + 'gm.'
-                            gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
-                        elif num is 2:
-                            im = sufix + 'wm.'
-                            gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
-                        elif num is 3:
-                            im = sufix + 'brain.'
-                            gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
-                        elif num is 4:
-                            im = sufix + 'rf.'
-                            gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
-                        else:
-                            im = sufix + 'merge.'
-                            gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
-                        roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
-                        print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
-                        save_nii(gt_nii, roiname)
+                for num, results in enumerate(y_pr_pred):
+                    brain = np.argmax(results, axis=1)
+                    image[x, y, z] = brain
+                    if num is 0:
+                        im = sufix + 'csf.'
+                        gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
+                    elif num is 1:
+                        im = sufix + 'gm.'
+                        gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
+                    elif num is 2:
+                        im = sufix + 'wm.'
+                        gt_nii.get_data()[:] = np.expand_dims(image, axis=3)
+                    elif num is 3:
+                        im = sufix + 'brain.'
+                        gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
+                    elif num is 4:
+                        im = sufix + 'rf.'
+                        gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
+                    else:
+                        im = sufix + 'merge.'
+                        gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
+                    roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
+                    print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
+                    save_nii(gt_nii, roiname)
 
                 y_pred = np.argmax(y_pr_pred[-1], axis=1)
 
