@@ -81,9 +81,9 @@ def get_tissue_binary_stuff(input_l):
 
 def get_network_1(merged_inputs, filters_list, kernel_size_list, dense_size):
     # Input splitting
-    print(K.int_shape(merged_inputs))
-    t1 = Lambda(lambda l: K.expand_dims(l[:, 0, :, :, :], axis=1), output_shape=(1,))(merged_inputs)
-    t2 = Lambda(lambda l: K.expand_dims(l[:, 1, :, :, :], axis=1), output_shape=(1,))(merged_inputs)
+    input_shape = K.int_shape(merged_inputs)
+    t1 = Lambda(lambda l: K.expand_dims(l[:, 0, :, :, :], axis=1), output_shape=(1,) + input_shape[2:])(merged_inputs)
+    t2 = Lambda(lambda l: K.expand_dims(l[:, 1, :, :, :], axis=1), output_shape=(1,) + input_shape[2:])(merged_inputs)
 
     # Convolutional part
     t2 = get_convolutional_block(t2, filters_list, kernel_size_list)
@@ -105,7 +105,7 @@ def get_network_1(merged_inputs, filters_list, kernel_size_list, dense_size):
     brain = Dense(4, name='brain', activation='softmax')(merged)
 
     # Weights and outputs
-    weights = [0.2, 0.5, 0.5, 1.0]
+    weights = [0.2,     0.5,    0.5,    1.0]
     outputs = [csf_out, gm_out, wm_out, brain]
 
     return weights, outputs
