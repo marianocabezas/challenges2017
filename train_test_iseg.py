@@ -29,7 +29,7 @@ def parse_inputs():
     parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=1)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
-    parser.add_argument('-E', '--experimental', action='store', dest='experimental', type=int, default=None)
+    parser.add_argument('-E', '--experimental', action='store', dest='experimental', type=int, default=0)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=100)
     parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
@@ -243,22 +243,13 @@ def main():
             # The idea is to let the network work on the three parts to improve the multiclass segmentation.
             merged_inputs = Input(shape=input_shape, name='merged_inputs')
 
-            if experimental:
-                network_func = [get_network_2, get_network_3]
-                outputs, weights = network_func[experimental-1](
-                    merged_inputs,
-                    filters_list,
-                    kernel_size_list,
-                    dense_size
-                )
-            else:
-                outputs, weights = get_network_1(
-                    merged_inputs,
-                    patch_size,
-                    filters_list,
-                    kernel_size_list,
-                    dense_size
-                )
+            network_func = [get_network_1, get_network_2, get_network_3]
+            weights, outputs = network_func[experimental](
+                merged_inputs,
+                filters_list,
+                kernel_size_list,
+                dense_size
+            )
 
             net = Model(inputs=merged_inputs, outputs=outputs)
 
