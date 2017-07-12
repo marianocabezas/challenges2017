@@ -129,7 +129,7 @@ def get_network_2(merged_inputs, filters_list, kernel_size_list, dense_size):
     wm_out = Activation('softmax', name='wm')(wm)
 
     # Brain labeling
-    merged = concatenate([PReLU(csf), PReLU(gm), PReLU(wm), merged_f])
+    merged = concatenate([PReLU()(csf), PReLU()(gm), PReLU()(wm), merged_f])
     merged = Dropout(0.5)(merged)
     brain = Dense(4)(merged)
     brain_out = Activation('softmax', name='brain_out')(brain)
@@ -165,7 +165,7 @@ def get_network_3(merged_inputs, filters_list, kernel_size_list, dense_size):
     wm_out = Activation('softmax', name='wm')(wm)
 
     # Final labeling stuff
-    merged = concatenate([PReLU(csf), PReLU(gm), PReLU(wm), merged_f])
+    merged = concatenate([PReLU()(csf), PReLU()(gm), PReLU()(wm), merged_f])
     merged = Dropout(0.5)(merged)
     brain = Dense(4, activation='softmax', name='brain')(merged)
 
