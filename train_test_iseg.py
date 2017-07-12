@@ -202,7 +202,7 @@ def main():
     path = options['dir_name']
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
-    exp_s = '%d' % experimental if experimental else ''
+    exp_s = 'experimental-%d' % experimental if experimental else 'baseline'
     params_s = (exp_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
     sufix = '%s.D%d.p%d.c%s.n%s.d%d.e%d.' % params_s
 
@@ -219,8 +219,7 @@ def main():
               % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)) + c['nc'])
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
-        method_name = 'exp-' if experimental else 'baseline-'
-        net_name = os.path.join(path, method_name + 'iseg2017.fold%d' % i + sufix + 'mdl')
+        net_name = os.path.join(path, 'iseg2017.fold%d' % i + sufix + 'mdl')
 
         # First we check that we did not train for that patient, in order to save time
         try:
