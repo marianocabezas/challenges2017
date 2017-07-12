@@ -4,6 +4,7 @@ import os
 from time import strftime
 import numpy as np
 import keras
+from keras import backend as K
 from keras.models import Sequential, Model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
 from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU
@@ -67,14 +68,10 @@ def get_convolutional_block(input_l, filters_list, kernel_size_list, activation=
     return input_l
 
 
-def get_network_1(merged_inputs, patch_size, filters_list, kernel_size_list, dense_size):
+def get_network_1(merged_inputs, filters_list, kernel_size_list, dense_size):
     # Input splitting
-    t1 = Reshape((1,) + patch_size)(
-        Lambda(lambda l: l[:, 0, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
-    )
-    t2 = Reshape((1,) + patch_size)(
-        Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
-    )
+    t1 = Lambda(lambda l: K.expand_dims(l[:, 0, :, :, :], axis=1))(merged_inputs)
+    t2 = Lambda(lambda l: K.expand_dims(l[:, 1, :, :, :], axis=1))(merged_inputs)
 
     # Convolutional part
     t2 = get_convolutional_block(t2, filters_list, kernel_size_list)
