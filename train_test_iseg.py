@@ -127,7 +127,7 @@ def get_network_2(merged_inputs, filters_list, kernel_size_list, dense_size):
     brain = Dense(4, activation='softmax', name='brain')(merged)
 
     # Weights and outputs
-    weights = [0.2, 0.5, 0.5, 1.0]
+    weights = [0.2,     0.5,    0.5,    1.0]
     outputs = [csf_out, gm_out, wm_out, brain]
 
     return weights, outputs
@@ -142,7 +142,7 @@ def get_network_3(merged_inputs, filters_list, kernel_size_list, dense_size):
     patch_center = Dense(4, name='pre_rf')(Permute((2, 1))(patch_center))
     rf = LSTM(4, implementation=1)(patch_center)
     rf_out = Activation('softmax', name='rf_out')(rf)
-    rf = PReLU(name='rf')(rf)
+    rf = Dropout(0.5)(PReLU(name='rf')(rf))
 
     # Tissue binary stuff
     merged_f = Flatten()(merged)
@@ -151,22 +151,22 @@ def get_network_3(merged_inputs, filters_list, kernel_size_list, dense_size):
     csf, gm, wm, csf_out, gm_out, wm_out = get_tissue_binary_stuff(merged_f)
 
     # Brain labeling
-    merged = concatenate([PReLU()(csf), PReLU()(gm), PReLU()(wm), merged_f])
+    csf = Dropout(0.5)(PReLU()(csf))
+    gm = Dropout(0.5)(PReLU()(gm))
+    wm = Dropout(0.5)(PReLU()(wm))
+    merged = concatenate([csf, gm, wm, merged_f])
     merged = Dropout(0.5)(merged)
     brain = Dense(4)(merged)
-    brain_out = Activation('softmax', name='brain_out')(brain)
-    brain = PReLU(name='brain')(brain)
+    br_out = Activation('softmax', name='brain_out')(brain)
+    brain = Dropout(0.5)(PReLU(name='brain')(brain))
 
     # Final labeling
-    final_layers = concatenate([
-        Dropout(0.5)(brain),
-        Dropout(0.5)(rf),
-    ])
+    final_layers = concatenate([csf, gm, wm, brain, rf])
     final = Dense(4, name='merge', activation='softmax')(final_layers)
 
     # Weights and outputs
-    weights = [0.2, 0.5, 0.5, 0.8, 0.8, 1.0]
-    outputs = [csf_out, gm_out, wm_out, brain_out, rf_out, final]
+    weights = [0.2,     0.5,    0.5,    0.8,    0.8,    1.0]
+    outputs = [csf_out, gm_out, wm_out, br_out, rf_out, final]
 
     return weights, outputs
 
