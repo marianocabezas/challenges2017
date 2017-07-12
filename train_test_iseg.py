@@ -21,7 +21,6 @@ def parse_inputs():
     # I decided to separate this function, for easier acces to the command line parameters
     parser = argparse.ArgumentParser(description='Test different nets with 3D data.')
     parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/images/iSeg2017/Training/')
-    parser.add_argument('-F', '--n-fold', dest='folds', type=int, default=5)
     parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=17)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
@@ -72,8 +71,8 @@ def get_network_1(merged_inputs, patch_size, filters_list, kernel_size_list, den
         Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
     )
     for filters, kernel_size in zip(filters_list, kernel_size_list):
-        t2 = BatchNormalization()(t2)
-        t1 = BatchNormalization()(t1)
+        #t2 = BatchNormalization()(t2)
+        #t1 = BatchNormalization()(t1)
         t2 = Conv3D(filters,
                     kernel_size=kernel_size,
                     activation='relu',
@@ -247,8 +246,8 @@ def main():
             net = keras.models.load_model(net_name)
         except IOError:
             # NET definition using Keras
-            train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=False)
-            val_centers = get_cnn_centers(val_data[:, 0], val_labels, balanced=False)
+            train_centers = get_cnn_centers(train_data[:, 0], train_labels)
+            val_centers = get_cnn_centers(val_data[:, 0], val_labels)
             train_samples = len(train_centers)/dfactor
             val_samples = len(val_centers) / dfactor
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
