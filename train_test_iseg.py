@@ -29,7 +29,7 @@ def parse_inputs():
     parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=1)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
-    parser.add_argument('-E', '--experimental', action='store_true', dest='experimental', default=False)
+    parser.add_argument('-E', '--experimental', action='store', dest='experimental', type=int, default=None)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=100)
     parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
     parser.add_argument('--preload', action='store_true', dest='preload', default=False)
@@ -202,8 +202,8 @@ def main():
     path = options['dir_name']
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
-    e_s = '.E' if not experimental else ''
-    params_s = (e_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
+    exp_s = '%d' % experimental if experimental else ''
+    params_s = (exp_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
     sufix = '%s.D%d.p%d.c%s.n%s.d%d.e%d.' % params_s
 
     exp_s = c['b'] + '(experimental)' if experimental else c['b'] + '(baseline)'
@@ -244,7 +244,8 @@ def main():
             merged_inputs = Input(shape=input_shape, name='merged_inputs')
 
             if experimental:
-                outputs, weights = get_network_2(
+                network_func = [get_network_2, get_network_3]
+                outputs, weights = network_func[experimental-1](
                     merged_inputs,
                     filters_list,
                     kernel_size_list,
