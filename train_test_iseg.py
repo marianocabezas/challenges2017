@@ -71,7 +71,7 @@ def get_convolutional_block(input_l, filters_list, kernel_size_list, activation=
 def get_network_1(merged_inputs, filters_list, kernel_size_list, dense_size):
     # Input splitting
     output_shape = merged_inputs.shape
-    output_shape[1] = output_shape[1]/2
+    output_shape[1] /= 2
     t1 = Lambda(lambda l: K.expand_dims(l[:, 0, :, :, :], axis=1), output_shape=output_shape)(merged_inputs)
     t2 = Lambda(lambda l: K.expand_dims(l[:, 1, :, :, :], axis=1), output_shape=output_shape)(merged_inputs)
 
