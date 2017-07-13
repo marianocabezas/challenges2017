@@ -298,7 +298,7 @@ def main():
         for p, gt_name in zip(test_data, test_labels):
             p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
-            outputname = os.path.join(patient_path, method_name + p_name + 'brain.roi.hdr')
+            outputname = os.path.join(patient_path, p_name + sufix + 'brain.roi.hdr')
             gt_nii = load_nii(gt_name)
             gt = np.copy(np.squeeze(gt_nii.get_data()))
             vals = np.unique(gt.flatten())
@@ -347,7 +347,7 @@ def main():
                     else:
                         im = sufix + 'merge.'
                         gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
-                    roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
+                    roiname = os.path.join(patient_path, 'deep-' + p_name + sufix + im + 'roi.img')
                     print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
                     save_nii(gt_nii, roiname)
 
