@@ -38,7 +38,7 @@ def get_tissue_binary_stuff(input_l):
     return csf, gm, wm, csf_out, gm_out, wm_out
 
 
-def get_network_1(input_shape, filters_list, kernel_size_list, dense_size):
+def get_iseg_baseline(input_shape, filters_list, kernel_size_list, dense_size):
     merged_inputs = Input(shape=input_shape, name='merged_inputs')
     # Input splitting
     input_shape = K.int_shape(merged_inputs)
@@ -71,7 +71,7 @@ def get_network_1(input_shape, filters_list, kernel_size_list, dense_size):
     return compile_network(merged_inputs, outputs, weights)
 
 
-def get_network_2(input_shape, filters_list, kernel_size_list, dense_size):
+def get_iseg_experimental1(input_shape, filters_list, kernel_size_list, dense_size):
     merged_inputs = Input(shape=input_shape, name='merged_inputs')
     # Convolutional stuff
     merged = get_convolutional_block(merged_inputs, filters_list, kernel_size_list)
@@ -94,7 +94,7 @@ def get_network_2(input_shape, filters_list, kernel_size_list, dense_size):
     return compile_network(merged_inputs, outputs, weights)
 
 
-def get_network_3(input_shape, filters_list, kernel_size_list, dense_size):
+def get_iseg_experimental2(input_shape, filters_list, kernel_size_list, dense_size):
     merged_inputs = Input(shape=input_shape, name='merged_inputs')
     # Convolutional part
     merged = get_convolutional_block(merged_inputs, filters_list, kernel_size_list)

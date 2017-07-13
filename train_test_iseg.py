@@ -12,7 +12,7 @@ from data_creation import load_patch_batch_train, get_cnn_centers
 from data_creation import load_patch_batch_generator_test
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
-from nets import get_network_1, get_network_2, get_network_3
+from nets import get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2
 
 
 def parse_inputs():
@@ -103,7 +103,7 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
         # - Core segmentation (including whole tumor)
         # - Whole segmentation (tumor, core and enhancing parts)
         # The idea is to let the network work on the three parts to improve the multiclass segmentation.
-        network_func = [get_network_1, get_network_2, get_network_3]
+        network_func = [get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2]
         net = network_func[experimental](
             input_shape,
             filters_list,
