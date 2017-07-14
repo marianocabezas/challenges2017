@@ -201,7 +201,7 @@ def main():
 
     path = options['dir_name']
     test_data, test_labels = get_names_from_path(path, options)
-    train_data, _ = get_names_from_path(os.path.join(path, 'Training'), options)
+    train_data, _ = get_names_from_path(os.path.join(path, '../Brats17Test-Training'), options)
     net_name = os.path.join(path, 'baseline-brats2017.D50.f.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
 
     # Prepare the net hyperparameters
@@ -283,6 +283,7 @@ def main():
 
         dsc_results.append(results_o + results_d)
 
+    print(np.array(dsc_results).shape)
     f_dsc = tuple(np.array(dsc_results).mean())
     print('Final results DSC: ' + '/'.join(['%f']*len(f_dsc)) % f_dsc)
 
