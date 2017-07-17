@@ -244,7 +244,7 @@ def get_best_roi(base_roi, image_list, labels_list):
         gt_nii = load_nii(gt_name)
         gt = gt_nii.get_data().astype(dtype=np.bool)
         zoom_rate = [float(b_len)/i_len for b_len, i_len in zip(base_roi.shape[1:], im.shape[1:])]
-        im_roi = zoom(im, zoom=[1] + zoom_rate)
+        im_roi = zoom(gt, zoom=[1.0] + zoom_rate)
         nu_rank = ssim(base_roi.flatten(), im.flatten())
         if nu_rank > best_rank:
             best_rank = nu_rank
@@ -255,10 +255,8 @@ def get_best_roi(base_roi, image_list, labels_list):
     return best_image, best_roi, best_labels
 
 
-def clip_to_roi(images, roi, patch_size):
+def clip_to_roi(images, roi):
     # We clip with padding for patch extraction
-    patch_half = tuple([idx / 2 for idx in patch_size])
-
     min_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).min(axis=1)
     max_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).max(axis=1)
 
@@ -369,8 +367,7 @@ def main():
 
         dsc_results.append(results_o + results_d)
 
-    print(np.concatenate(dsc_results).shape)
-    f_dsc = tuple(np.array(dsc_results).mean())
+    f_dsc = tuple(np.asarray(dsc_results).mean())
     print('Final results DSC: ' + '/'.join(['%f']*len(f_dsc)) % f_dsc)
 
 
