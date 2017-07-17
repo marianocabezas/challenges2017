@@ -7,7 +7,7 @@ from time import strftime
 import numpy as np
 import keras
 from keras.models import Model
-from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda
+from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda, Dense
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
 from data_creation import load_norm_list
@@ -66,30 +66,41 @@ def get_names_from_path(path, options):
 
 
 def transfer_learning(net_domain, net, data, train_image, train_roi, train_labels, train_centers, options):
+    # Network hyperparameters
     epochs = options['epochs']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
     batch_size = options['batch_size']
+    train_steps_per_epoch = -(-np.size(train_roi) / batch_size)
     # Data loading parameters
     queue = options['queue']
+
     # We prepare the layers for transfer learning
     net_domain_conv_layers = [l for l in net_domain.layers if 'conv' in l.name]
     net_conv_layers = sorted(
         [l for l in net.layers if 'conv' in l.name],
         lambda x, y: int(x.name[7:]) - int(y.name[7:])
     )
+
     # We freeze the convolutional layers for the final net
+    for layer in net.layers:
+        if not isinstance(layer, Dense):
+            layer.trainable = False
+        net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+
+    # We start retraining.
+    # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
+    # retrain the classifier with the new convolutional weights.
     for _ in range(epochs):
         conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
         net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
         for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
             l_orig.set_weights(l_new.get_weights())
-        train_steps_per_epoch = -(-np.size(train_roi) / batch_size)
         net.fit_generator(
             generator=load_patch_batch_generator_train(
                 image_list=[train_image],
-                label_names=train_labels,
-                centers=train_centers,
+                label_names=[train_labels],
+                center_list=[train_centers],
                 batch_size=batch_size,
                 size=patch_size,
                 nlabels=4,
@@ -99,7 +110,7 @@ def transfer_learning(net_domain, net, data, train_image, train_roi, train_label
             ),
             steps_per_epoch=train_steps_per_epoch,
             max_q_size=queue,
-            epochs=epochs
+            epochs=1
         )
 
 
@@ -294,7 +305,7 @@ def main():
 
     net_roi_name = os.path.join(path, 'CBICA-brats2017.D25.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
     net_roi = keras.models.load_model(net_roi_name)
-    for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
+    for i, (p, gt_name) in enumerate(zip(test_data[:5], test_labels[:5])):
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] +
               'Case ' + c['c'] + c['b'] + '%d/%d: ' % (i + 1, len(test_data)) + c['nc'])
 
@@ -316,7 +327,7 @@ def main():
         text = subject_name + ' DSC: ' + dsc_string
 
         # Now let's create the domain network and train it
-        net_new_name = os.path.join(path, 'domain-brats2017.' + p_name + '.mdl')
+        net_new_name = os.path.join(path, 'domain-exp-brats2017.' + p_name + '.mdl')
         try:
             net_new = keras.models.load_model(net_new_name)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
@@ -324,33 +335,24 @@ def main():
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
                   c['b'] + 'domain' + c['nc'] + c['g'] + ' net' + c['nc'])
             # First we get the tumor ROI
-            # image_r, p_name = test_network(net_roi, p, batch_size, patch_size, queue, sufix='roi')
-            # p_images = np.array(load_norm_list(p), dtype=np.float32)
-            # data, clip = clip_to_roi(p_images, image_r, patch_size)
-            # train_image, train_roi, train_labels = get_best_roi(data, train_data, train_labels)
+            image_r, p_name = test_network(net_roi, p, batch_size, patch_size, queue, sufix='roi')
+            p_images = np.array(load_norm_list(p), dtype=np.float32)
+            data, clip = clip_to_roi(p_images, image_r, patch_size)
+            train_image, train_roi, train_labels = get_best_roi(data, train_data, train_labels)
 
-            # We get the base image and the training image downscaled (maybe I could break them in "big patches")
-            image = np.array(load_norm_list(p), dtype=np.float32)
-            train_image = zoom(get_best_image(image, train_data, image.shape), [1, 0.5, 0.5, 0.5])
-            data = zoom(image, [1, 0.5, 0.5, 0.5])
             # We create the domain network
             net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_new.set_weights(l_orig.get_weights())
-            # Getting the "labeled data"
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
-                  c['b'] + 'training data' + c['nc'])
-            conv_data = net_new.predict(np.expand_dims(train_image, axis=0), batch_size=1)
             # Training part
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-                  c['g'] + 'Training the model with %d images ' % len(conv_data) +
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the model ' +
                   c['b'] + '(%d parameters)' % net_new.count_params() + c['nc'])
             print(net_new.summary())
+
             # Transfer learning
-            # train_centers = list(product([range(c[0], c[1]) for c in clip]))
-            # transfer_learning(net_new, net_orig, data, train_image, train_roi, train_centers, options)
-            net_new.fit(np.expand_dims(data, axis=0), conv_data, epochs=epochs, batch_size=1)
+            train_centers = list(product([range(c[0], c[1]) for c in clip]))
+            transfer_learning(net_new, net_orig, data, train_image, train_roi, train_centers, options)
             net_new.save(net_new_name)
 
         # Now we transfer the new weights an re-test
@@ -367,7 +369,7 @@ def main():
 
         dsc_results.append(results_o + results_d)
 
-    f_dsc = tuple(np.asarray(dsc_results).mean())
+    f_dsc = tuple(np.asarray(dsc_results).mean(axis=0))
     print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
 
 
