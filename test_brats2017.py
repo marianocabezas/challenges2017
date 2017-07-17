@@ -195,6 +195,23 @@ def get_best_image(base_image, image_list, base_shape):
     return best_image
 
 
+def get_best_roi(base_roi, image_list, labels_list):
+    best_rank = 0
+    best_image = None
+    for p, gt_name in zip(image_list, labels_list):
+        im = np.array(load_norm_list(p), dtype=np.float32)
+        gt_nii = load_nii(gt_name)
+        gt = gt_nii.get_data().astype(dtype=np.bool)
+        zoom_rate = [float(b_len)/i_len for b_len, i_len in zip(base_roi.shape[1:], im.shape[1:])]
+        im = zoom(im, zoom=[1] + zoom_rate)
+        nu_rank = ssim(base_roi.flatten(), im.flatten())
+        if nu_rank > best_rank:
+            best_rank = nu_rank
+            best_image = im
+        print(''.join([' ']*14) + 'Image %s - SSIM = %f' % (p[0].rsplit('/')[-2], nu_rank))
+    return best_image
+
+
 def clip_to_roi(images, roi, patch_size):
     # We clip with padding for patch extraction
     patch_half = tuple([idx / 2 for idx in patch_size])
@@ -202,10 +219,11 @@ def clip_to_roi(images, roi, patch_size):
     min_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).min(axis=1)
     max_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).max(axis=1)
 
-    clipping = np.array([(min_c - p_s, max_c + (p_s - p_h))
+    clip = np.array([(min_c - p_s, max_c + (p_s - p_h))
                 for min_c, max_c, p_h, p_s in zip(min_coord, max_coord, patch_half, patch_size)], dtype=np.uint8)
+    im_clipped = images[:, clip[0, 0]:clip[0, 1], clip[1, 0]:clip[1, 1], clip[2, 0]:clip[2, 1]]
 
-    return images[:, clipping[0, 0]:clipping[0, 1], clipping[1, 0]:clipping[1, 1], clipping[2, 0]:clipping[2, 1]]
+    return im_clipped, clip
 
 
 def main():
@@ -214,7 +232,7 @@ def main():
 
     path = options['dir_name']
     test_data, test_labels = get_names_from_path(path, options)
-    train_data, _ = get_names_from_path(os.path.join(path, '../Brats17Test-Training'), options)
+    train_data, train_labels = get_names_from_path(os.path.join(path, '../Brats17Test-Training'), options)
     net_name = os.path.join(path, 'baseline-brats2017.D50.f.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
 
     # Prepare the net hyperparameters
@@ -239,8 +257,6 @@ def main():
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] +
               'Case ' + c['c'] + c['b'] + '%d/%d: ' % (i + 1, len(test_data)) + c['nc'])
-        # First we get the tumor ROI
-        # image_r, p_name = test_network(net_roi, p, batch_size, patch_size, queue, sufix='roi')
 
         # First let's test the original network
         net_orig = keras.models.load_model(net_name)
@@ -267,6 +283,12 @@ def main():
         except IOError:
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
                   c['b'] + 'domain' + c['nc'] + c['g'] + ' net' + c['nc'])
+            # First we get the tumor ROI
+            # image_r, p_name = test_network(net_roi, p, batch_size, patch_size, queue, sufix='roi')
+            # p_images = np.array(load_norm_list(p), dtype=np.float32)
+            # data, clip = clip_to_roi(p_images, image_r, patch_size)
+            # train_image = get_best_roi(data, train_data, train_labels)
+
             # We get the base image and the training image downscaled (maybe I could break them in "big patches")
             image = np.array(load_norm_list(p), dtype=np.float32)
             train_image = zoom(get_best_image(image, train_data, image.shape), [1, 0.5, 0.5, 0.5])
