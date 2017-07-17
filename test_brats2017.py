@@ -64,6 +64,21 @@ def get_names_from_path(path, options):
     return image_names, label_names
 
 
+def transfer_learning(net_domain, net,data, train_image, train_centers):
+    # We prepare the layers for transfer learning
+    net_domain_conv_layers = [l for l in net_domain.layers if 'conv' in l.name]
+    net_conv_layers = sorted(
+        [l for l in net.layers if 'conv' in l.name],
+        lambda x, y: int(x.name[7:]) - int(y.name[7:])
+    )
+    # We freeze convolutional for the net
+    for _ in range(25):
+        conv_data = net_domain.predict(np.expand_dims(train_image, axis=0), batch_size=1)
+        net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
+        for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
+            l_orig.set_weights(l_new.get_weights())
+
+
 def test_network(net, p, batch_size, patch_size, queue, sufix='', centers=None):
     c = color_codes()
     p_name = p[0].rsplit('/')[-2]
@@ -324,7 +339,7 @@ def main():
 
         dsc_results.append(results_o + results_d)
 
-    print(np.asarray(dsc_results).shape)
+    print(np.concatenate(dsc_results).shape)
     f_dsc = tuple(np.array(dsc_results).mean())
     print('Final results DSC: ' + '/'.join(['%f']*len(f_dsc)) % f_dsc)
 
