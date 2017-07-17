@@ -64,7 +64,7 @@ def get_names_from_path(path, options):
     return image_names, label_names
 
 
-def test_network(net, p, batch_size, patch_size, queue, sufix=''):
+def test_network(net, p, batch_size, patch_size, queue, sufix='', centers=None):
     c = color_codes()
     p_name = p[0].rsplit('/')[-2]
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
@@ -78,7 +78,7 @@ def test_network(net, p, batch_size, patch_size, queue, sufix=''):
               c['b'] + sufix + c['nc'] + c['g'] + ' network' + c['nc'])
         roi_nii = load_nii(p[0])
         roi = roi_nii.get_data().astype(dtype=np.bool)
-        centers = get_mask_voxels(roi)
+        centers = get_mask_voxels(roi) if centers is not None else centers
         test_samples = np.count_nonzero(roi)
         image = np.zeros_like(roi).astype(dtype=np.uint8)
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
@@ -193,6 +193,19 @@ def get_best_image(base_image, image_list, base_shape):
             best_image = im
         print(''.join([' ']*14) + 'Image %s - SSIM = %f' % (p[0].rsplit('/')[-2], nu_rank))
     return best_image
+
+
+def clip_to_roi(images, roi, patch_size):
+    # We clip with padding for patch extraction
+    patch_half = tuple([idx / 2 for idx in patch_size])
+
+    min_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).min(axis=1)
+    max_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).max(axis=1)
+
+    clipping = np.array([(min_c - p_s, max_c + (p_s - p_h))
+                for min_c, max_c, p_h, p_s in zip(min_coord, max_coord, patch_half, patch_size)], dtype=np.uint8)
+
+    return images[:, clipping[0, 0]:clipping[0, 1], clipping[1, 0]:clipping[1, 1], clipping[2, 0]:clipping[2, 1]]
 
 
 def main():
