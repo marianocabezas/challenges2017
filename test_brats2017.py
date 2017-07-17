@@ -220,9 +220,15 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
     dsc_results = list()
+
+    net_roi_name = os.path.join(path, 'CBICA-brats2017.D25.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
+    net_roi = keras.models.load_model(net_roi_name)
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] +
               'Case ' + c['c'] + c['b'] + '%d/%d: ' % (i + 1, len(test_data)) + c['nc'])
+        # First we get the tumor ROI
+        # image_r, p_name = test_network(net_roi, p, batch_size, patch_size, queue, sufix='roi')
+
         # First let's test the original network
         net_orig = keras.models.load_model(net_name)
         net_orig_conv_layers = sorted(
@@ -283,7 +289,7 @@ def main():
 
         dsc_results.append(results_o + results_d)
 
-    print(np.array(dsc_results).shape)
+    print(np.asarray(dsc_results).shape)
     f_dsc = tuple(np.array(dsc_results).mean())
     print('Final results DSC: ' + '/'.join(['%f']*len(f_dsc)) % f_dsc)
 
