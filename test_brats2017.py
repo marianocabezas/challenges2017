@@ -11,7 +11,7 @@ from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda, Dense
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
 from data_creation import load_norm_list
-from data_creation import load_patch_batch_generator_test, load_patch_batch_generator_train
+from data_creation import load_patch_batch_generator_test, load_patch_batch_train
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
 from scipy.ndimage.interpolation import zoom
@@ -66,6 +66,7 @@ def get_names_from_path(path, options):
 
 
 def transfer_learning(net_domain, net, data, train_image, train_roi, train_labels, train_centers, options):
+    c = color_codes()
     # Network hyperparameters
     epochs = options['epochs']
     patch_width = options['patch_width']
@@ -93,14 +94,18 @@ def transfer_learning(net_domain, net, data, train_image, train_roi, train_label
     # retrain the classifier with the new convolutional weights.
     for _ in range(epochs):
         conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']      ' + c['g'] + c['b'] +
+              'Domain' + c['nc'] + c['g'] + ' net' + c['nc'])
         net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
         for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
             l_orig.set_weights(l_new.get_weights())
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']      ' + c['g'] + c['b'] +
+              'Original' + c['nc'] + c['g'] + ' net' + c['nc'])
         net.fit_generator(
-            generator=load_patch_batch_generator_train(
-                image_list=[train_image],
+            generator=load_patch_batch_train(
+                image_names=[train_image],
                 label_names=[train_labels],
-                center_list=[train_centers],
+                centers=np.concatenate([np.array([(0, c) for c in train_centers], dtype=object)]),
                 batch_size=batch_size,
                 size=patch_size,
                 nlabels=4,
@@ -128,7 +133,7 @@ def test_network(net, p, batch_size, patch_size, queue, sufix='', centers=None):
               c['b'] + sufix + c['nc'] + c['g'] + ' network' + c['nc'])
         roi_nii = load_nii(p[0])
         roi = roi_nii.get_data().astype(dtype=np.bool)
-        centers = get_mask_voxels(roi) if centers is not None else centers
+        centers = get_mask_voxels(roi) if centers is None else centers
         test_samples = np.count_nonzero(roi)
         image = np.zeros_like(roi).astype(dtype=np.uint8)
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
@@ -150,8 +155,13 @@ def test_network(net, p, batch_size, patch_size, queue, sufix='', centers=None):
         sys.stdout.flush()
         [x, y, z] = np.stack(centers, axis=1)
 
-        tumor = np.argmax(y_pr_pred[0], axis=1)
-        y_pr_pred = y_pr_pred[-1]
+        if isinstance(y_pr_pred, list):
+            tumor = np.argmax(y_pr_pred[0], axis=1)
+            y_pr_pred = y_pr_pred[-1]
+        else:
+            tumor = np.argmax(y_pr_pred, axis=1)
+
+        # We save the ROI
         roi = np.zeros_like(roi).astype(dtype=np.uint8)
         roi[x, y, z] = tumor
         roi_nii.get_data()[:] = roi
@@ -159,6 +169,7 @@ def test_network(net, p, batch_size, patch_size, queue, sufix='', centers=None):
 
         y_pred = np.argmax(y_pr_pred, axis=1)
 
+        # We save the results
         image[x, y, z] = y_pred
         # Post-processing (Basically keep the biggest connected region)
         image = get_biggest_region(image)
@@ -230,21 +241,6 @@ def create_new_network(patch_size, filters_list, kernel_size_list):
     return net
 
 
-def get_best_image(base_image, image_list, base_shape):
-    best_rank = 0
-    best_image = None
-    for p in image_list:
-        im = np.array(load_norm_list(p), dtype=np.float32)
-        shape_diff = map(lambda (x, y): x - y, zip(im.shape, base_shape))
-        im = np.pad(im, tuple(map(lambda x: (x/2, x-x/2), shape_diff)), 'constant')
-        nu_rank = ssim(base_image.flatten(), im.flatten())
-        if nu_rank > best_rank:
-            best_rank = nu_rank
-            best_image = im
-        print(''.join([' ']*14) + 'Image %s - SSIM = %f' % (p[0].rsplit('/')[-2], nu_rank))
-    return best_image
-
-
 def get_best_roi(base_roi, image_list, labels_list):
     best_rank = 0
     best_roi = None
@@ -254,13 +250,14 @@ def get_best_roi(base_roi, image_list, labels_list):
         im = np.array(load_norm_list(p), dtype=np.float32)
         gt_nii = load_nii(gt_name)
         gt = gt_nii.get_data().astype(dtype=np.bool)
-        zoom_rate = [float(b_len)/i_len for b_len, i_len in zip(base_roi.shape[1:], im.shape[1:])]
-        im_roi = zoom(gt, zoom=[1.0] + zoom_rate)
-        nu_rank = ssim(base_roi.flatten(), im.flatten())
+        im_clipped, _ = clip_to_roi(im, gt)
+        zoom_rate = [float(b_len)/i_len for b_len, i_len in zip(base_roi.shape[1:], im_clipped.shape[1:])]
+        im_roi = zoom(im_clipped, zoom=[1.0] + zoom_rate)
+        nu_rank = ssim(base_roi.flatten(), im_roi.flatten())
         if nu_rank > best_rank:
             best_rank = nu_rank
             best_roi = im_roi
-            best_image = im
+            best_image = p
             best_labels = gt_name
         print(''.join([' ']*14) + 'Image %s - SSIM = %f' % (p[0].rsplit('/')[-2], nu_rank))
     return best_image, best_roi, best_labels
@@ -287,7 +284,6 @@ def main():
     net_name = os.path.join(path, 'baseline-brats2017.D50.f.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
 
     # Prepare the net hyperparameters
-    epochs = options['epochs']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
     batch_size = options['batch_size']
@@ -333,11 +329,11 @@ def main():
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
         except IOError:
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
-                  c['b'] + 'domain' + c['nc'] + c['g'] + ' net' + c['nc'])
+                  c['b'] + 'domain' + c['nc'] + c['g'] + ' data' + c['nc'])
             # First we get the tumor ROI
-            image_r, p_name = test_network(net_roi, p, batch_size, patch_size, queue, sufix='roi')
+            image_r, _ = test_network(net_roi, p, batch_size, patch_size, queue, sufix='tumor')
             p_images = np.array(load_norm_list(p), dtype=np.float32)
-            data, clip = clip_to_roi(p_images, image_r, patch_size)
+            data, clip = clip_to_roi(p_images, image_r)
             train_image, train_roi, train_labels = get_best_roi(data, train_data, train_labels)
 
             # We create the domain network
@@ -348,11 +344,11 @@ def main():
             # Training part
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the model ' +
                   c['b'] + '(%d parameters)' % net_new.count_params() + c['nc'])
-            print(net_new.summary())
 
             # Transfer learning
             train_centers = list(product([range(c[0], c[1]) for c in clip]))
-            transfer_learning(net_new, net_orig, data, train_image, train_roi, train_centers, options)
+
+            transfer_learning(net_new, net_orig, data, train_image, train_roi, train_labels, train_centers, options)
             net_new.save(net_new_name)
 
         # Now we transfer the new weights an re-test
