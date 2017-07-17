@@ -368,7 +368,7 @@ def main():
         dsc_results.append(results_o + results_d)
 
     f_dsc = tuple(np.asarray(dsc_results).mean())
-    print('Final results DSC: ' + '/'.join(['%f']*len(f_dsc)) % f_dsc)
+    print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
 
 
 if __name__ == '__main__':
