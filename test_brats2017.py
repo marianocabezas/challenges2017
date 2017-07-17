@@ -2,6 +2,7 @@ from __future__ import print_function
 import argparse
 import os
 import sys
+from itertools import product
 from time import strftime
 import numpy as np
 import keras
@@ -10,7 +11,7 @@ from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
 from data_creation import load_norm_list
-from data_creation import load_patch_batch_generator_test
+from data_creation import load_patch_batch_generator_test, load_patch_batch_generator_train
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
 from scipy.ndimage.interpolation import zoom
@@ -64,19 +65,42 @@ def get_names_from_path(path, options):
     return image_names, label_names
 
 
-def transfer_learning(net_domain, net,data, train_image, train_centers):
+def transfer_learning(net_domain, net, data, train_image, train_roi, train_labels, train_centers, options):
+    epochs = options['epochs']
+    patch_width = options['patch_width']
+    patch_size = (patch_width, patch_width, patch_width)
+    batch_size = options['batch_size']
+    # Data loading parameters
+    queue = options['queue']
     # We prepare the layers for transfer learning
     net_domain_conv_layers = [l for l in net_domain.layers if 'conv' in l.name]
     net_conv_layers = sorted(
         [l for l in net.layers if 'conv' in l.name],
         lambda x, y: int(x.name[7:]) - int(y.name[7:])
     )
-    # We freeze convolutional for the net
-    for _ in range(25):
-        conv_data = net_domain.predict(np.expand_dims(train_image, axis=0), batch_size=1)
+    # We freeze the convolutional layers for the final net
+    for _ in range(epochs):
+        conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
         net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
         for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
             l_orig.set_weights(l_new.get_weights())
+        train_steps_per_epoch = -(-np.size(train_roi) / batch_size)
+        net.fit_generator(
+            generator=load_patch_batch_generator_train(
+                image_list=[train_image],
+                label_names=train_labels,
+                centers=train_centers,
+                batch_size=batch_size,
+                size=patch_size,
+                nlabels=4,
+                dfactor=1,
+                preload=True,
+                split=True
+            ),
+            steps_per_epoch=train_steps_per_epoch,
+            max_q_size=queue,
+            epochs=epochs
+        )
 
 
 def test_network(net, p, batch_size, patch_size, queue, sufix='', centers=None):
@@ -212,19 +236,23 @@ def get_best_image(base_image, image_list, base_shape):
 
 def get_best_roi(base_roi, image_list, labels_list):
     best_rank = 0
+    best_roi = None
     best_image = None
+    best_labels = None
     for p, gt_name in zip(image_list, labels_list):
         im = np.array(load_norm_list(p), dtype=np.float32)
         gt_nii = load_nii(gt_name)
         gt = gt_nii.get_data().astype(dtype=np.bool)
         zoom_rate = [float(b_len)/i_len for b_len, i_len in zip(base_roi.shape[1:], im.shape[1:])]
-        im = zoom(im, zoom=[1] + zoom_rate)
+        im_roi = zoom(im, zoom=[1] + zoom_rate)
         nu_rank = ssim(base_roi.flatten(), im.flatten())
         if nu_rank > best_rank:
             best_rank = nu_rank
+            best_roi = im_roi
             best_image = im
+            best_labels = gt_name
         print(''.join([' ']*14) + 'Image %s - SSIM = %f' % (p[0].rsplit('/')[-2], nu_rank))
-    return best_image
+    return best_image, best_roi, best_labels
 
 
 def clip_to_roi(images, roi, patch_size):
@@ -234,8 +262,7 @@ def clip_to_roi(images, roi, patch_size):
     min_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).min(axis=1)
     max_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).max(axis=1)
 
-    clip = np.array([(min_c - p_s, max_c + (p_s - p_h))
-                for min_c, max_c, p_h, p_s in zip(min_coord, max_coord, patch_half, patch_size)], dtype=np.uint8)
+    clip = np.array([(min_c, max_c) for min_c, max_c in zip(min_coord, max_coord)], dtype=np.uint8)
     im_clipped = images[:, clip[0, 0]:clip[0, 1], clip[1, 0]:clip[1, 1], clip[2, 0]:clip[2, 1]]
 
     return im_clipped, clip
@@ -302,7 +329,7 @@ def main():
             # image_r, p_name = test_network(net_roi, p, batch_size, patch_size, queue, sufix='roi')
             # p_images = np.array(load_norm_list(p), dtype=np.float32)
             # data, clip = clip_to_roi(p_images, image_r, patch_size)
-            # train_image = get_best_roi(data, train_data, train_labels)
+            # train_image, train_roi, train_labels = get_best_roi(data, train_data, train_labels)
 
             # We get the base image and the training image downscaled (maybe I could break them in "big patches")
             image = np.array(load_norm_list(p), dtype=np.float32)
@@ -322,6 +349,9 @@ def main():
                   c['g'] + 'Training the model with %d images ' % len(conv_data) +
                   c['b'] + '(%d parameters)' % net_new.count_params() + c['nc'])
             print(net_new.summary())
+            # Transfer learning
+            # train_centers = list(product([range(c[0], c[1]) for c in clip]))
+            # transfer_learning(net_new, net_orig, data, train_image, train_roi, train_centers, options)
             net_new.fit(np.expand_dims(data, axis=0), conv_data, epochs=epochs, batch_size=1)
             net_new.save(net_new_name)
 
