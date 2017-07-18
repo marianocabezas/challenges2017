@@ -30,7 +30,6 @@ def parse_inputs():
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
     parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=8)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
-    parser.add_argument('-N', '--num-images', action='store', dest='n_images', type=int, default=25)
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=25)
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
