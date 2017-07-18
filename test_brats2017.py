@@ -120,18 +120,18 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
     # retrain the classifier with the new convolutional weights.
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models ' + c['nc'] +
-          c['b'] + '(' + 'x'.join([str(num) for num in x.shape])  + 'patches)')
+          c['b'] + '(%d patches)' % len(x))
     for e in range(epochs):
         print('Epoch %d/%d ' % (e+1, epochs))
         conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Domain' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_domain_params + c['nc'])
-        net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1, verbose=2)
+        net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
         for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
             l_orig.set_weights(l_new.get_weights())
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
-        net.fit(x, y, epochs=1, batch_size=batch_size, validation_split=0.25, verbose=2)
+        net.fit(x, y, epochs=1, batch_size=batch_size, validation_split=0.25)
 
 
 def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None):
