@@ -192,7 +192,7 @@ def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=Non
         print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
         roi_nii.get_data()[:] = image
         roi_nii.to_filename(outputname)
-    return image, p_name
+    return image
 
 
 def create_new_network(patch_size, filters_list, kernel_size_list):
@@ -319,8 +319,9 @@ def main():
     net_roi_name = os.path.join(path, 'CBICA-brats2017.D25.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
     net_roi = keras.models.load_model(net_roi_name)
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] +
-              'Case ' + c['c'] + c['b'] + '%d/%d: ' % (i + 1, len(test_data)) + c['nc'])
+        p_name = p[0].rsplit('/')[-2]
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
+              c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
 
         # First let's test the original network
         net_orig = keras.models.load_model(net_name)
@@ -332,7 +333,7 @@ def main():
         gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
         labels = np.unique(gt.flatten())
 
-        image_o, p_name = test_network(net_orig, p, batch_size, patch_size, sufix='original')
+        image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original')
 
         results_o = [dsc_seg(gt == l, image_o == l) for l in labels[1:]]
         subject_name = c['c'] + c['b'] + '%s' + c['nc']
@@ -348,7 +349,7 @@ def main():
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
                   c['b'] + 'domain' + c['nc'] + c['g'] + ' data' + c['nc'])
             # First we get the tumor ROI
-            image_r, _ = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
+            image_r = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
             p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
             data, clip = clip_to_roi(p_images, image_r)
             # We prepare the zoomed tumors for training
@@ -387,7 +388,7 @@ def main():
         for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
             l_orig.set_weights(l_new.get_weights())
 
-        image_d, p_name = test_network(net_orig, p, batch_size, patch_size, sufix='domain')
+        image_d = test_network(net_orig, p, batch_size, patch_size, sufix='domain')
 
         results_d = [dsc_seg(gt == l, image_d == l) for l in labels[1:]]
         results = (p_name,) + tuple(results_o)
