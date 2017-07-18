@@ -341,8 +341,8 @@ def main():
         text = subject_name + ' DSC: ' + dsc_string
 
         # Now let's create the domain network and train it
-        options_s = (options['epochs'], options['down_factor'])
-        net_new_name = os.path.join(path, 'domain-exp-brats2017.e%d.D%d' % options_s  + p_name + '.mdl')
+        options_s = '.e%d.D%d.' % (options['epochs'], options['down_factor'])
+        net_new_name = os.path.join(path, 'domain-exp-brats2017' + options_s  + p_name + '.mdl')
         try:
             net_new = keras.models.load_model(net_new_name)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
