@@ -120,7 +120,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
     # retrain the classifier with the new convolutional weights.
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models ' + c['nc'] +
-          c['b'] + '(%d patches)' % len(x))
+          c['b'] + '(' + 'x'.join([str(num) for num in x.shape])  + 'patches)')
     for e in range(epochs):
         print('Epoch %d/%d ' % (e+1, epochs))
         conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
