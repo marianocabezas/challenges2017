@@ -28,7 +28,7 @@ def parse_inputs():
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
-    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=1)
+    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=8)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-N', '--num-images', action='store', dest='n_images', type=int, default=25)
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=25)
@@ -115,11 +115,40 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
         )
     ]
 
-    print(range(epochs))
-
-    for _ in range(epochs):
+    # We start retraining.
+    # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
+    # retrain the classifier with the new convolutional weights.
+    for e in range(epochs):
         conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
-cc        test_samples = np.count_nonzero(roi)
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']      ' + c['nc'] + 'Epoch %d/%d' % (e, epochs) +
+              c['g'] + c['b'] + 'Domain' + c['nc'] + c['g'] + ' net ' + c['nc'] +
+              c['b'] + '(%d parameters)' % net_domain_params + c['nc'])
+        net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
+        for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
+            l_orig.set_weights(l_new.get_weights())
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']      ' + c['nc'] + 'Epoch %d/%d' % (e, epochs) +
+                  c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
+                  c['b'] + '(%d parameters)' % net_params + c['nc'])
+        net.fit(x, y, epochs=1, batch_size=batch_size)
+
+
+def test_network(net, p, batch_size, patch_size, queue, sufix='', centers=None):
+
+    c = color_codes()
+    p_name = p[0].rsplit('/')[-2]
+    patient_path = '/'.join(p[0].rsplit('/')[:-1])
+    outputname = os.path.join(patient_path, 'deep-brats17.test.' + sufix + '.nii.gz')
+    roiname = os.path.join(patient_path, 'deep-brats17.orig.test.' + sufix + '.roi.nii.gz')
+    try:
+        image = load_nii(outputname).get_data()
+        load_nii(roiname)
+    except IOError:
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing ' +
+              c['b'] + sufix + c['nc'] + c['g'] + ' network' + c['nc'])
+        roi_nii = load_nii(p[0])
+        roi = roi_nii.get_data().astype(dtype=np.bool)
+        centers = get_mask_voxels(roi) if centers is None else centers
+        test_samples = np.count_nonzero(roi)
         image = np.zeros_like(roi).astype(dtype=np.uint8)
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
               '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] +
@@ -136,7 +165,7 @@ cc        test_samples = np.count_nonzero(roi)
             steps=test_steps_per_epoch,
             max_q_size=queue
         )
-        print(' '.join(['']*50), end='\r')
+        print(' '.join([''] * 50), end='\r')
         sys.stdout.flush()
         [x, y, z] = np.stack(centers, axis=1)
 
