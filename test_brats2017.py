@@ -28,7 +28,7 @@ def parse_inputs():
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
-    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=8)
+    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=4)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=25)
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
@@ -119,7 +119,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
     # retrain the classifier with the new convolutional weights.
-    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models' + c['nc'] +
+    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models ' + c['nc'] +
           c['b'] + '(%d patches)' % len(x))
     for e in range(epochs):
         print('Epoch %d/%d ' % (e+1, epochs))
@@ -131,7 +131,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
             l_orig.set_weights(l_new.get_weights())
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
-        net.fit(x, y, epochs=1, batch_size=batch_size)
+        net.fit(x, y, epochs=1, batch_size=batch_size, validation_split=0.25)
 
 
 def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None):
