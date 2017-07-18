@@ -126,12 +126,12 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
         conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Domain' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_domain_params + c['nc'])
-        net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
+        net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1, verbose=2)
         for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
             l_orig.set_weights(l_new.get_weights())
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
-        net.fit(x, y, epochs=1, batch_size=batch_size, validation_split=0.25)
+        net.fit(x, y, epochs=1, batch_size=batch_size, validation_split=0.25, verbose=2)
 
 
 def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None):
