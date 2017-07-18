@@ -1,18 +1,20 @@
 from __future__ import print_function
 import argparse
+import pickle
 import os
 import sys
 from itertools import product
 from time import strftime
 import numpy as np
 import keras
+import keras.backend as K
 from keras.models import Model
 from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda, Dense
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
 from data_creation import load_norm_list
-from data_creation import load_patch_batch_generator_test, load_patch_batch_train
-from data_manipulation.generate_features import get_mask_voxels
+from data_creation import load_patch_batch_generator_test
+from data_manipulation.generate_features import get_mask_voxels, get_patches
 from data_manipulation.metrics import dsc_seg
 from scipy.ndimage.interpolation import zoom
 from skimage.measure import compare_ssim as ssim
@@ -26,11 +28,10 @@ def parse_inputs():
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
-    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=50)
+    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=1)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-N', '--num-images', action='store', dest='n_images', type=int, default=25)
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=25)
-    parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=100)
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
     parser.add_argument('--no-t1ce', action='store_false', dest='use_t1ce', default=True)
@@ -65,22 +66,20 @@ def get_names_from_path(path, options):
     return image_names, label_names
 
 
-def transfer_learning(net_domain, net, data, train_image, train_roi, train_labels, train_centers, options):
+def transfer_learning(net_domain, net, data, train_image, train_labels, train_roi, train_centers, options):
     c = color_codes()
     # Network hyperparameters
     epochs = options['epochs']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
     batch_size = options['batch_size']
-    train_steps_per_epoch = -(-np.size(train_roi) / batch_size)
-    # Data loading parameters
-    queue = options['queue']
+    d_factor = options['down_factor']
 
     # We prepare the layers for transfer learning
     net_domain_conv_layers = [l for l in net_domain.layers if 'conv' in l.name]
     net_conv_layers = sorted(
         [l for l in net.layers if 'conv' in l.name],
-        lambda x, y: int(x.name[7:]) - int(y.name[7:])
+        lambda l1, l2: int(l1.name[7:]) - int(l2.name[7:])
     )
 
     # We freeze the convolutional layers for the final net
@@ -88,53 +87,39 @@ def transfer_learning(net_domain, net, data, train_image, train_roi, train_label
         if not isinstance(layer, Dense):
             layer.trainable = False
         net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+    net_domain_params = int(np.sum([K.count_params(p) for p in set(net_domain.trainable_weights)]))
+    net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
 
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
     # retrain the classifier with the new convolutional weights.
+
+    # Data loading
+    centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
+    x = [get_patches(image, centers, patch_size)
+         for image in train_image]
+    x = np.stack(x, axis=1).astype(np.float32)
+    y = np.array([train_labels[center] for center in centers])
+    y = [
+        keras.utils.to_categorical(
+            np.copy(y).astype(dtype=np.bool),
+            num_classes=2
+        ),
+        keras.utils.to_categorical(
+            np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
+            num_classes=3
+        ),
+        keras.utils.to_categorical(
+            y,
+            num_classes=5
+        )
+    ]
+
+    print(range(epochs))
+
     for _ in range(epochs):
         conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']      ' + c['g'] + c['b'] +
-              'Domain' + c['nc'] + c['g'] + ' net' + c['nc'])
-        net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
-        for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
-            l_orig.set_weights(l_new.get_weights())
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']      ' + c['g'] + c['b'] +
-              'Original' + c['nc'] + c['g'] + ' net' + c['nc'])
-        net.fit_generator(
-            generator=load_patch_batch_train(
-                image_names=[train_image],
-                label_names=[train_labels],
-                centers=np.concatenate([np.array([(0, c) for c in train_centers], dtype=object)]),
-                batch_size=batch_size,
-                size=patch_size,
-                nlabels=4,
-                dfactor=1,
-                preload=True,
-                split=True
-            ),
-            steps_per_epoch=train_steps_per_epoch,
-            max_q_size=queue,
-            epochs=1
-        )
-
-
-def test_network(net, p, batch_size, patch_size, queue, sufix='', centers=None):
-    c = color_codes()
-    p_name = p[0].rsplit('/')[-2]
-    patient_path = '/'.join(p[0].rsplit('/')[:-1])
-    outputname = os.path.join(patient_path, 'deep-brats17.test.' + sufix + '.nii.gz')
-    roiname = os.path.join(patient_path, 'deep-brats17.orig.test.' + sufix + '.roi.nii.gz')
-    try:
-        image = load_nii(outputname).get_data()
-        load_nii(roiname)
-    except IOError:
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing ' +
-              c['b'] + sufix + c['nc'] + c['g'] + ' network' + c['nc'])
-        roi_nii = load_nii(p[0])
-        roi = roi_nii.get_data().astype(dtype=np.bool)
-        centers = get_mask_voxels(roi) if centers is None else centers
-        test_samples = np.count_nonzero(roi)
+cc        test_samples = np.count_nonzero(roi)
         image = np.zeros_like(roi).astype(dtype=np.uint8)
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
               '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] +
@@ -242,25 +227,28 @@ def create_new_network(patch_size, filters_list, kernel_size_list):
 
 
 def get_best_roi(base_roi, image_list, labels_list):
-    best_rank = 0
-    best_roi = None
+    best_rank = -np.inf
+    best_name = None
     best_image = None
-    best_labels = None
-    for p, gt_name in zip(image_list, labels_list):
-        im = np.array(load_norm_list(p), dtype=np.float32)
+    best_roi = None
+    best_rate = None
+    for i, (p, gt_name) in enumerate(zip(image_list, labels_list)):
+        im = np.stack(load_norm_list(p)).astype(dtype=np.float32)
         gt_nii = load_nii(gt_name)
         gt = gt_nii.get_data().astype(dtype=np.bool)
-        im_clipped, _ = clip_to_roi(im, gt)
+        im_clipped, clip = clip_to_roi(im, gt)
         zoom_rate = [float(b_len)/i_len for b_len, i_len in zip(base_roi.shape[1:], im_clipped.shape[1:])]
         im_roi = zoom(im_clipped, zoom=[1.0] + zoom_rate)
-        nu_rank = ssim(base_roi.flatten(), im_roi.flatten())
+        nu_rank = ssim(np.moveaxis(base_roi, 0, -1), np.moveaxis(im_roi, 0, -1), multichannel=True)
         if nu_rank > best_rank:
             best_rank = nu_rank
             best_roi = im_roi
-            best_image = p
-            best_labels = gt_name
+            best_image = i
+            best_rate = [1.0] + zoom_rate
+            best_name = p
         print(''.join([' ']*14) + 'Image %s - SSIM = %f' % (p[0].rsplit('/')[-2], nu_rank))
-    return best_image, best_roi, best_labels
+    print(''.join([' '] * 14) + 'Best rank = %s - SSIM = %f' % (best_name[0].rsplit('/')[-2], best_rank))
+    return best_image, best_roi, best_rate
 
 
 def clip_to_roi(images, roi):
@@ -292,8 +280,6 @@ def main():
     filters_list = n_filters if len(n_filters) > 1 else n_filters*conv_blocks
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
-    # Data loading parameters
-    queue = options['queue']
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
@@ -301,7 +287,7 @@ def main():
 
     net_roi_name = os.path.join(path, 'CBICA-brats2017.D25.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
     net_roi = keras.models.load_model(net_roi_name)
-    for i, (p, gt_name) in enumerate(zip(test_data[:5], test_labels[:5])):
+    for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] +
               'Case ' + c['c'] + c['b'] + '%d/%d: ' % (i + 1, len(test_data)) + c['nc'])
 
@@ -315,7 +301,7 @@ def main():
         gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
         labels = np.unique(gt.flatten())
 
-        image_o, p_name = test_network(net_orig, p, batch_size, patch_size, queue, sufix='original')
+        image_o, p_name = test_network(net_orig, p, batch_size, patch_size, sufix='original')
 
         results_o = [dsc_seg(gt == l, image_o == l) for l in labels[1:]]
         subject_name = c['c'] + c['b'] + '%s' + c['nc']
@@ -331,10 +317,27 @@ def main():
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
                   c['b'] + 'domain' + c['nc'] + c['g'] + ' data' + c['nc'])
             # First we get the tumor ROI
-            image_r, _ = test_network(net_roi, p, batch_size, patch_size, queue, sufix='tumor')
-            p_images = np.array(load_norm_list(p), dtype=np.float32)
+            image_r, _ = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
+            p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
             data, clip = clip_to_roi(p_images, image_r)
-            train_image, train_roi, train_labels = get_best_roi(data, train_data, train_labels)
+            # We prepare the zoomed tumors for training
+            x_name = os.path.join(path, p_name + '.x.pkl')
+            y_name = os.path.join(path, p_name + '.y.pkl')
+            roi_name = os.path.join(path, p_name + '.roi.pkl')
+            try:
+                train_x = pickle.load(open(x_name, 'rb'))
+                train_y = pickle.load(open(y_name, 'rb'))
+                train_roi = pickle.load(open(roi_name, 'rb'))
+            except IOError:
+                train_num, train_roi, train_rate = get_best_roi(data, train_data, train_labels)
+                train_image = np.stack(load_norm_list(train_data[train_num])).astype(dtype=np.float32)
+                train_mask = load_nii(train_labels[train_num]).get_data().astype(dtype=np.uint8)
+                train_x = zoom(train_image, train_rate)
+                train_y = zoom(train_mask, train_rate[1:], order=0)
+                pickle.dump(train_x, open(x_name, 'wb'))
+                pickle.dump(train_y, open(y_name, 'wb'))
+                pickle.dump(train_roi, open(roi_name, 'wb'))
+            _, train_clip = clip_to_roi(train_x, train_y)
 
             # We create the domain network
             net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
@@ -342,20 +345,20 @@ def main():
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_new.set_weights(l_orig.get_weights())
             # Training part
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the model ' +
-                  c['b'] + '(%d parameters)' % net_new.count_params() + c['nc'])
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models' + c['nc'])
 
             # Transfer learning
-            train_centers = list(product([range(c[0], c[1]) for c in clip]))
+            train_centers_r = [range(cl[0], cl[1]) for cl in train_clip]
+            train_centers = list(product(*train_centers_r))
 
-            transfer_learning(net_new, net_orig, data, train_image, train_roi, train_labels, train_centers, options)
+            transfer_learning(net_new, net_orig, data, train_x, train_y, train_roi, train_centers, options)
             net_new.save(net_new_name)
 
         # Now we transfer the new weights an re-test
         for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
             l_orig.set_weights(l_new.get_weights())
 
-        image_d, p_name = test_network(net_orig, p, batch_size, patch_size, queue, sufix='domain')
+        image_d, p_name = test_network(net_orig, p, batch_size, patch_size, sufix='domain')
 
         results_d = [dsc_seg(gt == l, image_d == l) for l in labels[1:]]
         results = (p_name,) + tuple(results_o)
