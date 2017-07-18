@@ -131,7 +131,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
         net.fit(x, y, epochs=1, batch_size=batch_size)
 
 
-def test_network(net, p, batch_size, patch_size, queue, sufix='', centers=None):
+def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None):
 
     c = color_codes()
     p_name = p[0].rsplit('/')[-2]
