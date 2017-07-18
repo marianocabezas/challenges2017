@@ -94,6 +94,8 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
     # retrain the classifier with the new convolutional weights.
 
     # Data loading
+    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
+          c['b'] + 'net' + c['nc'] + c['g'] + ' data' + c['nc'])
     centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
     x = [get_patches(image, centers, patch_size)
          for image in train_image]
@@ -117,17 +119,17 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
     # retrain the classifier with the new convolutional weights.
+    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models' + c['nc'])
     for e in range(epochs):
+        print('Epoch %d/%d ' % (e+1, epochs))
         conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']      ' + c['nc'] + 'Epoch %d/%d' % (e, epochs) +
-              c['g'] + c['b'] + 'Domain' + c['nc'] + c['g'] + ' net ' + c['nc'] +
+        print(''.join([' ']*14) + c['g'] + c['b'] + 'Domain' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_domain_params + c['nc'])
         net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
         for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
             l_orig.set_weights(l_new.get_weights())
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']      ' + c['nc'] + 'Epoch %d/%d' % (e, epochs) +
-                  c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
-                  c['b'] + '(%d parameters)' % net_params + c['nc'])
+        print(''.join([' ']*14) + c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
+              c['b'] + '(%d parameters)' % net_params + c['nc'])
         net.fit(x, y, epochs=1, batch_size=batch_size)
 
 
@@ -372,8 +374,6 @@ def main():
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_new.set_weights(l_orig.get_weights())
-            # Training part
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models' + c['nc'])
 
             # Transfer learning
             train_centers_r = [range(cl[0], cl[1]) for cl in train_clip]
