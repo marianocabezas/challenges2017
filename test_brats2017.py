@@ -131,7 +131,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
             l_orig.set_weights(l_new.get_weights())
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
-        net.fit(x, y, epochs=1, batch_size=batch_size, validation_split=0.25)
+        net.fit(x, y, epochs=1, batch_size=batch_size)
 
 
 def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None):
