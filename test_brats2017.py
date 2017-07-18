@@ -30,7 +30,7 @@ def parse_inputs():
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
     parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=2)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
-    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=25)
+    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=10)
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
     parser.add_argument('--no-t1ce', action='store_false', dest='use_t1ce', default=True)
@@ -340,7 +340,7 @@ def main():
         text = subject_name + ' DSC: ' + dsc_string
 
         # Now let's create the domain network and train it
-        net_new_name = os.path.join(path, 'domain-exp-brats2017.' + p_name + '.mdl')
+        net_new_name = os.path.join(path, 'domain-exp-brats2017.e%d' % options['epochs'] + p_name + '.mdl')
         try:
             net_new = keras.models.load_model(net_new_name)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
