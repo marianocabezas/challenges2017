@@ -28,7 +28,7 @@ def parse_inputs():
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
-    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=4)
+    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=2)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=10)
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
