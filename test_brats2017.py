@@ -12,9 +12,9 @@ from keras.models import Model
 from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda, Dense
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
-from data_creation import load_norm_list, get_patches_list
+from data_creation import load_norm_list
 from data_creation import load_patch_batch_generator_test
-from data_manipulation.generate_features import get_mask_voxels
+from data_manipulation.generate_features import get_mask_voxels, get_patches
 from data_manipulation.metrics import dsc_seg
 from scipy.ndimage.interpolation import zoom
 from skimage.measure import compare_ssim as ssim
@@ -97,8 +97,11 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
           c['b'] + 'net' + c['nc'] + c['g'] + ' data' + c['nc'])
     centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
-    x = get_patches_list([train_image], [centers], patch_size, True)
-    x = np.concatenate(x).astype(dtype=np.float32)
+    x = [get_patches(image, centers, patch_size)
+         for image in train_image]
+    x = np.stack(x, axis=1).astype(np.float32)
+    # x = get_patches_list([train_image], [centers], patch_size, True)
+    # x = np.concatenate(x).astype(dtype=np.float32)
     y = np.array([train_labels[center] for center in centers])
     y = [
         keras.utils.to_categorical(

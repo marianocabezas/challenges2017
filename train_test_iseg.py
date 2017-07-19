@@ -55,7 +55,7 @@ def get_names_from_path(options):
     return image_names, label_names
 
 
-def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
+def train_net(fold_n, train_data, train_labels, options):
     # Prepare the net architecture parameters
     dfactor = options['dfactor']
     # Prepare the net hyperparameters
@@ -72,7 +72,7 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
     experimental = options['experimental']
     # Data loading parameters
     preload = options['preload']
-    queue = options['queue']
+    # queue = options['queue']
 
     # Prepare the sufix that will be added to the results for the net and images
     path = options['dir_name']
@@ -90,7 +90,7 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
     except IOError:
         # NET definition using Keras
         train_centers = get_cnn_centers(train_data[:, 0], train_labels)
-        val_centers = get_cnn_centers(val_data[:, 0], val_labels)
+        # val_centers = get_cnn_centers(val_data[:, 0], val_labels)
         train_samples = len(train_centers) / dfactor
         # val_samples = len(val_centers) / dfactor
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
@@ -118,9 +118,9 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
               c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(net.summary())
         generator = load_patch_batch_train(
-                image_names=np.concatenate([train_data, val_data]),
-                label_names=np.concatenate([train_labels, val_labels]),
-                centers=np.concatenate([train_centers+val_centers]),
+                image_names=train_data,
+                label_names=train_labels,
+                centers=train_centers,
                 batch_size=batch_size,
                 size=patch_size,
                 nlabels=4,
@@ -259,14 +259,14 @@ def main():
     folds = len(data_names)
     fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
     dsc_results = list()
-    for (train_data, train_labels, val_data, val_labels, test_data, test_labels), i in fold_generator:
+    for (train_data, train_labels, _, _, test_data, test_labels), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d: ' % (i+1, folds) + c['g'] +
-              'Number of training/validation/testing images (%d=%d/%d=%d/%d)'
-              % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)) + c['nc'])
+              'Number of training/testing images (%d=%d/%d)'
+              % (len(train_data), len(train_labels), len(test_data)) + c['nc'])
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['nc'] + c['g'] + 'Training' + c['nc'])
-        net, sufix = train_net(i, train_data, train_labels, val_data, val_labels, options)
+        net, sufix = train_net(i, train_data, train_labels, options)
 
         # Then we test the net.
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['nc'] + c['g'] + 'Testing' + c['nc'])
