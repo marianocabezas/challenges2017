@@ -126,7 +126,7 @@ def train_net(fold_n, train_data, train_labels, options):
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
               c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(net.summary())
-        net.fit(x, y, batch_size=batch_size, validation_split=0.25)
+        net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
         net.save(net_name)
     return net, sufix
 
