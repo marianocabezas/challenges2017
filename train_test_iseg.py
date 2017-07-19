@@ -167,6 +167,7 @@ def test_net(net, p, gt_name, options, sufix):
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
     outputname = os.path.join(patient_path, 'deep-' + p_name + sufix + 'brain.roi.hdr')
     gt_nii = load_nii(gt_name)
+    print(gt_nii.get_data().shape)
     gt = np.copy(np.squeeze(gt_nii.get_data()))
     vals = np.unique(gt.flatten())
     try:
