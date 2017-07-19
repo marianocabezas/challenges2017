@@ -80,7 +80,7 @@ def main():
     sequential = options['sequential']
     dfactor = options['dfactor']
     # Prepare the net hyperparameters
-    num_classes = 4
+    num_classes = 5
     epochs = options['epochs']
     padding = options['padding']
     patch_width = options['patch_width']
