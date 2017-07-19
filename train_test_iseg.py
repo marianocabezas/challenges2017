@@ -89,7 +89,6 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
         net = load_model(net_name)
     except IOError:
         # NET definition using Keras
-        print(net_name)
         train_centers = get_cnn_centers(train_data[:, 0], train_labels)
         val_centers = get_cnn_centers(val_data[:, 0], val_labels)
         train_samples = len(train_centers) / dfactor
