@@ -86,7 +86,7 @@ def train_net(fold_n, train_data, train_labels, options):
 
     c = color_codes()
     try:
-        net = load_model(net_name)
+        net = load_model(net_name + 's')
     except IOError:
         # NET definition using Keras
         train_centers = get_cnn_centers(train_data[:, 0], train_labels)
