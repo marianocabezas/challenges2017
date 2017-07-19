@@ -165,14 +165,13 @@ def test_net(net, p, gt_name, options, sufix):
     c = color_codes()
     p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
-    outputname = os.path.join(patient_path, p_name + sufix + 'brain.roi.hdr')
+    outputname = os.path.join(patient_path, 'deep-' + p_name + sufix + 'brain.roi.hdr')
     gt_nii = load_nii(gt_name)
     gt = np.copy(np.squeeze(gt_nii.get_data()))
     vals = np.unique(gt.flatten())
     try:
         image = np.squeeze(load_nii(outputname).get_data())
     except IOError:
-        print(outputname)
         roi = np.squeeze(load_nii(p[0]).get_data())
         centers = get_mask_voxels(roi.astype(dtype=np.bool))
         test_samples = np.count_nonzero(roi)
@@ -245,9 +244,11 @@ def main():
               % (len(train_data), len(train_labels), len(val_data), len(val_labels), len(test_data)) + c['nc'])
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['nc'] + c['g'] + 'Training' + c['nc'])
         net, sufix = train_net(i, train_data, train_labels, val_data, val_labels, options)
 
         # Then we test the net.
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['nc'] + c['g'] + 'Testing' + c['nc'])
         for p, gt_name in zip(test_data, test_labels):
             image, gt = test_net(net, p, gt_name, options, sufix)
             p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
