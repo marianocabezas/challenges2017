@@ -165,7 +165,7 @@ def test_net(net, p, gt_name, options, sufix):
     c = color_codes()
     p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
-    outputname = os.path.join(patient_path, 'deep-' + p_name + sufix + 'brain.roi.hdr')
+    outputname = os.path.join(patient_path, 'deep-' + p_name + sufix + 'brain.hdr')
     gt_nii = load_nii(gt_name)
     gt = np.copy(np.squeeze(gt_nii.get_data()))
     vals = np.unique(gt.flatten())
