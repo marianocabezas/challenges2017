@@ -8,7 +8,7 @@ from nibabel import load as load_nii
 from nibabel import save as save_nii
 from utils import color_codes, nfold_cross_validation
 from itertools import izip
-from data_creation import load_patch_batch_train, get_cnn_centers
+from data_creation import load_patches_train, get_cnn_centers
 from data_creation import load_patch_batch_generator_test
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
@@ -86,17 +86,29 @@ def train_net(fold_n, train_data, train_labels, options):
 
     c = color_codes()
     try:
-        net = load_model(net_name + 's')
+        net = load_model(net_name)
     except IOError:
-        # NET definition using Keras
+        # Data loading
         train_centers = get_cnn_centers(train_data[:, 0], train_labels)
-        # val_centers = get_cnn_centers(val_data[:, 0], val_labels)
         train_samples = len(train_centers) / dfactor
-        # val_samples = len(val_centers) / dfactor
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
+              c['b'] + '(%d centers)' % len(train_centers) + c['nc'])
+        x, y = load_patches_train(
+            image_names=train_data,
+            label_names=train_labels,
+            centers=train_centers,
+            size=patch_size,
+            nlabels=4,
+            dfactor=dfactor,
+            preload=preload,
+            split=True,
+            iseg=True,
+            experimental=experimental,
+            datatype=np.float32
+        )
+        # NET definition using Keras
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
               c['b'] + '(%d samples)' % train_samples + c['nc'])
-        # train_steps_per_epoch = -(-train_samples / batch_size)
-        # val_steps_per_epoch = -(-val_samples / batch_size)
         input_shape = (2,) + patch_size
         # This architecture is based on the functional Keras API to introduce 3 output paths:
         # - Whole tumor segmentation
@@ -111,63 +123,10 @@ def train_net(fold_n, train_data, train_labels, options):
             dense_size
         )
 
-        # print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-        #       c['g'] + 'Training the model with a generator for ' +
-        #       c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
               c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(net.summary())
-        generator = load_patch_batch_train(
-                image_names=train_data,
-                label_names=train_labels,
-                centers=train_centers,
-                batch_size=batch_size,
-                size=patch_size,
-                nlabels=4,
-                dfactor=dfactor,
-                preload=preload,
-                split=True,
-                iseg=True,
-                experimental=experimental,
-                generator=False,
-                datatype=np.float32
-            )
-        x, y = generator.next()
-        net.fit(x, y, batch_size=batch_size, validation_split=0.25)
-        # net.fit_generator(
-        #     generator=load_patch_batch_train(
-        #         image_names=train_data,
-        #         label_names=train_labels,
-        #         centers=train_centers,
-        #         batch_size=batch_size,
-        #         size=patch_size,
-        #         nlabels=4,
-        #         dfactor=dfactor,
-        #         preload=preload,
-        #         split=True,
-        #         iseg=True,
-        #         experimental=experimental,
-        #         datatype=np.float32
-        #     ),
-        #     validation_data=load_patch_batch_train(
-        #         image_names=val_data,
-        #         label_names=val_labels,
-        #         centers=val_centers,
-        #         batch_size=batch_size,
-        #         size=patch_size,
-        #         nlabels=4,
-        #         dfactor=dfactor,
-        #         preload=preload,
-        #         split=True,
-        #         iseg=True,
-        #         experimental=experimental,
-        #         datatype=np.float32
-        #     ),
-        #     steps_per_epoch=train_steps_per_epoch,
-        #     validation_steps=val_steps_per_epoch,
-        #     max_q_size=queue,
-        #     epochs=epochs
-        # )
+        net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
         net.save(net_name)
     return net, sufix
 
@@ -257,9 +216,9 @@ def main():
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
     data_names, label_names = get_names_from_path(options)
     folds = len(data_names)
-    fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds, val_data=0.25), xrange(folds))
+    fold_generator = izip(nfold_cross_validation(data_names, label_names, n=folds), xrange(folds))
     dsc_results = list()
-    for (train_data, train_labels, _, _, test_data, test_labels), i in fold_generator:
+    for (train_data, train_labels, test_data, test_labels), i in fold_generator:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Fold %d/%d: ' % (i+1, folds) + c['g'] +
               'Number of training/testing images (%d=%d/%d)'
               % (len(train_data), len(train_labels), len(test_data)) + c['nc'])
