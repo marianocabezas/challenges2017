@@ -12,9 +12,9 @@ from keras.models import Model
 from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda, Dense
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
-from data_creation import load_norm_list
+from data_creation import load_norm_list, get_patches_list
 from data_creation import load_patch_batch_generator_test
-from data_manipulation.generate_features import get_mask_voxels, get_patches
+from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
 from scipy.ndimage.interpolation import zoom
 from skimage.measure import compare_ssim as ssim
@@ -97,9 +97,8 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
           c['b'] + 'net' + c['nc'] + c['g'] + ' data' + c['nc'])
     centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
-    x = [get_patches(image, centers, patch_size)
-         for image in train_image]
-    x = np.stack(x, axis=1).astype(np.float32)
+    x = get_patches_list([train_image], [centers], patch_size, True)
+    x = np.concatenate(x).astype(dtype=np.float32)
     y = np.array([train_labels[center] for center in centers])
     y = [
         keras.utils.to_categorical(
@@ -120,7 +119,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
     # retrain the classifier with the new convolutional weights.
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models ' + c['nc'] +
-          c['b'] + '(%d patches)' % len(x) + c['nc'])
+          c['b'] + '(%d patches)' % len(centers) + c['nc'])
     for e in range(epochs):
         print(c['b'] + 'Epoch %d/%d ' % (e+1, epochs) + c['nc'])
         conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
@@ -333,7 +332,8 @@ def main():
         gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
         labels = np.unique(gt.flatten())
 
-        image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original')
+        options_s = 'e%d.D%d.' % (options['epochs'], options['down_factor'])
+        image_o = test_network(net_orig, p, batch_size, patch_size, sufix=options_s + 'original')
 
         results_o = [dsc_seg(gt == l, image_o == l) for l in labels[1:]]
         subject_name = c['c'] + c['b'] + '%s' + c['nc']
@@ -341,8 +341,7 @@ def main():
         text = subject_name + ' DSC: ' + dsc_string
 
         # Now let's create the domain network and train it
-        options_s = '.e%d.D%d.' % (options['epochs'], options['down_factor'])
-        net_new_name = os.path.join(path, 'domain-exp-brats2017' + options_s  + p_name + '.mdl')
+        net_new_name = os.path.join(path, 'domain-exp-brats2017.' + options_s + p_name + '.mdl')
         try:
             net_new = keras.models.load_model(net_new_name)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
@@ -350,9 +349,10 @@ def main():
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
                   c['b'] + 'domain' + c['nc'] + c['g'] + ' data' + c['nc'])
             # First we get the tumor ROI
-            image_r = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
+            image_r = test_network(net_roi, p, batch_size, patch_size, sufix=options_s + 'tumor')
             p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
             data, clip = clip_to_roi(p_images, image_r)
+            print(data.shape, np.count_nonzero(image_r))
             # We prepare the zoomed tumors for training
             x_name = os.path.join(path, p_name + '.x.pkl')
             y_name = os.path.join(path, p_name + '.y.pkl')
@@ -389,7 +389,7 @@ def main():
         for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
             l_orig.set_weights(l_new.get_weights())
 
-        image_d = test_network(net_orig, p, batch_size, patch_size, sufix='domain')
+        image_d = test_network(net_orig, p, batch_size, patch_size, sufix=options_s + 'domain')
 
         results_d = [dsc_seg(gt == l, image_d == l) for l in labels[1:]]
         results = (p_name,) + tuple(results_o)
