@@ -85,6 +85,7 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
     net_name = os.path.join(path, 'iseg2017.fold%d' % fold_n + sufix + 'mdl')
 
     c = color_codes()
+    print(net_name)
     try:
         net = load_model(net_name)
     except IOError:
@@ -169,6 +170,7 @@ def test_net(net, p, gt_name, options, sufix):
     gt_nii = load_nii(gt_name)
     gt = np.copy(np.squeeze(gt_nii.get_data()))
     vals = np.unique(gt.flatten())
+    print(outputname)
     try:
         image = np.squeeze(load_nii(outputname).get_data())
     except IOError:
