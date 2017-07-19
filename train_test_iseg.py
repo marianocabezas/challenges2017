@@ -92,11 +92,11 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
         train_centers = get_cnn_centers(train_data[:, 0], train_labels)
         val_centers = get_cnn_centers(val_data[:, 0], val_labels)
         train_samples = len(train_centers) / dfactor
-        val_samples = len(val_centers) / dfactor
+        # val_samples = len(val_centers) / dfactor
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
               c['b'] + '(%d samples)' % train_samples + c['nc'])
-        train_steps_per_epoch = -(-train_samples / batch_size)
-        val_steps_per_epoch = -(-val_samples / batch_size)
+        # train_steps_per_epoch = -(-train_samples / batch_size)
+        # val_steps_per_epoch = -(-val_samples / batch_size)
         input_shape = (2,) + patch_size
         # This architecture is based on the functional Keras API to introduce 3 output paths:
         # - Whole tumor segmentation
@@ -111,14 +111,16 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
             dense_size
         )
 
+        # print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
+        #       c['g'] + 'Training the model with a generator for ' +
+        #       c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-              c['g'] + 'Training the model with a generator for ' +
-              c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
+              c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(net.summary())
         generator = load_patch_batch_train(
-                image_names=train_data+val_data,
-                label_names=train_labels+val_labels,
-                centers=train_centers+val_centers,
+                image_names=np.concatenate([train_data, val_data]),
+                label_names=np.concatenate([train_labels, val_labels]),
+                centers=np.concatenate([train_centers+val_centers]),
                 batch_size=batch_size,
                 size=patch_size,
                 nlabels=4,
@@ -131,7 +133,7 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
                 datatype=np.float32
             )
         x, y = generator.next()
-        net.fit(x, y, validation_split=0.25)
+        net.fit(x, y, batch_size=batch_size, validation_split=0.25)
         # net.fit_generator(
         #     generator=load_patch_batch_train(
         #         image_names=train_data,
