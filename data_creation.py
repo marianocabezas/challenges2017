@@ -146,6 +146,36 @@ def load_patch_batch_train(
         yield x, y
 
 
+def load_patches_train(
+        image_names,
+        label_names,
+        centers,
+        size,
+        nlabels,
+        dfactor=10,
+        datatype=np.float32,
+        preload=False,
+        split=False,
+        iseg=False,
+        experimental=False,
+):
+    image_list = [load_norm_list(patient) for patient in image_names]
+    batch_centers = np.random.permutation(centers)[::dfactor]
+    x, y = get_xy(
+        image_list,
+        label_names,
+        batch_centers,
+        size,
+        nlabels,
+        preload,
+        split,
+        iseg,
+        experimental,
+        datatype
+    )
+    return x, y
+
+
 def load_patch_batch_generator_train(
         image_list,
         label_names,

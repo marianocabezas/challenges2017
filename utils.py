@@ -50,7 +50,7 @@ def leave_one_out(data_list, labels_list):
         yield data_list[:i] + data_list[i+1:], labels_list[:i] + labels_list[i+1:], i
 
 
-def nfold_cross_validation(data_list, labels_list, n=5, random_state=42, val_data=0.0):
+def nfold_cross_validation(data_list, labels_list, n=5, random_state=42, val_data=None):
     np.random.seed(random_state)
     shuffled_indices = np.random.permutation(xrange(len(data_list)))
 
@@ -61,7 +61,10 @@ def nfold_cross_validation(data_list, labels_list, n=5, random_state=42, val_dat
         tr_labels = labels_list[[idx for idx in shuffled_indices if idx not in indices]]
         tr_data = data_list[[idx for idx in shuffled_indices if idx not in indices]]
         val_len = int(len(tr_data) * val_data)
-        yield tr_data[val_len:], tr_labels[val_len:], tr_data[:val_len], tr_labels[:val_len], tst_data, tst_labels
+        if val_data is not None:
+            yield tr_data[val_len:], tr_labels[val_len:], tr_data[:val_len], tr_labels[:val_len], tst_data, tst_labels
+        else:
+            yield tr_data, tr_labels, tst_data, tst_labels
 
 
 def get_biggest_region(labels):
