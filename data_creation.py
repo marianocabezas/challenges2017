@@ -161,16 +161,18 @@ def load_patch_batch_generator_test(
         size,
         preload=False,
         datatype=np.float32,
+        nbatches=128
 ):
     while True:
         n_centers = len(centers)
         image_list = load_norm_list(image_names) if preload else image_names
-        for i in range(0, n_centers, batch_size):
+        for i in range(0, n_centers, batch_size * nbatches):
             print('%f%% tested (step %d)' % (100.0*i/n_centers, (i/batch_size)+1), end='\r')
             sys.stdout.flush()
-            x = get_patches_list([image_list], [centers[i:i + batch_size]], size, preload)
+            x = get_patches_list([image_list], [centers[i:i + batch_size*nbatches]], size, preload)
             x = np.concatenate(x).astype(dtype=datatype)
-            yield x
+            for j in range(0, nbatches, batch_size):
+                yield x[j:j + batch_size]
 
 
 def load_masks(mask_names):
