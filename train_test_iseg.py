@@ -80,7 +80,7 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     exp_s = 'experimental-%d' % experimental if experimental else 'baseline'
     params_s = (exp_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
-    sufix = '%s.D%d.p%d.c%s.n%s.d%d.e%d.' % params_s
+    sufix = '.%s.D%d.p%d.c%s.n%s.d%d.e%d.' % params_s
 
     net_name = os.path.join(path, 'iseg2017.fold%d' % fold_n + sufix + 'mdl')
 
