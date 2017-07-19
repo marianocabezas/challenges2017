@@ -115,11 +115,10 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
               c['g'] + 'Training the model with a generator for ' +
               c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(net.summary())
-        net.fit_generator(
-            generator=load_patch_batch_train(
-                image_names=train_data,
-                label_names=train_labels,
-                centers=train_centers,
+        generator = load_patch_batch_train(
+                image_names=train_data+val_data,
+                label_names=train_labels+val_labels,
+                centers=train_centers+val_centers,
                 batch_size=batch_size,
                 size=patch_size,
                 nlabels=4,
@@ -128,27 +127,45 @@ def train_net(fold_n, train_data, train_labels, val_data, val_labels, options):
                 split=True,
                 iseg=True,
                 experimental=experimental,
+                generator=False,
                 datatype=np.float32
-            ),
-            validation_data=load_patch_batch_train(
-                image_names=val_data,
-                label_names=val_labels,
-                centers=val_centers,
-                batch_size=batch_size,
-                size=patch_size,
-                nlabels=4,
-                dfactor=dfactor,
-                preload=preload,
-                split=True,
-                iseg=True,
-                experimental=experimental,
-                datatype=np.float32
-            ),
-            steps_per_epoch=train_steps_per_epoch,
-            validation_steps=val_steps_per_epoch,
-            max_q_size=queue,
-            epochs=epochs
-        )
+            )
+        x, y = generator.next()
+        net.fit(x, y, validation_split=0.25)
+        # net.fit_generator(
+        #     generator=load_patch_batch_train(
+        #         image_names=train_data,
+        #         label_names=train_labels,
+        #         centers=train_centers,
+        #         batch_size=batch_size,
+        #         size=patch_size,
+        #         nlabels=4,
+        #         dfactor=dfactor,
+        #         preload=preload,
+        #         split=True,
+        #         iseg=True,
+        #         experimental=experimental,
+        #         datatype=np.float32
+        #     ),
+        #     validation_data=load_patch_batch_train(
+        #         image_names=val_data,
+        #         label_names=val_labels,
+        #         centers=val_centers,
+        #         batch_size=batch_size,
+        #         size=patch_size,
+        #         nlabels=4,
+        #         dfactor=dfactor,
+        #         preload=preload,
+        #         split=True,
+        #         iseg=True,
+        #         experimental=experimental,
+        #         datatype=np.float32
+        #     ),
+        #     steps_per_epoch=train_steps_per_epoch,
+        #     validation_steps=val_steps_per_epoch,
+        #     max_q_size=queue,
+        #     epochs=epochs
+        # )
         net.save(net_name)
     return net, sufix
 

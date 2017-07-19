@@ -55,6 +55,45 @@ def labels_generator(image_names):
         yield np.squeeze(load_nii(patient).get_data())
 
 
+def get_xy(image_list, label_names, batch_centers, size, nlabels, preload, split, iseg, experimental, datatype):
+    n_images = len(image_list)
+    centers, idx = centers_and_idx(batch_centers, n_images)
+    x = get_patches_list(image_list, centers, size, preload)
+    x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
+    x[idx] = x
+    y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
+    y = np.concatenate(y)
+    y[idx] = y
+    if split:
+        if iseg:
+            vals = [0, 10, 150, 250]
+            labels = len(vals)
+            y_labels = [keras.utils.to_categorical(y == l, num_classes=2) for l in vals[1:]]
+            y_cat = np.sum(
+                map(lambda (lab, val): np.array(y == val, dtype=np.uint8) * lab, enumerate(vals)), axis=0
+            )
+            y_cat = [keras.utils.to_categorical(y_cat, num_classes=labels)]
+            y = y_labels + y_cat if experimental < 2 else y_labels + y_cat * 3
+        else:
+            y = [
+                keras.utils.to_categorical(
+                    np.copy(y).astype(dtype=np.bool),
+                    num_classes=2
+                ),
+                keras.utils.to_categorical(
+                    np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
+                    num_classes=3
+                ),
+                keras.utils.to_categorical(
+                    y,
+                    num_classes=nlabels
+                )
+            ]
+    else:
+        y = keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=2)
+    return x, y
+
+
 def load_patch_batch_train(
         image_names,
         label_names,
@@ -67,27 +106,44 @@ def load_patch_batch_train(
         preload=False,
         split=False,
         iseg=False,
-        experimental=False
+        experimental=False,
+        generator=True
 ):
     image_list = [load_norm_list(patient)
-                  for patient in image_names] if preload else image_names
-    while True:
-        gen = load_patch_batch_generator_train(
-            image_list=image_list,
-            label_names=label_names,
-            center_list=centers,
-            batch_size=batch_size,
-            size=size,
-            nlabels=nlabels,
-            datatype=datatype,
-            dfactor=dfactor,
-            preload=preload,
-            split=split,
-            iseg=iseg,
-            experimental=experimental
+                  for patient in image_names] if preload or not generator else image_names
+    if generator:
+        while True:
+            gen = load_patch_batch_generator_train(
+                image_list=image_list,
+                label_names=label_names,
+                center_list=centers,
+                batch_size=batch_size,
+                size=size,
+                nlabels=nlabels,
+                datatype=datatype,
+                dfactor=dfactor,
+                preload=preload,
+                split=split,
+                iseg=iseg,
+                experimental=experimental
+            )
+            for x, y in gen:
+                yield x, y
+    else:
+        batch_centers = np.random.permutation(centers)[::dfactor]
+        x, y = get_xy(
+            image_list,
+            label_names,
+            batch_centers,
+            size,
+            nlabels,
+            preload,
+            split,
+            iseg,
+            experimental,
+            datatype
         )
-        for x, y in gen:
-            yield x, y
+        yield x, y
 
 
 def load_patch_batch_generator_train(
@@ -113,43 +169,20 @@ def load_patch_batch_generator_train(
     # of epochs tends to infinite.
     batch_centers = np.random.permutation(center_list)[::dfactor]
     n_centers = len(batch_centers)
-    n_images = len(image_list)
     for i in range(0, n_centers, batch_size):
-        centers, idx = centers_and_idx(batch_centers[i:i + batch_size], n_images)
-        x = get_patches_list(image_list, centers, size, preload)
-        x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
-        x[idx] = x
-        y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
-        y = np.concatenate(y)
-        y[idx] = y
-        if split:
-            if iseg:
-                vals = [0, 10, 150, 250]
-                labels = len(vals)
-                y_labels = [keras.utils.to_categorical(y == l, num_classes=2) for l in vals[1:]]
-                y_cat = np.sum(
-                    map(lambda (lab, val): np.array(y == val, dtype=np.uint8)*lab, enumerate(vals)), axis=0
-                )
-                y_cat = [keras.utils.to_categorical(y_cat, num_classes=labels)]
-                y = y_labels + y_cat if experimental < 2 else y_labels + y_cat*3
-            else:
-                y = [
-                    keras.utils.to_categorical(
-                        np.copy(y).astype(dtype=np.bool),
-                        num_classes=2
-                    ),
-                    keras.utils.to_categorical(
-                        np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
-                        num_classes=3
-                    ),
-                    keras.utils.to_categorical(
-                        y,
-                        num_classes=nlabels
-                    )
-                ]
-        else:
-            y = keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=2)
-        yield (x, y)
+        x, y = get_xy(
+            image_list,
+            label_names,
+            batch_centers[i:i + batch_size],
+            size,
+            nlabels,
+            preload,
+            split,
+            iseg,
+            experimental,
+            datatype
+        )
+        yield x, y
 
 
 def load_patch_batch_generator_test(
