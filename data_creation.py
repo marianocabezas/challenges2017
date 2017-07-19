@@ -151,7 +151,7 @@ def load_patch_batch_generator_train(
         else:
             y = keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=2)
         for j in range(0, nbatches, batch_size):
-            yield (x[j:j+batch_size], y[j:j+batch_size])
+            yield (x[j:j+batch_size], [y_sub[j:j+batch_size] for y_sub in y])
 
 
 def load_patch_batch_generator_test(
