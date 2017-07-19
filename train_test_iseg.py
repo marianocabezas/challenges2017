@@ -214,7 +214,7 @@ def test_net(net, p, gt_name, options, sufix):
             else:
                 im = sufix + 'merge.'
                 gt_nii.get_data()[:] = np.expand_dims(vals[image], axis=3)
-            roiname = os.path.join(patient_path, 'deep-' + p_name + sufix + im + 'roi.img')
+            roiname = os.path.join(patient_path, 'deep-' + p_name + im + 'roi.img')
             print(c['g'] + '                   -- Saving image ' + c['b'] + roiname + c['nc'])
             save_nii(gt_nii, roiname)
 

@@ -28,7 +28,7 @@ def parse_inputs():
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
-    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=2)
+    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=4)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=10)
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
@@ -114,6 +114,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
             num_classes=5
         )
     ]
+    print(x.shape, len(centers))
 
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
@@ -333,7 +334,7 @@ def main():
         labels = np.unique(gt.flatten())
 
         options_s = 'e%d.D%d.' % (options['epochs'], options['down_factor'])
-        image_o = test_network(net_orig, p, batch_size, patch_size, sufix=options_s + 'original')
+        image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original')
 
         results_o = [dsc_seg(gt == l, image_o == l) for l in labels[1:]]
         subject_name = c['c'] + c['b'] + '%s' + c['nc']
@@ -349,10 +350,9 @@ def main():
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
                   c['b'] + 'domain' + c['nc'] + c['g'] + ' data' + c['nc'])
             # First we get the tumor ROI
-            image_r = test_network(net_roi, p, batch_size, patch_size, sufix=options_s + 'tumor')
+            image_r = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
             p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
             data, clip = clip_to_roi(p_images, image_r)
-            print(data.shape, np.count_nonzero(image_r))
             # We prepare the zoomed tumors for training
             x_name = os.path.join(path, p_name + '.x.pkl')
             y_name = os.path.join(path, p_name + '.y.pkl')
