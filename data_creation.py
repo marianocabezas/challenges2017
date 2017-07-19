@@ -102,8 +102,7 @@ def load_patch_batch_generator_train(
         split=False,
         iseg=False,
         experimental=False,
-        datatype=np.float32,
-        nbatches=128
+        datatype=np.float32
 ):
     # The following line is important to understand the goal of the down scaling factor.
     # The idea of this parameter is to speed up training when using a large pool of samples, while trying
@@ -115,8 +114,8 @@ def load_patch_batch_generator_train(
     batch_centers = np.random.permutation(center_list)[::dfactor]
     n_centers = len(batch_centers)
     n_images = len(image_list)
-    for i in range(0, n_centers, batch_size*nbatches):
-        centers, idx = centers_and_idx(batch_centers[i:i + batch_size*nbatches], n_images)
+    for i in range(0, n_centers, batch_size):
+        centers, idx = centers_and_idx(batch_centers[i:i + batch_size], n_images)
         x = get_patches_list(image_list, centers, size, preload)
         x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
         x[idx] = x
@@ -150,8 +149,7 @@ def load_patch_batch_generator_train(
                 ]
         else:
             y = keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=2)
-        for j in range(0, nbatches, batch_size):
-            yield (x[j:j+batch_size], [y_sub[j:j+batch_size] for y_sub in y])
+        yield (x, y)
 
 
 def load_patch_batch_generator_test(
