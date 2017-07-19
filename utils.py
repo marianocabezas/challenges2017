@@ -60,7 +60,7 @@ def nfold_cross_validation(data_list, labels_list, n=5, random_state=42, val_dat
         tst_labels = labels_list[indices]
         tr_labels = labels_list[[idx for idx in shuffled_indices if idx not in indices]]
         tr_data = data_list[[idx for idx in shuffled_indices if idx not in indices]]
-        val_len = int(len(tr_data) * val_data)
+        val_len = int(len(tr_data) * val_data) if val_data is not None else None
         if val_data is not None:
             yield tr_data[val_len:], tr_labels[val_len:], tr_data[:val_len], tr_labels[:val_len], tst_data, tst_labels
         else:
