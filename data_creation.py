@@ -105,7 +105,7 @@ def get_xy(
                     map(lambda (lab, val): (y_fc == val).astype(dtype=np.uint8) * lab, enumerate(vals)), axis=0
                 )
                 y_fc_cat = [keras.utils.to_categorical(y_fc_cat, num_classes=labels).reshape((len(y_fc), -1, 4))]
-                print(y_fc_cat.shape)
+                print(y_fc_cat[0].shape)
                 y_cat = y_cat + y_fc_cat
             elif experimental > 1:
                 y_cat *= 3
