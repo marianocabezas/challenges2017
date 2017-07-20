@@ -200,7 +200,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     rf = Dense(4)(Reshape((4, -1))(full))
 
     # Final labeling
-    merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(rf)])
+    merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(full_out)])
     # merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(Flatten()(full))])
     merged = Dropout(0.5)(merged)
     brain = Dense(4, name='brain', activation='softmax')(merged)
