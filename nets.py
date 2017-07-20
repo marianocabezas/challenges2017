@@ -155,7 +155,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     merged = concatenate([t2_f, t1_f])
     csf, gm, wm, csf_out, gm_out, wm_out = get_tissue_binary_stuff(merged)
 
-    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(concatenate([t1, t2], axis=0))
+    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(concatenate([t1, t2], axis=1))
     full = PReLU()(full)
     full = Conv3D(dense_size/2, kernel_size=(1, 1, 1), data_format='channels_first')(full)
     full = PReLU()(full)
