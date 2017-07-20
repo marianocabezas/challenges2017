@@ -244,11 +244,10 @@ def main():
                 dsc_seg(gt_mask == 2, image == 2),
                 dsc_seg(gt_mask == 3, image == 3)
             )
-            dsc_results.append(results)
+            dsc_results.append(results[1:])
             print('Subject %s DSC: %f/%f/%f' % results)
 
-    print(np.asarray(dsc_results))
-    f_dsc = tuple(np.asarray(dsc_results).mean(axis=0))
+    f_dsc = tuple(np.asarray(dsc_results).mean(axis=1))
     print('Final results DSC: %f/%f/%f' % f_dsc)
 
 
