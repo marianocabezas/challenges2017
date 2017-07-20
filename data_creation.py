@@ -102,9 +102,12 @@ def get_xy(
                 map(lambda (lab, val): np.array(y == val, dtype=np.uint8) * lab, enumerate(vals)), axis=0
             )
             y_cat = [keras.utils.to_categorical(y_cat, num_classes=labels)]
-            y_cat = y_cat if experimental < 2 else y_cat * 3
             y_fc_cat = [keras.utils.to_categorical(y_fc, num_classes=labels)]
-            y = y_labels + y_cat if experimental < 3 else y_labels + y_cat + y_fc_cat
+            if experimental == 4:
+                y_cat = y_cat + y_fc_cat
+            elif experimental > 1:
+                y_cat *= 3
+            y = y_labels + y_cat
         else:
             y = [
                 keras.utils.to_categorical(

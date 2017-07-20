@@ -170,6 +170,6 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
 
     # Weights and outputs
     weights = [0.2,     0.5,    0.5,    1.0]
-    outputs = [csf_out, gm_out, wm_out, full_out, brain]
+    outputs = [csf_out, gm_out, wm_out, brain, full_out]
 
     return compile_network(merged_inputs, outputs, weights)

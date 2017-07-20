@@ -206,6 +206,9 @@ def test_net(net, p, gt_name, options):
         )
         [x, y, z] = np.stack(centers, axis=1)
 
+        if options['experimental'] == 4:
+            y_pr_pred = y_pr_pred[:-1]
+
         for num, results in enumerate(y_pr_pred):
             brain = np.argmax(results, axis=1)
             image[x, y, z] = brain
