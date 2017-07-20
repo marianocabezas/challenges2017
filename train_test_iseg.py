@@ -281,7 +281,7 @@ def main():
             dsc_results.append(results)
             print('Subject %s DSC: %f/%f/%f' % results)
 
-    dsc_results = sorted(dsc_results, key=dsc_results[0])
+    dsc_results = sorted(dsc_results, key=lambda x: x[0])
     print(dsc_results)
     f_dsc = tuple(np.asarray(dsc_results[:][1:]).mean(axis=0))
     print('Final results DSC: %f/%f/%f' % f_dsc)
