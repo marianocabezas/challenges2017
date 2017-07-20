@@ -170,7 +170,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     y_shape = full_shape[-3] * full_shape[-1]
     z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
     z_shape = full_shape[-3] * full_shape[-2]
-    x_input = [Lambda(lambda l: K.reshape(l[:, :, :, i, j], (4, -1)), output_shape=(4, x_shape))
+    x_input = [Lambda(lambda l: K.reshape(l[:, :, :, i, j], (4, -1)), output_shape=(4, x_shape))(full)
                for (i, j) in x_combos]
     x_reverse = [Lambda(lambda l: K.reshape(l[:, :, -1::-1, i, j], (4, -1)), output_shape=(4, x_shape))(full)
                  for (i, j) in x_combos]
@@ -179,18 +179,19 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
                for (i, j) in y_combos]
     y_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (4, -1))(full), output_shape=(4, y_shape))(full)
                  for (i, j) in y_combos]
-    y_lstm = [LSTM(4, implementation=1)(y) for y in y_input + y_reverse]
+    y_lstm = [LSTM(4, implementation=1)(PReLU()(y)) for y in y_input + y_reverse]
     z_input = [Lambda(lambda l: K.reshape(l[:, :, i, j, :], (4, -1)), output_shape=(4, z_shape))(full)
                for (i, j) in z_combos]
     z_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (4, -1)), output_shape=(4, z_shape))(full)
                  for (i, j) in z_combos]
-    z_lstm = [LSTM(4, implementation=1)(z) for z in z_input + z_reverse]
+    z_lstm = [LSTM(4, implementation=1)(PReLU()(z)) for z in z_input + z_reverse]
     rf = Average()(x_lstm + y_lstm + z_lstm)
     full_out = Activation('softmax', name='fc_out')(full)
     # rf = LSTM(4, implementation=1)(Reshape((4, -1))(full))
 
     # Final labeling
     merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(rf)])
+    # merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(Flatten()(full))])
     merged = Dropout(0.5)(merged)
     brain = Dense(4, name='brain', activation='softmax')(merged)
 
