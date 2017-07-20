@@ -6,7 +6,7 @@ import numpy as np
 from keras.models import load_model
 from nibabel import load as load_nii
 from nibabel import save as save_nii
-from utils import color_codes, nfold_cross_validation
+from utils import color_codes, nfold_cross_validation, get_patient_info
 from itertools import izip
 from data_creation import load_patches_train, get_cnn_centers
 from data_creation import load_patch_batch_generator_test
@@ -41,6 +41,29 @@ def list_directories(path):
     return filter(os.path.isdir, [os.path.join(path, f) for f in os.listdir(path)])
 
 
+def get_sufix(options):
+    # Prepare the net architecture parameters
+    dfactor = options['dfactor']
+    # Prepare the net hyperparameters
+    epochs = options['epochs']
+    patch_width = options['patch_width']
+    dense_size = options['dense_size']
+    conv_blocks = options['conv_blocks']
+    n_filters = options['n_filters']
+    filters_list = n_filters if len(n_filters) > 1 else n_filters * conv_blocks
+    conv_width = options['conv_width']
+    kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width] * conv_blocks
+    experimental = options['experimental']
+
+    # Prepare the sufix that will be added to the results for the net and images
+    filters_s = 'n'.join(['%d' % nf for nf in filters_list])
+    conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
+    exp_s = 'experimental-%d' % experimental if experimental else 'baseline'
+    params_s = (exp_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
+
+    return '.%s.D%d.p%d.c%s.n%s.d%d.e%d.' % params_s
+
+
 def get_names_from_path(options):
     path = options['dir_name']
 
@@ -72,67 +95,73 @@ def train_net(fold_n, train_data, train_labels, options):
     experimental = options['experimental']
     # Data loading parameters
     preload = options['preload']
-    # queue = options['queue']
 
     # Prepare the sufix that will be added to the results for the net and images
     path = options['dir_name']
-    filters_s = 'n'.join(['%d' % nf for nf in filters_list])
-    conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
-    exp_s = 'experimental-%d' % experimental if experimental else 'baseline'
-    params_s = (exp_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
-    sufix = '.%s.D%d.p%d.c%s.n%s.d%d.e%d.' % params_s
+    sufix = get_sufix(options)
 
     net_name = os.path.join(path, 'iseg2017.fold%d' % fold_n + sufix + 'mdl')
 
     c = color_codes()
-    net = None
-    # try:
-    #     net = load_model(net_name)
-    # except IOError:
-    #     # Data loading
-    #     train_centers = get_cnn_centers(train_data[:, 0], train_labels)
-    #     train_samples = len(train_centers) / dfactor
-    #     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
-    #           c['b'] + '(%d centers)' % len(train_centers) + c['nc'])
-    #     x, y = load_patches_train(
-    #         image_names=train_data,
-    #         label_names=train_labels,
-    #         centers=train_centers,
-    #         size=patch_size,
-    #         nlabels=4,
-    #         dfactor=dfactor,
-    #         preload=preload,
-    #         split=True,
-    #         iseg=True,
-    #         experimental=experimental,
-    #         datatype=np.float32
-    #     )
-    #     # NET definition using Keras
-    #     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
-    #           c['b'] + '(%d samples)' % train_samples + c['nc'])
-    #     input_shape = (2,) + patch_size
-    #     # This architecture is based on the functional Keras API to introduce 3 output paths:
-    #     # - Whole tumor segmentation
-    #     # - Core segmentation (including whole tumor)
-    #     # - Whole segmentation (tumor, core and enhancing parts)
-    #     # The idea is to let the network work on the three parts to improve the multiclass segmentation.
-    #     network_func = [get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2]
-    #     net = network_func[experimental](
-    #         input_shape,
-    #         filters_list,
-    #         kernel_size_list,
-    #         dense_size
-    #     )
-    #
-    #     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-    #           c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
-    #     print(net.summary())
-    #     net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
-    #     net.save(net_name)
-    return net, sufix
+    try:
+        net = load_model(net_name)
+    except IOError:
+        # Data loading
+        train_centers = get_cnn_centers(train_data[:, 0], train_labels)
+        train_samples = len(train_centers) / dfactor
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
+              c['b'] + '(%d centers)' % len(train_centers) + c['nc'])
+        x, y = load_patches_train(
+            image_names=train_data,
+            label_names=train_labels,
+            centers=train_centers,
+            size=patch_size,
+            nlabels=4,
+            dfactor=dfactor,
+            preload=preload,
+            split=True,
+            iseg=True,
+            experimental=experimental,
+            datatype=np.float32
+        )
+        # NET definition using Keras
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
+              c['b'] + '(%d samples)' % train_samples + c['nc'])
+        input_shape = (2,) + patch_size
+        # This architecture is based on the functional Keras API to introduce 3 output paths:
+        # - Whole tumor segmentation
+        # - Core segmentation (including whole tumor)
+        # - Whole segmentation (tumor, core and enhancing parts)
+        # The idea is to let the network work on the three parts to improve the multiclass segmentation.
+        network_func = [get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2]
+        net = network_func[experimental](
+            input_shape,
+            filters_list,
+            kernel_size_list,
+            dense_size
+        )
+
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
+              c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
+        print(net.summary())
+        net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
+        net.save(net_name)
+    return net
 
 
-def test_net(net, p, gt_name, options, sufix):
+def check_image_list(patients_list, options):
+    sufix = get_sufix(options)
+    try:
+        for p in patients_list:
+            p_name, patient_path = get_patient_info(p)
+            outputname = os.path.join(patient_path, 'deep-' + p_name + sufix + 'brain.hdr')
+            np.squeeze(load_nii(outputname))
+        return True
+    except IOError:
+        return False
+
+
+def test_net(net, p, gt_name, options):
     # Testing hyperparameters
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
@@ -140,6 +169,8 @@ def test_net(net, p, gt_name, options, sufix):
     # Data loading parameters
     preload = options['preload']
     queue = options['queue']
+
+    sufix = get_sufix(options)
 
     c = color_codes()
     p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
@@ -225,13 +256,16 @@ def main():
               % (len(train_data), len(train_labels), len(test_data)) + c['nc'])
         # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
         # Also, prepare the network
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['nc'] + c['g'] + 'Training' + c['nc'])
-        net, sufix = train_net(i, train_data, train_labels, options)
+        if not check_image_list(test_data, options):
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['nc'] + c['g'] + 'Training' + c['nc'])
+            net = train_net(i, train_data, train_labels, options)
+        else:
+            net = None
 
         # Then we test the net.
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['nc'] + c['g'] + 'Testing' + c['nc'])
         for p, gt_name in zip(test_data, test_labels):
-            image, gt = test_net(net, p, gt_name, options, sufix)
+            image, gt = test_net(net, p, gt_name, options)
             p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
             vals = np.unique(gt.flatten())
 
@@ -248,7 +282,6 @@ def main():
             print('Subject %s DSC: %f/%f/%f' % results)
 
     f_dsc = tuple(np.asarray(dsc_results).mean(axis=0))
-    print(f_dsc)
     print('Final results DSC: %f/%f/%f' % f_dsc)
 
 
