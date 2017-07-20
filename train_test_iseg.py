@@ -282,10 +282,10 @@ def main():
             print('%s DSC: %f/%f/%f' % results)
 
     dsc_results = sorted(dsc_results, lambda x, y: int(x[0][8:]) - int(y[0][8:]))
-    for results in dsc_results
-        print(c['g'] + '%s DSC: \033[1m%f/%f/%f' % results + c ['nc'])
+    for results in dsc_results:
+        print(c['c'] + '%s DSC: \033[32;1m%f/%f/%f' % results + c['nc'])
     f_dsc = tuple(np.asarray(dsc_results[:][1:]).mean(axis=0))
-    print(c['g'] + 'Final results DSC: \033[1m%f/%f/%f' % f_dsc + c['nc'])
+    print(c['c'] + 'Final results DSC: \033[32;1m%f/%f/%f' % f_dsc + c['nc'])
 
 
 if __name__ == '__main__':
