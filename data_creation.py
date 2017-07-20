@@ -87,7 +87,8 @@ def get_xy(
     y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
     y = np.concatenate(y)
     if experimental == 3:
-        y_fc = [get_patches(l, lc, fc_shape, preload) for l, lc in izip(labels_generator(label_names), centers)]
+        y_fc = [np.asarray(get_patches(l, lc, fc_shape, preload))
+                for l, lc in izip(labels_generator(label_names), centers)]
         y_fc = np.concatenate(y_fc)
         y_fc[idx] = y_fc
     else:
