@@ -167,29 +167,22 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
 
     # x LSTM
     x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
-    x_shape = full_shape[-2] * full_shape[-1]
-    print(x_shape)
-    lambda_x = Lambda(lambda l: K.reshape(l[:, :, :, i, j], (-1, 4, x_shape)), output_shape=(4, x_shape))
-    lambda_x_rev = Lambda(lambda l: K.reshape(l[:, :, -1::-1, i, j], (-1, 4, x_shape)), output_shape=(4, x_shape))
-    print(x_shape, K.int_shape(lambda_x), K.int_shape(lambda_x_rev))
+    lambda_x = Lambda(lambda l: l[:, :, :, i, j], output_shape=(4, full_shape[-3]))
+    lambda_x_rev = Lambda(lambda l: l[:, :, -1::-1, i, j], output_shape=(4, full_shape[-3]))
     x_input = [lambda_x(PReLU()(full)) for (i, j) in x_combos] +[lambda_x_rev(PReLU()(full)) for (i, j) in x_combos]
     x_lstm = [LSTM(4, implementation=1)(x) for x in x_input]
 
     # y LSTM
     y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
-    y_shape = full_shape[-3] * full_shape[-1]
-    lambda_y = Lambda(lambda l: K.reshape(l[:, :, i, :, j], (-1, 4, y_shape)), output_shape=(4, y_shape))
-    lambda_y_rev = Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (-1, 4, y_shape)), output_shape=(4, y_shape))
-    print(y_shape, K.int_shape(lambda_y), K.int_shape(lambda_y_rev))
+    lambda_y = Lambda(lambda l: l[:, :, i, :, j], output_shape=(4, full_shape[-2]))
+    lambda_y_rev = Lambda(lambda l: l[:, :, i, -1::-1, j], output_shape=(4, full_shape[-2]))
     y_input = [lambda_y(PReLU()(full)) for (i, j) in y_combos] + [lambda_y_rev(PReLU()(full)) for (i, j) in y_combos]
     y_lstm = [LSTM(4, implementation=1)(y) for y in y_input]
 
     # z LSTM
     z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
-    z_shape = full_shape[-3] * full_shape[-2]
-    lambda_z = Lambda(lambda l: K.reshape(l[:, :, i, j, :], (-1, 4, z_shape)), output_shape=(4, z_shape))
-    lambda_z_rev = Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (-1, 4, z_shape)), output_shape=(4, z_shape))
-    print(z_shape, K.int_shape(lambda_z), K.int_shape(lambda_z_rev))
+    lambda_z = Lambda(lambda l: l[:, :, i, j, :], output_shape=(4, full_shape[-1]))
+    lambda_z_rev = Lambda(lambda l: l[:, :, i, j, -1::-1], output_shape=(4, full_shape[-1]))
     z_input = [lambda_z(PReLU()(full)) for (i, j) in z_combos] + [lambda_z_rev(PReLU()(full)) for (i, j) in z_combos]
     z_lstm = [LSTM(4, implementation=1)(PReLU()(z)) for z in z_input]
 
