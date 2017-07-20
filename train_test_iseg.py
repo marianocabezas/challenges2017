@@ -12,7 +12,7 @@ from data_creation import load_patches_train, get_cnn_centers
 from data_creation import load_patch_batch_generator_test
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
-from nets import get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2
+from nets import get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2, get_iseg_experimental3
 
 
 def parse_inputs():
@@ -84,15 +84,18 @@ def train_net(fold_n, train_data, train_labels, options):
     # Prepare the net hyperparameters
     epochs = options['epochs']
     patch_width = options['patch_width']
-    patch_size = (patch_width, patch_width, patch_width)
+    patch_size = (patch_width,) * 3
     batch_size = options['batch_size']
     dense_size = options['dense_size']
     conv_blocks = options['conv_blocks']
-    n_filters = options['n_filters']
-    filters_list = n_filters if len(n_filters) > 1 else n_filters*conv_blocks
+    nfilters = options['n_filters']
+    filters_list = nfilters if len(nfilters) > 1 else nfilters*conv_blocks
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     experimental = options['experimental']
+
+    fc_width = patch_width - sum(kernel_size_list) + len(kernel_size_list)
+    fc_shape = (fc_width,) * 3
     # Data loading parameters
     preload = options['preload']
 
@@ -116,6 +119,7 @@ def train_net(fold_n, train_data, train_labels, options):
             label_names=train_labels,
             centers=train_centers,
             size=patch_size,
+            fc_shape=fc_shape,
             nlabels=4,
             dfactor=dfactor,
             preload=preload,
@@ -133,7 +137,7 @@ def train_net(fold_n, train_data, train_labels, options):
         # - Core segmentation (including whole tumor)
         # - Whole segmentation (tumor, core and enhancing parts)
         # The idea is to let the network work on the three parts to improve the multiclass segmentation.
-        network_func = [get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2]
+        network_func = [get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2, get_iseg_experimental3]
         net = network_func[experimental](
             input_shape,
             filters_list,
@@ -202,6 +206,9 @@ def test_net(net, p, gt_name, options):
             max_q_size=queue
         )
         [x, y, z] = np.stack(centers, axis=1)
+
+        if options['experimental'] == 4:
+            y_pr_pred = y_pr_pred[:-1]
 
         for num, results in enumerate(y_pr_pred):
             brain = np.argmax(results, axis=1)

@@ -1,7 +1,8 @@
 from keras import backend as K
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
-from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU
+from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU, Average
 from keras.models import Model
+from itertools import product
 
 
 def compile_network(inputs, outputs, weights):
@@ -129,5 +130,72 @@ def get_iseg_experimental2(input_shape, filters_list, kernel_size_list, dense_si
     # Weights and outputs
     weights = [0.2,     0.5,    0.5,    0.8,    0.8,    1.0]
     outputs = [csf_out, gm_out, wm_out, br_out, rf_out, final]
+
+    return compile_network(merged_inputs, outputs, weights)
+
+
+def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_size):
+    merged_inputs = Input(shape=input_shape, name='merged_inputs')
+    # Input splitting
+    input_shape = K.int_shape(merged_inputs)
+    t1 = Lambda(lambda l: K.expand_dims(l[:, 0, :, :, :], axis=1), output_shape=(1,) + input_shape[2:])(merged_inputs)
+    t2 = Lambda(lambda l: K.expand_dims(l[:, 1, :, :, :], axis=1), output_shape=(1,) + input_shape[2:])(merged_inputs)
+
+    # Convolutional part
+    t2 = get_convolutional_block(t2, filters_list, kernel_size_list)
+    t1 = get_convolutional_block(t1, filters_list, kernel_size_list)
+
+    # Tissue binary stuff
+    t2_f = Flatten()(t2)
+    t1_f = Flatten()(t1)
+    t2_f = Dense(dense_size, activation='relu')(t2_f)
+    t2_f = Dropout(0.5)(t2_f)
+    t1_f = Dense(dense_size, activation='relu')(t1_f)
+    t1_f = Dropout(0.5)(t1_f)
+    merged = concatenate([t2_f, t1_f])
+    csf, gm, wm, csf_out, gm_out, wm_out = get_tissue_binary_stuff(merged)
+
+    full = Conv3D(dense_size, (1, 1, 1), padding='valid')(concatenate([t1, t2]))
+    full = PReLU()(full)
+    full = Conv3D(dense_size/2, (1, 1, 1), padding='valid')(full)
+    full = PReLU()(full)
+    full = Conv3D(dense_size/4, (1, 1, 1), padding='valid')(full)
+    full = PReLU()(full)
+    full = Conv3D(4, (1, 1, 1), padding='valid')(full)
+
+    full_shape = K.int_shape(merged_inputs)
+    x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
+    x_shape = full_shape[-2] * full_shape[-1]
+    y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
+    y_shape = full_shape[-3] * full_shape[-1]
+    z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
+    z_shape = full_shape[-3] * full_shape[-2]
+    x_input = [Lambda(lambda l: K.reshape(l[:, :, :, i, j], (4, -1)), output_shape=(4, x_shape))
+               for (i, j) in x_combos]
+    x_reverse = [Lambda(lambda l: K.reshape(l[:, :, -1::-1, i, j], (4, -1)), output_shape=(4, x_shape))
+                 for (i, j) in x_combos]
+    x_lstm = [LSTM(4, implementation=1)(x) for x in x_input + x_reverse]
+    y_input = [Lambda(lambda l: K.reshape(l[:, :, i, :, j], (4, -1))(full), output_shape=(4, y_shape))
+               for (i, j) in y_combos]
+    y_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (4, -1))(full), output_shape=(4, y_shape))
+                 for (i, j) in y_combos]
+    y_lstm = [LSTM(4, implementation=1)(y) for y in y_input + y_reverse]
+    z_input = [Lambda(lambda l: K.reshape(l[:, :, i, j, :], (4, -1)), output_shape=(4, z_shape))
+               for (i, j) in z_combos]
+    z_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (4, -1)), output_shape=(4, z_shape))
+                 for (i, j) in z_combos]
+    z_lstm = [LSTM(4, implementation=1)(z) for z in z_input + z_reverse]
+    rf = Average()(x_lstm + y_lstm + z_lstm)
+    full_out = Activation('softmax', name='fc_out')(full)
+    # rf = LSTM(4, implementation=1)(Reshape((4, -1))(full))
+
+    # Final labeling
+    merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(rf)])
+    merged = Dropout(0.5)(merged)
+    brain = Dense(4, name='brain', activation='softmax')(merged)
+
+    # Weights and outputs
+    weights = [0.2,     0.5,    0.5,    1.0]
+    outputs = [csf_out, gm_out, wm_out, brain, full_out]
 
     return compile_network(merged_inputs, outputs, weights)
