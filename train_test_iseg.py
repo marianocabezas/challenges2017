@@ -247,6 +247,7 @@ def main():
             dsc_results.append(results)
             print('Subject %s DSC: %f/%f/%f' % results)
 
+    print(np.asarray(dsc_results))
     f_dsc = tuple(np.asarray(dsc_results).mean(axis=0))
     print('Final results DSC: %f/%f/%f' % f_dsc)
 
