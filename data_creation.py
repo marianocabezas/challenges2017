@@ -106,7 +106,7 @@ def get_xy(
             y_fc_cat = np.sum(
                 map(lambda (lab, val): (y_fc == val).astype(dtype=np.uint8) * lab, enumerate(vals)), axis=0
             )
-            y_fc_cat = [keras.utils.to_categorical(y_fc_cat, num_classes=labels).reshape(len(y_fc), -1, 4)]
+            y_fc_cat = [keras.utils.to_categorical(y_fc_cat, num_classes=labels).reshape((len(y_fc), -1, 4))]
             if experimental == 3:
                 y_cat = y_cat + y_fc_cat
             elif experimental > 1:
