@@ -199,7 +199,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     brain = Dense(4, name='brain', activation='softmax')(merged)
 
     # Weights and outputs
-    weights = [0.2,     0.5,    0.5,    1.0]
+    weights = [0.2,     0.5,    0.5,    1.0,   0.8]
     outputs = [csf_out, gm_out, wm_out, brain, full_out]
 
     return compile_network(merged_inputs, outputs, weights)
