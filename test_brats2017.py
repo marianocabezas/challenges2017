@@ -115,7 +115,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
             num_classes=5
         )
     ]
-    print(x.shape, len(centers), train_roi.shape)
+    print(x.shape, len(centers), len(train_centers), train_roi.shape)
 
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
@@ -138,7 +138,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
                     layer.trainable = True
         net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
         net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
-        print(''.join([' ']*14) + c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
+        print(''.join([' ']*14) + c['g'] + c['b'] + 'Original (dense)' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
         net.fit(x, y, epochs=1, batch_size=batch_size)
         for layer in net.layers:
@@ -149,7 +149,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
                     layer.trainable = False
         net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
         net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
-        print(''.join([' ']*14) + c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
+        print(''.join([' ']*14) + c['g'] + c['b'] + 'Original (out)' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
         net.fit(x, y, epochs=1, batch_size=batch_size)
 

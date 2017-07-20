@@ -73,3 +73,10 @@ def get_biggest_region(labels):
     big_region = np.argmax(np.bincount(blobs.ravel())[1:])
     nu_labels[blobs != big_region + 1] = 0
     return nu_labels
+
+
+def get_patient_info(p):
+    p_name = '-'.join(p[0].rsplit('/')[-1].rsplit('.')[0].rsplit('-')[:-1])
+    patient_path = '/'.join(p[0].rsplit('/')[:-1])
+
+    return p_name, patient_path
