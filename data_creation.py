@@ -103,6 +103,7 @@ def get_xy(
             )
             y_cat = [keras.utils.to_categorical(y_cat, num_classes=labels)]
             y_fc_cat = [keras.utils.to_categorical(y_fc, num_classes=labels)]
+            print(y_fc_cat.shape)
             if experimental == 3:
                 y_cat = y_cat + y_fc_cat
             elif experimental > 1:
