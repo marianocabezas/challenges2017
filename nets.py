@@ -168,6 +168,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     # x LSTM
     x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
     x_shape = full_shape[-2] * full_shape[-1]
+    print(x_shape)
     lambda_x = Lambda(lambda l: K.reshape(l[:, :, :, i, j], (-1, 4, x_shape)), output_shape=(4, x_shape))
     lambda_x_rev = Lambda(lambda l: K.reshape(l[:, :, -1::-1, i, j], (-1, 4, x_shape)), output_shape=(4, x_shape))
     x_input = [lambda_x(PReLU()(full)) for (i, j) in x_combos] +[lambda_x_rev(PReLU()(full)) for (i, j) in x_combos]
@@ -176,6 +177,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     # y LSTM
     y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
     y_shape = full_shape[-3] * full_shape[-1]
+    print(y_shape)
     lambda_y = Lambda(lambda l: K.reshape(l[:, :, i, :, j], (-1, 4, y_shape)), output_shape=(4, y_shape))
     lambda_y_rev = Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (-1, 4, y_shape)), output_shape=(4, y_shape))
     y_input = [lambda_y(PReLU()(full)) for (i, j) in y_combos] + [lambda_y_rev(PReLU()(full)) for (i, j) in y_combos]
@@ -184,6 +186,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     # z LSTM
     z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
     z_shape = full_shape[-3] * full_shape[-2]
+    print(z_shape)
     lambda_z = Lambda(lambda l: K.reshape(l[:, :, i, j, :], (-1, 4, z_shape)), output_shape=(4, z_shape))
     lambda_z_rev = Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (-1, 4, z_shape)), output_shape=(4, z_shape))
     z_input = [lambda_z(PReLU()(full)) for (i, j) in z_combos] + [lambda_z_rev(PReLU()(full)) for (i, j) in z_combos]
