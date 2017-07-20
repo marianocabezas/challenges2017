@@ -273,18 +273,19 @@ def main():
                 map(lambda (l, val): np.array(gt == val, dtype=np.uint8) * l, enumerate(vals)), axis=0
             )
             results = (
-                p_name,
+                str.capitalize(p_name),
                 dsc_seg(gt_mask == 1, image == 1),
                 dsc_seg(gt_mask == 2, image == 2),
                 dsc_seg(gt_mask == 3, image == 3)
             )
             dsc_results.append(results)
-            print('Subject %s DSC: %f/%f/%f' % results)
+            print('%s DSC: %f/%f/%f' % results)
 
     dsc_results = sorted(dsc_results, lambda x, y: int(x[0][8:]) - int(y[0][8:]))
-    print(dsc_results)
+    for results in dsc_results
+        print(c['g'] + '%s DSC: \033[1m%f/%f/%f' % results + c ['nc'])
     f_dsc = tuple(np.asarray(dsc_results[:][1:]).mean(axis=0))
-    print('Final results DSC: %f/%f/%f' % f_dsc)
+    print(c['g'] + 'Final results DSC: \033[1m%f/%f/%f' % f_dsc + c['nc'])
 
 
 if __name__ == '__main__':
