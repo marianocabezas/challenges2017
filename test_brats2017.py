@@ -377,20 +377,23 @@ def main():
             x_name = os.path.join(path, p_name + '.x.pkl')
             y_name = os.path.join(path, p_name + '.y.pkl')
             roi_name = os.path.join(path, p_name + '.roi.pkl')
+            roimask_name = os.path.join(path, p_name + '.roimask.pkl')
             try:
                 train_x = pickle.load(open(x_name, 'rb'))
                 train_y = pickle.load(open(y_name, 'rb'))
                 train_roi = pickle.load(open(roi_name, 'rb'))
+                train_roimask = pickle.load(open(roimask_name, 'rb'))
             except IOError:
                 train_num, train_roi, train_rate = get_best_roi(data, train_data, train_labels)
                 train_image = np.stack(load_norm_list(train_data[train_num])).astype(dtype=np.float32)
                 train_mask = load_nii(train_labels[train_num]).get_data().astype(dtype=np.uint8)
                 train_x = zoom(train_image, train_rate)
+                train_roimask = zoom(train_mask.astype(dtype=np.bool), train_rate[1:], order=0)
                 train_y = zoom(train_mask, train_rate[1:], order=0)
                 pickle.dump(train_x, open(x_name, 'wb'))
                 pickle.dump(train_y, open(y_name, 'wb'))
                 pickle.dump(train_roi, open(roi_name, 'wb'))
-            _, train_clip = clip_to_roi(train_x, train_y)
+            _, train_clip = clip_to_roi(train_x, train_roimask)
 
             # We create the domain network
             net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
