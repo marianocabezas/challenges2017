@@ -162,6 +162,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = Conv3D(dense_size/4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
     full = PReLU()(full)
     full = Conv3D(4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
+    print(K.int_shape(full))
 
     full_shape = K.int_shape(merged_inputs)
 
