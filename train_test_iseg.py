@@ -85,49 +85,50 @@ def train_net(fold_n, train_data, train_labels, options):
     net_name = os.path.join(path, 'iseg2017.fold%d' % fold_n + sufix + 'mdl')
 
     c = color_codes()
-    try:
-        net = load_model(net_name)
-    except IOError:
-        # Data loading
-        train_centers = get_cnn_centers(train_data[:, 0], train_labels)
-        train_samples = len(train_centers) / dfactor
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
-              c['b'] + '(%d centers)' % len(train_centers) + c['nc'])
-        x, y = load_patches_train(
-            image_names=train_data,
-            label_names=train_labels,
-            centers=train_centers,
-            size=patch_size,
-            nlabels=4,
-            dfactor=dfactor,
-            preload=preload,
-            split=True,
-            iseg=True,
-            experimental=experimental,
-            datatype=np.float32
-        )
-        # NET definition using Keras
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
-              c['b'] + '(%d samples)' % train_samples + c['nc'])
-        input_shape = (2,) + patch_size
-        # This architecture is based on the functional Keras API to introduce 3 output paths:
-        # - Whole tumor segmentation
-        # - Core segmentation (including whole tumor)
-        # - Whole segmentation (tumor, core and enhancing parts)
-        # The idea is to let the network work on the three parts to improve the multiclass segmentation.
-        network_func = [get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2]
-        net = network_func[experimental](
-            input_shape,
-            filters_list,
-            kernel_size_list,
-            dense_size
-        )
-
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-              c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
-        print(net.summary())
-        net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
-        net.save(net_name)
+    net = None
+    # try:
+    #     net = load_model(net_name)
+    # except IOError:
+    #     # Data loading
+    #     train_centers = get_cnn_centers(train_data[:, 0], train_labels)
+    #     train_samples = len(train_centers) / dfactor
+    #     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
+    #           c['b'] + '(%d centers)' % len(train_centers) + c['nc'])
+    #     x, y = load_patches_train(
+    #         image_names=train_data,
+    #         label_names=train_labels,
+    #         centers=train_centers,
+    #         size=patch_size,
+    #         nlabels=4,
+    #         dfactor=dfactor,
+    #         preload=preload,
+    #         split=True,
+    #         iseg=True,
+    #         experimental=experimental,
+    #         datatype=np.float32
+    #     )
+    #     # NET definition using Keras
+    #     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
+    #           c['b'] + '(%d samples)' % train_samples + c['nc'])
+    #     input_shape = (2,) + patch_size
+    #     # This architecture is based on the functional Keras API to introduce 3 output paths:
+    #     # - Whole tumor segmentation
+    #     # - Core segmentation (including whole tumor)
+    #     # - Whole segmentation (tumor, core and enhancing parts)
+    #     # The idea is to let the network work on the three parts to improve the multiclass segmentation.
+    #     network_func = [get_iseg_baseline, get_iseg_experimental1, get_iseg_experimental2]
+    #     net = network_func[experimental](
+    #         input_shape,
+    #         filters_list,
+    #         kernel_size_list,
+    #         dense_size
+    #     )
+    #
+    #     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
+    #           c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
+    #     print(net.summary())
+    #     net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
+    #     net.save(net_name)
     return net, sufix
 
 
