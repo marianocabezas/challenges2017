@@ -164,27 +164,30 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = Conv3D(4, (1, 1, 1), padding='valid')(full)
 
     full_shape = K.int_shape(merged_inputs)
+
+    # x LSTM
     x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
     x_shape = full_shape[-2] * full_shape[-1]
+    lambda_x = Lambda(lambda l: K.reshape(l[:, :, :, i, j], (4, -1)), output_shape=(4, x_shape))
+    lambda_x_rev = Lambda(lambda l: K.reshape(l[:, :, -1::-1, i, j], (4, -1)), output_shape=(4, x_shape))
+    x_input = [lambda_x(PReLU()(full)) for (i, j) in x_combos] +[lambda_x_rev(PReLU()(full)) for (i, j) in x_combos]
+    x_lstm = [LSTM(4, implementation=1)(x) for x in x_input]
+
+    # y LSTM
     y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
     y_shape = full_shape[-3] * full_shape[-1]
+    lambda_y = Lambda(lambda l: K.reshape(l[:, :, i, :, j], (4, -1))(full), output_shape=(4, y_shape))
+    lambda_y_rev = Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (4, -1))(full), output_shape=(4, y_shape))
+    y_input = [lambda_y(PReLU()(full)) for (i, j) in y_combos] + [lambda_y_rev(PReLU()(full)) for (i, j) in y_combos]
+    y_lstm = [LSTM(4, implementation=1)(y) for y in y_input]
+
+    # z LSTM
     z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
     z_shape = full_shape[-3] * full_shape[-2]
-    x_input = [Lambda(lambda l: K.reshape(l[:, :, :, i, j], (4, -1)), output_shape=(4, x_shape))(full)
-               for (i, j) in x_combos]
-    x_reverse = [Lambda(lambda l: K.reshape(l[:, :, -1::-1, i, j], (4, -1)), output_shape=(4, x_shape))(full)
-                 for (i, j) in x_combos]
-    x_lstm = [LSTM(4, implementation=1)(PReLU()(x)) for x in x_input + x_reverse]
-    y_input = [Lambda(lambda l: K.reshape(l[:, :, i, :, j], (4, -1))(full), output_shape=(4, y_shape))(full)
-               for (i, j) in y_combos]
-    y_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (4, -1))(full), output_shape=(4, y_shape))(full)
-                 for (i, j) in y_combos]
-    y_lstm = [LSTM(4, implementation=1)(PReLU()(y)) for y in y_input + y_reverse]
-    z_input = [Lambda(lambda l: K.reshape(l[:, :, i, j, :], (4, -1)), output_shape=(4, z_shape))(full)
-               for (i, j) in z_combos]
-    z_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (4, -1)), output_shape=(4, z_shape))(full)
-                 for (i, j) in z_combos]
-    z_lstm = [LSTM(4, implementation=1)(PReLU()(z)) for z in z_input + z_reverse]
+    lambda_z = Lambda(lambda l: K.reshape(l[:, :, i, j, :], (4, -1)), output_shape=(4, z_shape))
+    lambda_z_rev = Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (4, -1)), output_shape=(4, z_shape))
+    z_input = [lambda_z(PReLU()(full)) for (i, j) in z_combos] + [lambda_z_rev(PReLU()(full)) for (i, j) in z_combos]
+    z_lstm = [LSTM(4, implementation=1)(PReLU()(z)) for z in z_input]
     rf = Average()(x_lstm + y_lstm + z_lstm)
     full_out = Activation('softmax', name='fc_out')(full)
     # rf = LSTM(4, implementation=1)(Reshape((4, -1))(full))
