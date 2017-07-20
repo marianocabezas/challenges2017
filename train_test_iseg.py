@@ -94,7 +94,7 @@ def train_net(fold_n, train_data, train_labels, options):
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     experimental = options['experimental']
 
-    fc_width = patch_width - sum(kernel_size_list) + len(kernel_size_list)
+    fc_width = patch_width - sum(kernel_size_list) + conv_blocks
     fc_shape = (fc_width,) * 3
     # Data loading parameters
     preload = options['preload']

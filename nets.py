@@ -164,7 +164,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = Conv3D(4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
     print(K.int_shape(full))
 
-    full_shape = K.int_shape(merged_inputs)
+    full_shape = K.int_shape(full)
 
     # x LSTM
     x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
@@ -198,6 +198,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = Permute((2, 1))(full)
     full_out = Activation('softmax', name='fc_out')(full)
     # rf = LSTM(4, implementation=1)(Reshape((4, -1))(full))
+    # rf = Dense(4)(Reshape((4, -1))(full))
 
     # Final labeling
     merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(rf)])
