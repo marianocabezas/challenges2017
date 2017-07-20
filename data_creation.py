@@ -175,6 +175,7 @@ def load_patch_batch_train(
             label_names,
             batch_centers,
             size,
+            (),
             fc_shape,
             nlabels,
             preload,
