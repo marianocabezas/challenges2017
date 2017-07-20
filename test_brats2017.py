@@ -30,7 +30,8 @@ def parse_inputs():
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
     parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=4)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
-    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=5)
+    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=10)
+    parser.add_argument('-E', '--net-epochs', action='store', dest='net_epochs', type=int, default=5)
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
     parser.add_argument('--no-t1ce', action='store_false', dest='use_t1ce', default=True)
@@ -65,10 +66,20 @@ def get_names_from_path(path, options):
     return image_names, label_names
 
 
-def transfer_learning(net_domain, net, data, train_image, train_labels, train_roi, train_centers, options):
+def transfer_learning(
+        net_domain,
+        net,
+        data,
+        train_image,
+        train_labels,
+        train_roi,
+        train_centers,
+        options
+):
     c = color_codes()
     # Network hyperparameters
     epochs = options['epochs']
+    net_epochs = options['net_epochs']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
     batch_size = options['batch_size']
@@ -140,7 +151,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
         net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original (dense)' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
-        net.fit(x, y, epochs=1, batch_size=batch_size)
+        net.fit(x, y, epochs=net_epochs, batch_size=batch_size)
         for layer in net.layers:
             if isinstance(layer, Dense):
                 if layer.name in ['core', 'tumor', 'enhancing']:
@@ -151,7 +162,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
         net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original (out)' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
-        net.fit(x, y, epochs=1, batch_size=batch_size)
+        net.fit(x, y, epochs=net_epochs, batch_size=batch_size)
 
 
 def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None):
@@ -342,7 +353,7 @@ def main():
         gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
         labels = np.unique(gt.flatten())
 
-        options_s = 'e%d.D%d.' % (options['epochs'], options['down_factor'])
+        options_s = 'e%d.E%d.D%d.' % (options['epochs'], options['net_epochs'], options['down_factor'])
         image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original')
 
         results_o = [dsc_seg(gt == l, image_o == l) for l in labels[1:]]

@@ -66,7 +66,19 @@ def labels_generator(image_names):
         yield np.squeeze(load_nii(patient).get_data())
 
 
-def get_xy(image_list, label_names, batch_centers, size, nlabels, preload, split, iseg, experimental, datatype):
+def get_xy(
+        image_list,
+        label_names,
+        batch_centers,
+        size,
+        fc_shape,
+        nlabels,
+        preload,
+        split,
+        iseg,
+        experimental,
+        datatype
+):
     n_images = len(image_list)
     centers, idx = centers_and_idx(batch_centers, n_images)
     x = get_patches_list(image_list, centers, size, preload)
@@ -74,6 +86,12 @@ def get_xy(image_list, label_names, batch_centers, size, nlabels, preload, split
     x[idx] = x
     y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
     y = np.concatenate(y)
+    if experimental == 4:
+        y_fc = get_patches_list(labels_generator(label_names), centers, fc_shape, preload)
+        y_fc = np.concatenate(filter(lambda z: z.any(), y_fc)).astype(dtype=datatype)
+        y_fc[idx] = y_fc
+    else:
+        y_fc = []
     y[idx] = y
     if split:
         if iseg:
@@ -84,7 +102,9 @@ def get_xy(image_list, label_names, batch_centers, size, nlabels, preload, split
                 map(lambda (lab, val): np.array(y == val, dtype=np.uint8) * lab, enumerate(vals)), axis=0
             )
             y_cat = [keras.utils.to_categorical(y_cat, num_classes=labels)]
-            y = y_labels + y_cat if experimental < 2 else y_labels + y_cat * 3
+            y_cat = y_cat if experimental < 2 else y_cat * 3
+            y_fc_cat = [keras.utils.to_categorical(y_fc, num_classes=labels)]
+            y = y_labels + y_cat if experimental < 3 else y_labels + y_cat + y_fc_cat
         else:
             y = [
                 keras.utils.to_categorical(
@@ -111,6 +131,7 @@ def load_patch_batch_train(
         centers,
         batch_size,
         size,
+        fc_shape,
         nlabels,
         dfactor=10,
         datatype=np.float32,
@@ -147,6 +168,7 @@ def load_patch_batch_train(
             label_names,
             batch_centers,
             size,
+            fc_shape,
             nlabels,
             preload,
             split,
@@ -162,6 +184,7 @@ def load_patches_train(
         label_names,
         centers,
         size,
+        fc_shape,
         nlabels,
         dfactor=10,
         datatype=np.float32,
@@ -177,6 +200,7 @@ def load_patches_train(
         label_names,
         batch_centers,
         size,
+        fc_shape,
         nlabels,
         preload,
         split,

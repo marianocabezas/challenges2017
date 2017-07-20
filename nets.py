@@ -131,3 +131,45 @@ def get_iseg_experimental2(input_shape, filters_list, kernel_size_list, dense_si
     outputs = [csf_out, gm_out, wm_out, br_out, rf_out, final]
 
     return compile_network(merged_inputs, outputs, weights)
+
+
+def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_size):
+    merged_inputs = Input(shape=input_shape, name='merged_inputs')
+    # Input splitting
+    input_shape = K.int_shape(merged_inputs)
+    t1 = Lambda(lambda l: K.expand_dims(l[:, 0, :, :, :], axis=1), output_shape=(1,) + input_shape[2:])(merged_inputs)
+    t2 = Lambda(lambda l: K.expand_dims(l[:, 1, :, :, :], axis=1), output_shape=(1,) + input_shape[2:])(merged_inputs)
+
+    # Convolutional part
+    t2 = get_convolutional_block(t2, filters_list, kernel_size_list)
+    t1 = get_convolutional_block(t1, filters_list, kernel_size_list)
+
+    # Tissue binary stuff
+    t2_f = Flatten()(t2)
+    t1_f = Flatten()(t1)
+    t2_f = Dense(dense_size, activation='relu')(t2_f)
+    t2_f = Dropout(0.5)(t2_f)
+    t1_f = Dense(dense_size, activation='relu')(t1_f)
+    t1_f = Dropout(0.5)(t1_f)
+    merged = concatenate([t2_f, t1_f])
+    csf, gm, wm, csf_out, gm_out, wm_out = get_tissue_binary_stuff(merged)
+
+    full = Conv3D(dense_size, (1, 1, 1), padding='valid')(concatenate([t1, t2]))
+    full = PReLU()(full)
+    full = Conv3D(dense_size/2, (1, 1, 1), padding='valid')(full)
+    full = PReLU()(full)
+    full = Conv3D(dense_size/4, (1, 1, 1), padding='valid')(full)
+    full = PReLU()(full)
+    full = Conv3D(4, (1, 1, 1), padding='valid')(full)
+    full_out = Activation('softmax', name='fc_out')(full)
+
+    # Final labeling
+    merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(Flatten()(full))])
+    merged = Dropout(0.5)(merged)
+    brain = Dense(4, name='brain', activation='softmax')(merged)
+
+    # Weights and outputs
+    weights = [0.2,     0.5,    0.5,    1.0]
+    outputs = [csf_out, gm_out, wm_out, full_out, brain]
+
+    return compile_network(merged_inputs, outputs, weights)
