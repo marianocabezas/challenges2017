@@ -1,7 +1,8 @@
 from keras import backend as K
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
-from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU
+from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU, Average
 from keras.models import Model
+from itertools import product
 
 
 def compile_network(inputs, outputs, weights):
@@ -161,8 +162,32 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = Conv3D(dense_size/4, (1, 1, 1), padding='valid')(full)
     full = PReLU()(full)
     full = Conv3D(4, (1, 1, 1), padding='valid')(full)
+
+    full_shape = K.int_shape(merged_inputs)
+    x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
+    x_shape = full_shape[-2] * full_shape[-1]
+    y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
+    y_shape = full_shape[-3] * full_shape[-1]
+    z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
+    z_shape = full_shape[-3] * full_shape[-2]
+    x_input = [Lambda(lambda l: K.reshape(l[:, :, :, i, j], (4, -1)), output_shape=(4, x_shape))
+               for (i, j) in x_combos]
+    x_reverse = [Lambda(lambda l: K.reshape(l[:, :, -1::-1, i, j], (4, -1)), output_shape=(4, x_shape))
+                 for (i, j) in x_combos]
+    x_lstm = [LSTM(4, implementation=1)(x) for x in x_input + x_reverse]
+    y_input = [Lambda(lambda l: K.reshape(l[:, :, i, :, j], (4, -1))(full), output_shape=(4, y_shape))
+               for (i, j) in y_combos]
+    y_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (4, -1))(full), output_shape=(4, y_shape))
+                 for (i, j) in y_combos]
+    y_lstm = [LSTM(4, implementation=1)(y) for y in y_input + y_reverse]
+    z_input = [Lambda(lambda l: K.reshape(l[:, :, i, j, :], (4, -1)), output_shape=(4, z_shape))
+               for (i, j) in z_combos]
+    z_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (4, -1)), output_shape=(4, z_shape))
+                 for (i, j) in z_combos]
+    z_lstm = [LSTM(4, implementation=1)(z) for z in z_input + z_reverse]
+    rf = Average()(x_lstm + y_lstm + z_lstm)
     full_out = Activation('softmax', name='fc_out')(full)
-    rf = LSTM(4, implementation=1)(Reshape((filters_list[-1], -1))(full))
+    # rf = LSTM(4, implementation=1)(Reshape((4, -1))(full))
 
     # Final labeling
     merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(rf)])
