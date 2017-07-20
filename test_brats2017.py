@@ -12,7 +12,7 @@ from keras.models import Model
 from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda, Dense
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
-from data_creation import load_norm_list
+from data_creation import load_norm_list, clip_to_roi
 from data_creation import load_patch_batch_generator_test
 from data_manipulation.generate_features import get_mask_voxels, get_patches
 from data_manipulation.metrics import dsc_seg
@@ -85,9 +85,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
     for layer in net.layers:
         if not isinstance(layer, Dense):
             layer.trainable = False
-        net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
     net_domain_params = int(np.sum([K.count_params(p) for p in set(net_domain.trainable_weights)]))
-    net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
 
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
@@ -117,7 +115,7 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
             num_classes=5
         )
     ]
-    print(x.shape, len(centers))
+    print(x.shape, len(centers), train_roi.shape)
 
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
@@ -132,6 +130,25 @@ def transfer_learning(net_domain, net, data, train_image, train_labels, train_ro
         net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
         for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
             l_orig.set_weights(l_new.get_weights())
+        for layer in net.layers:
+            if isinstance(layer, Dense):
+                if layer.name in ['core', 'tumor', 'enhancing']:
+                    layer.trainable = False
+                else:
+                    layer.trainable = True
+        net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+        net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
+        print(''.join([' ']*14) + c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
+              c['b'] + '(%d parameters)' % net_params + c['nc'])
+        net.fit(x, y, epochs=1, batch_size=batch_size)
+        for layer in net.layers:
+            if isinstance(layer, Dense):
+                if layer.name in ['core', 'tumor', 'enhancing']:
+                    layer.trainable = True
+                else:
+                    layer.trainable = False
+        net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+        net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
         net.fit(x, y, epochs=1, batch_size=batch_size)
@@ -285,17 +302,6 @@ def get_best_roi(base_roi, image_list, labels_list):
     return best_image, best_roi, best_rate
 
 
-def clip_to_roi(images, roi):
-    # We clip with padding for patch extraction
-    min_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).min(axis=1)
-    max_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).max(axis=1)
-
-    clip = np.array([(min_c, max_c) for min_c, max_c in zip(min_coord, max_coord)], dtype=np.uint8)
-    im_clipped = images[:, clip[0, 0]:clip[0, 1], clip[1, 0]:clip[1, 1], clip[2, 0]:clip[2, 1]]
-
-    return im_clipped, clip
-
-
 def main():
     options = parse_inputs()
     c = color_codes()
@@ -402,6 +408,7 @@ def main():
 
         dsc_results.append(results_o + results_d)
 
+    print(np.asarray(dsc_results))
     f_dsc = tuple(np.asarray(dsc_results).mean(axis=0))
     print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
 

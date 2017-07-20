@@ -12,6 +12,17 @@ from numpy import logical_not as log_not
 import keras
 
 
+def clip_to_roi(images, roi):
+    # We clip with padding for patch extraction
+    min_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).min(axis=1)
+    max_coord = np.stack(np.nonzero(roi.astype(dtype=np.bool))).max(axis=1)
+
+    clip = np.array([(min_c, max_c) for min_c, max_c in zip(min_coord, max_coord)], dtype=np.uint8)
+    im_clipped = images[:, clip[0, 0]:clip[0, 1], clip[1, 0]:clip[1, 1], clip[2, 0]:clip[2, 1]]
+
+    return im_clipped, clip
+
+
 def norm(image):
     image = np.squeeze(image)
     image_nonzero = image[np.nonzero(image)]
