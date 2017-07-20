@@ -278,10 +278,12 @@ def main():
                 dsc_seg(gt_mask == 2, image == 2),
                 dsc_seg(gt_mask == 3, image == 3)
             )
-            dsc_results.append(results[1:])
+            dsc_results.append(results)
             print('Subject %s DSC: %f/%f/%f' % results)
 
-    f_dsc = tuple(np.asarray(dsc_results).mean(axis=0))
+    dsc_results = sorted(dsc_results, key=dsc_results[0])
+    print(dsc_results)
+    f_dsc = tuple(np.asarray(dsc_results[:][1:]).mean(axis=0))
     print('Final results DSC: %f/%f/%f' % f_dsc)
 
 
