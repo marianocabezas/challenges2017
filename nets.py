@@ -176,8 +176,8 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     # y LSTM
     y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
     y_shape = full_shape[-3] * full_shape[-1]
-    lambda_y = Lambda(lambda l: K.reshape(l[:, :, i, :, j], (-1, 4, y_shape))(full), output_shape=(4, y_shape))
-    lambda_y_rev = Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (-1, 4, y_shape))(full), output_shape=(4, y_shape))
+    lambda_y = Lambda(lambda l: K.reshape(l[:, :, i, :, j], (-1, 4, y_shape)), output_shape=(4, y_shape))
+    lambda_y_rev = Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (-1, 4, y_shape)), output_shape=(4, y_shape))
     y_input = [lambda_y(PReLU()(full)) for (i, j) in y_combos] + [lambda_y_rev(PReLU()(full)) for (i, j) in y_combos]
     y_lstm = [LSTM(4, implementation=1)(y) for y in y_input]
 
