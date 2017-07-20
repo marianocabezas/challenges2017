@@ -172,17 +172,17 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     z_shape = full_shape[-3] * full_shape[-2]
     x_input = [Lambda(lambda l: K.reshape(l[:, :, :, i, j], (4, -1)), output_shape=(4, x_shape))
                for (i, j) in x_combos]
-    x_reverse = [Lambda(lambda l: K.reshape(l[:, :, -1::-1, i, j], (4, -1)), output_shape=(4, x_shape))
+    x_reverse = [Lambda(lambda l: K.reshape(l[:, :, -1::-1, i, j], (4, -1)), output_shape=(4, x_shape))(full)
                  for (i, j) in x_combos]
     x_lstm = [LSTM(4, implementation=1)(x) for x in x_input + x_reverse]
-    y_input = [Lambda(lambda l: K.reshape(l[:, :, i, :, j], (4, -1))(full), output_shape=(4, y_shape))
+    y_input = [Lambda(lambda l: K.reshape(l[:, :, i, :, j], (4, -1))(full), output_shape=(4, y_shape))(full)
                for (i, j) in y_combos]
-    y_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (4, -1))(full), output_shape=(4, y_shape))
+    y_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, -1::-1, j], (4, -1))(full), output_shape=(4, y_shape))(full)
                  for (i, j) in y_combos]
     y_lstm = [LSTM(4, implementation=1)(y) for y in y_input + y_reverse]
-    z_input = [Lambda(lambda l: K.reshape(l[:, :, i, j, :], (4, -1)), output_shape=(4, z_shape))
+    z_input = [Lambda(lambda l: K.reshape(l[:, :, i, j, :], (4, -1)), output_shape=(4, z_shape))(full)
                for (i, j) in z_combos]
-    z_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (4, -1)), output_shape=(4, z_shape))
+    z_reverse = [Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (4, -1)), output_shape=(4, z_shape))(full)
                  for (i, j) in z_combos]
     z_lstm = [LSTM(4, implementation=1)(z) for z in z_input + z_reverse]
     rf = Average()(x_lstm + y_lstm + z_lstm)
