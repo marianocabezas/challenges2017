@@ -162,7 +162,6 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = Conv3D(dense_size/4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
     full = PReLU()(full)
     full = Conv3D(4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
-    print(K.int_shape(full))
 
     full_shape = K.int_shape(full)
 
@@ -193,9 +192,9 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     # # Final LSTM
     # rf = Average()(x_lstm + y_lstm + z_lstm)
     #
-    # # FC labeling
-    # full = Reshape((4, -1))(full)
-    # full = Permute((2, 1))(full)
+    # FC labeling
+    full = Reshape((4, -1))(full)
+    full = Permute((2, 1))(full)
     full_out = Activation('softmax', name='fc_out')(full)
     # # rf = LSTM(4, implementation=1)(Reshape((4, -1))(full))
     rf = Dense(4)(Reshape((4, -1))(full))
