@@ -162,9 +162,10 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = PReLU()(full)
     full = Conv3D(4, (1, 1, 1), padding='valid')(full)
     full_out = Activation('softmax', name='fc_out')(full)
+    rf = LSTM(4, implementation=1)(Reshape((filters_list[-1], -1))(full))
 
     # Final labeling
-    merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(Flatten()(full))])
+    merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(rf)])
     merged = Dropout(0.5)(merged)
     brain = Dense(4, name='brain', activation='softmax')(merged)
 

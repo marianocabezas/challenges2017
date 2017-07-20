@@ -84,7 +84,7 @@ def train_net(fold_n, train_data, train_labels, options):
     # Prepare the net hyperparameters
     epochs = options['epochs']
     patch_width = options['patch_width']
-    patch_size = (patch_width, patch_width, patch_width)
+    patch_size = (patch_width,) * 3
     batch_size = options['batch_size']
     dense_size = options['dense_size']
     conv_blocks = options['conv_blocks']
@@ -94,7 +94,8 @@ def train_net(fold_n, train_data, train_labels, options):
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     experimental = options['experimental']
 
-    fc_shape = patch_size
+    fc_width = patch_width - sum(kernel_size_list) + len(kernel_size_list)
+    fc_shape = (fc_width,) * 3
     # Data loading parameters
     preload = options['preload']
 
