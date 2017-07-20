@@ -188,8 +188,11 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     lambda_z_rev = Lambda(lambda l: K.reshape(l[:, :, i, j, -1::-1], (-1, 4, z_shape)), output_shape=(4, z_shape))
     z_input = [lambda_z(PReLU()(full)) for (i, j) in z_combos] + [lambda_z_rev(PReLU()(full)) for (i, j) in z_combos]
     z_lstm = [LSTM(4, implementation=1)(PReLU()(z)) for z in z_input]
+
+    # Final LSTM
     rf = Average()(x_lstm + y_lstm + z_lstm)
 
+    # FC labeling
     full = Reshape((4, -1))(full)
     full = Permute((2, 1))(full)
     full_out = Activation('softmax', name='fc_out')(full)
