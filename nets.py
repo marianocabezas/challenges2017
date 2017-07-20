@@ -196,7 +196,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     # # FC labeling
     # full = Reshape((4, -1))(full)
     # full = Permute((2, 1))(full)
-    # full_out = Activation('softmax', name='fc_out')(full)
+    full_out = Activation('softmax', name='fc_out')(full)
     # # rf = LSTM(4, implementation=1)(Reshape((4, -1))(full))
     rf = Dense(4)(Reshape((4, -1))(full))
 
