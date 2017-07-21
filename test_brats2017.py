@@ -406,9 +406,7 @@ def main():
                 l_new.set_weights(l_orig.get_weights())
 
             # Transfer learning
-            for cl, tr in zip(train_clip, train_rate):
-                print(cl[0] * tr, cl[1] * tr)
-            train_centers_r = [range(cl[0] * tr, cl[1] * tr) for cl, tr in zip(train_clip, train_rate)]
+            train_centers_r = [range(int(cl[0] * tr), int(cl[1] * tr)) for cl, tr in zip(train_clip, train_rate)]
             train_centers = list(product(*train_centers_r))
 
             transfer_learning(net_new, net_orig, data, train_x, train_y, train_roi, train_centers, options)
