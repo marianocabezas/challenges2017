@@ -108,6 +108,7 @@ def transfer_learning(
     centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
     x = [get_patches(image, centers, patch_size)
          for image in train_image]
+    print(np.asarray(x).shape)
     x = np.stack(x, axis=1).astype(np.float32)
     y = np.array([train_labels[center] for center in centers])
     y = [
@@ -387,13 +388,15 @@ def main():
                 train_image = np.stack(load_norm_list(train_data[train_num])).astype(dtype=np.float32)
                 train_mask = load_nii(train_labels[train_num]).get_data().astype(dtype=np.uint8)
                 pickle.dump(train_roi, open(roi_name, 'wb'))
-                pickle.dump(train_mask, open(train_mask, 'wb'))
+                pickle.dump(train_mask, open(mask_name, 'wb'))
                 pickle.dump(train_image, open(image_name, 'wb'))
                 pickle.dump(train_rate, open(rate_name, 'wb'))
             _, train_clip = clip_to_roi(train_image, train_mask)
 
             train_x = zoom(train_image, train_rate)
             train_y = zoom(train_mask, train_rate[1:], order=0)
+            print(train_x.shape, train_image.shape, train_rate)
+            print(train_y.shape, train_mask.shape, train_rate)
 
             # We create the domain network
             net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
@@ -402,7 +405,7 @@ def main():
                 l_new.set_weights(l_orig.get_weights())
 
             # Transfer learning
-            train_centers_r = [range(int(cl[0] * tr), int(cl[1] * tr)) for cl, tr in zip(train_clip, train_rate)]
+            train_centers_r = [range(int(cl[0] * tr), int(cl[1] * tr)) for cl, tr in zip(train_clip, train_rate[1:])]
             train_centers = list(product(*train_centers_r))
 
             transfer_learning(net_new, net_orig, data, train_x, train_y, train_roi, train_centers, options)
