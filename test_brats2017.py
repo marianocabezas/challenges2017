@@ -108,8 +108,6 @@ def transfer_learning(
     centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
     x = [get_patches(image, centers, patch_size)
          for image in train_image]
-    for xi in x:
-        print(np.asarray(xi).shape)
     x = np.stack(x, axis=1).astype(np.float32)
     y = np.array([train_labels[center] for center in centers])
     y = [
@@ -375,15 +373,11 @@ def main():
             p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
             data, clip = clip_to_roi(p_images, image_r)
             # We prepare the zoomed tumors for training
-            x_name = os.path.join(path, p_name + '.x.pkl')
-            y_name = os.path.join(path, p_name + '.y.pkl')
             roi_name = os.path.join(path, p_name + '.roi.pkl')
             mask_name = os.path.join(path, p_name + '.mask.pkl')
             image_name = os.path.join(path, p_name + '.image.pkl')
             rate_name = os.path.join(path, p_name + '.rate.pkl')
             try:
-                train_x = pickle.load(open(x_name, 'rb'))
-                train_y = pickle.load(open(y_name, 'rb'))
                 train_roi = pickle.load(open(roi_name, 'rb'))
                 train_mask = pickle.load(open(mask_name, 'rb'))
                 train_image = pickle.load(open(image_name, 'rb'))
@@ -392,14 +386,14 @@ def main():
                 train_num, train_roi, train_rate = get_best_roi(data, train_data, train_labels)
                 train_image = np.stack(load_norm_list(train_data[train_num])).astype(dtype=np.float32)
                 train_mask = load_nii(train_labels[train_num]).get_data().astype(dtype=np.uint8)
-                train_x = zoom(train_image, train_rate)
-                train_y = zoom(train_mask, train_rate[1:], order=0)
-                pickle.dump(train_x, open(x_name, 'wb'))
-                pickle.dump(train_y, open(y_name, 'wb'))
                 pickle.dump(train_roi, open(roi_name, 'wb'))
+                pickle.dump(train_mask, open(train_mask, 'wb'))
                 pickle.dump(train_image, open(image_name, 'wb'))
                 pickle.dump(train_rate, open(rate_name, 'wb'))
             _, train_clip = clip_to_roi(train_image, train_mask)
+
+            train_x = zoom(train_image, train_rate)
+            train_y = zoom(train_mask, train_rate[1:], order=0)
 
             # We create the domain network
             net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
