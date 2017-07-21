@@ -139,8 +139,6 @@ def transfer_learning(
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Domain' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_domain_params + c['nc'])
         net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
-        for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
-            l_orig.set_weights(l_new.get_weights())
         for layer in net.layers:
             if isinstance(layer, Dense):
                 if layer.name in ['core', 'tumor', 'enhancing']:
@@ -163,6 +161,9 @@ def transfer_learning(
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original (out)' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
         net.fit(x, y, epochs=net_epochs, batch_size=batch_size)
+        # We transfer the convolutional weights after retraining the net
+        for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
+            l_orig.set_weights(l_new.get_weights())
 
 
 def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None):
@@ -377,23 +378,26 @@ def main():
             x_name = os.path.join(path, p_name + '.x.pkl')
             y_name = os.path.join(path, p_name + '.y.pkl')
             roi_name = os.path.join(path, p_name + '.roi.pkl')
-            roimask_name = os.path.join(path, p_name + '.roimask.pkl')
+            mask_name = os.path.join(path, p_name + '.mask.pkl')
+            image_name = os.path.join(path, p_name + '.image.pkl')
+            rate_name = os.path.join(path, p_name + '.rate.pkl')
             try:
                 train_x = pickle.load(open(x_name, 'rb'))
                 train_y = pickle.load(open(y_name, 'rb'))
                 train_roi = pickle.load(open(roi_name, 'rb'))
-                train_roimask = pickle.load(open(roimask_name, 'rb'))
+                train_mask = pickle.load(open(mask_name, 'rb'))
+                train_image = pickle.load(open(image_name, 'rb'))
+                train_rate = pickle.load(open(rate_name, 'rb'))
             except IOError:
                 train_num, train_roi, train_rate = get_best_roi(data, train_data, train_labels)
                 train_image = np.stack(load_norm_list(train_data[train_num])).astype(dtype=np.float32)
                 train_mask = load_nii(train_labels[train_num]).get_data().astype(dtype=np.uint8)
                 train_x = zoom(train_image, train_rate)
-                train_roimask = zoom(train_mask.astype(dtype=np.bool), train_rate[1:], order=0)
                 train_y = zoom(train_mask, train_rate[1:], order=0)
                 pickle.dump(train_x, open(x_name, 'wb'))
                 pickle.dump(train_y, open(y_name, 'wb'))
                 pickle.dump(train_roi, open(roi_name, 'wb'))
-            _, train_clip = clip_to_roi(train_x, train_roimask)
+            _, train_clip = clip_to_roi(train_image, train_mask)
 
             # We create the domain network
             net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
@@ -402,7 +406,9 @@ def main():
                 l_new.set_weights(l_orig.get_weights())
 
             # Transfer learning
-            train_centers_r = [range(cl[0], cl[1]) for cl in train_clip]
+            for cl, tr in zip(train_clip, train_rate):
+                print(cl[0] * tr, cl[1] * tr)
+            train_centers_r = [range(cl[0] * tr, cl[1] * tr) for cl, tr in zip(train_clip, train_rate)]
             train_centers = list(product(*train_centers_r))
 
             transfer_learning(net_new, net_orig, data, train_x, train_y, train_roi, train_centers, options)
