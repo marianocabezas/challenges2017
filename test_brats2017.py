@@ -108,9 +108,9 @@ def transfer_learning(
     centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
     x = [get_patches(image, centers, patch_size)
          for image in train_image]
+    for xi in x:
+        print(np.asarray(xi).shape)
     x = np.stack(x, axis=1).astype(np.float32)
-    # x = get_patches_list([train_image], [centers], patch_size, True)
-    # x = np.concatenate(x).astype(dtype=np.float32)
     y = np.array([train_labels[center] for center in centers])
     y = [
         keras.utils.to_categorical(
@@ -397,6 +397,8 @@ def main():
                 pickle.dump(train_x, open(x_name, 'wb'))
                 pickle.dump(train_y, open(y_name, 'wb'))
                 pickle.dump(train_roi, open(roi_name, 'wb'))
+                pickle.dump(train_image, open(image_name, 'wb'))
+                pickle.dump(train_rate, open(rate_name, 'wb'))
             _, train_clip = clip_to_roi(train_image, train_mask)
 
             # We create the domain network
