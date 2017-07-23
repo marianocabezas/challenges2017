@@ -206,7 +206,7 @@ def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=Non
             tumor = np.argmax(y_pr_pred[0], axis=1)
             y_pr_pred = y_pr_pred[-1]
         else:
-            tumor = np.argmax(y_pr_pred, axis=1)
+            tumor = get_biggest_region(np.argmax(y_pr_pred, axis=1))
 
         # We save the ROI
         roi = np.zeros_like(roi).astype(dtype=np.uint8)
