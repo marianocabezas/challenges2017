@@ -31,7 +31,7 @@ def parse_inputs():
     parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=4)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=2)
-    parser.add_argument('-E', '--net-epochs', action='store', dest='net_epochs', type=int, default=5)
+    parser.add_argument('-E', '--net-epochs', action='store', dest='net_epochs', type=int, default=1)
     parser.add_argument('--no-flair', action='store_false', dest='use_flair', default=True)
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
     parser.add_argument('--no-t1ce', action='store_false', dest='use_t1ce', default=True)
@@ -108,7 +108,6 @@ def transfer_learning(
     centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
     x = [get_patches(image, centers, patch_size)
          for image in train_image]
-    print(np.asarray(x).shape)
     x = np.stack(x, axis=1).astype(np.float32)
     y = np.array([train_labels[center] for center in centers])
     y = [
@@ -125,7 +124,6 @@ def transfer_learning(
             num_classes=5
         )
     ]
-    print(x.shape, len(centers), len(train_centers), train_roi.shape)
 
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
@@ -395,8 +393,6 @@ def main():
 
             train_x = zoom(train_image, train_rate)
             train_y = zoom(train_mask, train_rate[1:], order=0)
-            print(train_x.shape, train_image.shape, train_rate)
-            print(train_y.shape, train_mask.shape, train_rate)
 
             # We create the domain network
             net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
