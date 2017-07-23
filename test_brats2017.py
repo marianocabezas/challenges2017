@@ -203,8 +203,10 @@ def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=Non
         if isinstance(y_pr_pred, list):
             tumor = np.argmax(y_pr_pred[0], axis=1)
             y_pr_pred = y_pr_pred[-1]
+            is_roi = False
         else:
-            tumor = np.argmax(y_pr_pred, axis=1)
+            tumor = get_biggest_region(np.argmax(y_pr_pred, axis=1))
+            is_roi = True
 
         # We save the ROI
         roi = np.zeros_like(roi).astype(dtype=np.uint8)
@@ -215,7 +217,7 @@ def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=Non
         y_pred = np.argmax(y_pr_pred, axis=1)
 
         # We save the results
-        image[x, y, z] = y_pred
+        image[x, y, z] = tumor if is_roi else y_pred
         # Post-processing (Basically keep the biggest connected region)
         image = get_biggest_region(image)
         print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
