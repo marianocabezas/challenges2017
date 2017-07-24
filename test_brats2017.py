@@ -130,9 +130,9 @@ def transfer_learning(
     # retrain the classifier with the new convolutional weights.
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models ' + c['nc'] +
           c['b'] + '(%d patches)' % len(centers) + c['nc'])
+    conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
     for e in range(epochs):
         print(c['b'] + 'Epoch %d/%d ' % (e+1, epochs) + c['nc'])
-        conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Domain' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_domain_params + c['nc'])
         net_domain.fit(np.expand_dims(data, axis=0), conv_data, epochs=1, batch_size=1)
@@ -159,8 +159,8 @@ def transfer_learning(
               c['b'] + '(%d parameters)' % net_params + c['nc'])
         net.fit(x, y, epochs=net_epochs, batch_size=batch_size)
         # We transfer the convolutional weights after retraining the net
-        for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
-            l_orig.set_weights(l_new.get_weights())
+    for l_new, l_orig in zip(net_domain_conv_layers, net_conv_layers):
+        l_orig.set_weights(l_new.get_weights())
 
 
 def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None):
@@ -205,7 +205,7 @@ def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=Non
             y_pr_pred = y_pr_pred[-1]
             is_roi = False
         else:
-            tumor = get_biggest_region(np.argmax(y_pr_pred, axis=1))
+            tumor = get_biggest_region(np.argmax(y_pr_pred, axis=1), True)
             is_roi = True
 
         # We save the ROI

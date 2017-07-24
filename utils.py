@@ -67,9 +67,12 @@ def nfold_cross_validation(data_list, labels_list, n=5, random_state=42, val_dat
             yield tr_data, tr_labels, tst_data, tst_labels
 
 
-def get_biggest_region(labels):
+def get_biggest_region(labels, opening=False):
     nu_labels = np.copy(labels)
-    blobs, _ = nd.measurements.label(labels.astype(dtype=np.bool), nd.morphology.generate_binary_structure(3, 3))
+    bin_mask = labels.astype(dtype=np.bool)
+    if opening:
+        bin_mask = nd.morphology.binary_opening(bin_mask, nd.morphology.generate_binary_structure(3, 3))
+    blobs, _ = nd.measurements.label(bin_mask, nd.morphology.generate_binary_structure(3, 3))
     big_region = np.argmax(np.bincount(blobs.ravel())[1:])
     nu_labels[blobs != big_region + 1] = 0
     return nu_labels
