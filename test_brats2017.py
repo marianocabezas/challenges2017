@@ -103,9 +103,9 @@ def transfer_learning(
     # retrain the classifier with the new convolutional weights.
 
     # Data loading
-    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
-          c['b'] + 'net' + c['nc'] + c['g'] + ' data' + c['nc'])
     centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
+    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'net' + c['nc'] +
+          c['g'] + ' data (' + c['b'] + '%d' % len(centers) + c['nc'] + c['g'] + ' samples)' + c['nc'])
     x = [get_patches(image, centers, patch_size)
          for image in train_image]
     x = np.stack(x, axis=1).astype(np.float32)
@@ -367,12 +367,13 @@ def main():
             net_new = keras.models.load_model(net_new_name)
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
         except IOError:
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' +
-                  c['b'] + 'domain' + c['nc'] + c['g'] + ' data' + c['nc'])
             # First we get the tumor ROI
             image_r = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
             p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
             data, clip = clip_to_roi(p_images, image_r)
+            data_s = c['g'] + c['b'] + 'x'.join(['%d' % i_len for i_len in data.shape[1:]]) + c['nc']
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'domain' + c['nc'] +
+                  c['g'] + ' data' + c['nc'] + c['g'] + '(shape = ' + data_s + c['g'] + ')' + c['nc'])
             # We prepare the zoomed tumors for training
             roi_name = os.path.join(path, p_name + '.roi.pkl')
             mask_name = os.path.join(path, p_name + '.mask.pkl')
