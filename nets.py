@@ -194,7 +194,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = Permute((2, 1))(full)
     full_out = Activation('softmax', name='fc_out')(full)
     # rf = LSTM(4, implementation=1)(Reshape((4, -1))(full))
-    rf = Dense(4)(Reshape((4, -1))(full))
+    rf = Dense(4)(Flatten(full))
 
     # Final labeling
     merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(rf)])
