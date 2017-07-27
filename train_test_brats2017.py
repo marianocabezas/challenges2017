@@ -39,6 +39,7 @@ def parse_inputs():
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
     parser.add_argument('--no-t1ce', action='store_false', dest='use_t1ce', default=True)
     parser.add_argument('--no-t2', action='store_false', dest='use_t2', default=True)
+    parser.add_argument('--no-dsc', action='store_false', dest='use_gt', default=True)
     parser.add_argument('--flair', action='store', dest='flair', default='_flair.nii.gz')
     parser.add_argument('--t1', action='store', dest='t1', default='_t1.nii.gz')
     parser.add_argument('--t1ce', action='store', dest='t1ce', default='_t1ce.nii.gz')
@@ -290,12 +291,11 @@ def main():
             net.save(net_name)
 
         # Then we test the net.
+        use_gt = options['use_gt']
         for p, gt_name in zip(test_data, test_labels):
             p_name = p[0].rsplit('/')[-2]
             patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, 'deep-brats17' + sufix + 'test.nii.gz')
-            gt_nii = load_nii(gt_name)
-            gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
             try:
                 load_nii(outputname)
             except IOError:
@@ -335,11 +335,14 @@ def main():
                 image[x, y, z] = y_pred
                 # Post-processing (Basically keep the biggest connected region)
                 image = get_biggest_region(image)
-                labels = np.unique(gt.flatten())
-                results = (p_name,) + tuple([dsc_seg(gt == l, image == l) for l in labels[1:]])
-                text = 'Subject %s DSC: ' + '/'.join(['%f' for _ in labels[1:]])
-                print(text % results)
-                dsc_results.append(results)
+                if use_gt:
+                    gt_nii = load_nii(gt_name)
+                    gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
+                    labels = np.unique(gt.flatten())
+                    results = (p_name,) + tuple([dsc_seg(gt == l, image == l) for l in labels[1:]])
+                    text = 'Subject %s DSC: ' + '/'.join(['%f' for _ in labels[1:]])
+                    print(text % results)
+                    dsc_results.append(results)
 
                 print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
                 roi_nii.get_data()[:] = image
