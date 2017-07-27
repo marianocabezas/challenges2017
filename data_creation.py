@@ -82,7 +82,8 @@ def get_xy(
     n_images = len(image_list)
     centers, idx = centers_and_idx(batch_centers, n_images)
     x = get_patches_list(image_list, centers, size, preload)
-    x = np.concatenate(filter(lambda z: z.any(), x)).astype(dtype=datatype)
+    x = filter(lambda z: z.any(), x)
+    x = np.concatenate(x).astype(dtype=datatype)
     x[idx] = x
     y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
     y = np.concatenate(y)
@@ -135,7 +136,6 @@ def load_patch_batch_train(
         centers,
         batch_size,
         size,
-        fc_shape,
         nlabels,
         dfactor=10,
         datatype=np.float32,
@@ -143,45 +143,26 @@ def load_patch_batch_train(
         split=False,
         iseg=False,
         experimental=False,
-        generator=True
 ):
     image_list = [load_norm_list(patient)
                   for patient in image_names] if preload or not generator else image_names
-    if generator:
-        while True:
-            gen = load_patch_batch_generator_train(
-                image_list=image_list,
-                label_names=label_names,
-                center_list=centers,
-                batch_size=batch_size,
-                size=size,
-                nlabels=nlabels,
-                datatype=datatype,
-                dfactor=dfactor,
-                preload=preload,
-                split=split,
-                iseg=iseg,
-                experimental=experimental
-            )
-            for x, y in gen:
-                yield x, y
-    else:
-        batch_centers = np.random.permutation(centers)[::dfactor]
-        x, y = get_xy(
-            image_list,
-            label_names,
-            batch_centers,
-            size,
-            (),
-            fc_shape,
-            nlabels,
-            preload,
-            split,
-            iseg,
-            experimental,
-            datatype
+    while True:
+        gen = load_patch_batch_generator_train(
+            image_list=image_list,
+            label_names=label_names,
+            center_list=centers,
+            batch_size=batch_size,
+            size=size,
+            nlabels=nlabels,
+            datatype=datatype,
+            dfactor=dfactor,
+            preload=preload,
+            split=split,
+            iseg=iseg,
+            experimental=experimental
         )
-        yield x, y
+        for x, y in gen:
+            yield x, y
 
 
 def load_patches_train(
