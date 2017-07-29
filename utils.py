@@ -73,10 +73,13 @@ def get_biggest_region(labels, opening=False):
     if opening:
         print(bin_mask.shape)
         strel = nd.morphology.iterate_structure(nd.morphology.generate_binary_structure(3, 3), 5)
-        bin_mask = nd.morphology.binary_opening(bin_mask, strel)
-    blobs, _ = nd.measurements.label(bin_mask, nd.morphology.generate_binary_structure(3, 3))
-    big_region = np.argmax(np.bincount(blobs.ravel())[1:])
-    nu_labels[blobs != big_region + 1] = 0
+        bin_op_mask = nd.morphology.binary_opening(bin_mask, strel)
+        if np.count_nonzero(bin_op_mask) > 0:
+            bin_mask = bin_op_mask
+    if np.count_nonzero(bin_mask) > 0:
+        blobs, _ = nd.measurements.label(bin_mask, nd.morphology.generate_binary_structure(3, 3))
+        big_region = np.argmax(np.bincount(blobs.ravel())[1:])
+        nu_labels[blobs != big_region + 1] = 0
     return nu_labels
 
 
