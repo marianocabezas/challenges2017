@@ -3,6 +3,7 @@ from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Re
 from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU, Average
 from keras.models import Model
 from itertools import product
+import numpy as np
 
 
 def compile_network(inputs, outputs, weights):
@@ -164,30 +165,34 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = Conv3D(4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
 
     full_shape = K.int_shape(full)
+    rf = full
 
-    # x LSTM
-    x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
-    lambda_x = Lambda(lambda l: l[:, :, :, i, j], output_shape=(4, full_shape[-3]))
-    lambda_x_rev = Lambda(lambda l: l[:, :, -1::-1, i, j], output_shape=(4, full_shape[-3]))
-    x_input = [lambda_x(PReLU()(full)) for (i, j) in x_combos] +[lambda_x_rev(PReLU()(full)) for (i, j) in x_combos]
-    x_lstm = [LSTM(4, implementation=1)(x) for x in x_input]
+    while np.product(K.int_shape(rf)[1:]) > 1:
+        rf = Conv3D(4, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
 
-    # y LSTM
-    y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
-    lambda_y = Lambda(lambda l: l[:, :, i, :, j], output_shape=(4, full_shape[-2]))
-    lambda_y_rev = Lambda(lambda l: l[:, :, i, -1::-1, j], output_shape=(4, full_shape[-2]))
-    y_input = [lambda_y(PReLU()(full)) for (i, j) in y_combos] + [lambda_y_rev(PReLU()(full)) for (i, j) in y_combos]
-    y_lstm = [LSTM(4, implementation=1)(y) for y in y_input]
-
-    # z LSTM
-    z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
-    lambda_z = Lambda(lambda l: l[:, :, i, j, :], output_shape=(4, full_shape[-1]))
-    lambda_z_rev = Lambda(lambda l: l[:, :, i, j, -1::-1], output_shape=(4, full_shape[-1]))
-    z_input = [lambda_z(PReLU()(full)) for (i, j) in z_combos] + [lambda_z_rev(PReLU()(full)) for (i, j) in z_combos]
-    z_lstm = [LSTM(4, implementation=1)(PReLU()(z)) for z in z_input]
-
-    # Final LSTM
-    rf = Average()(x_lstm + y_lstm + z_lstm)
+    # # x LSTM
+    # x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
+    # lambda_x = Lambda(lambda l: l[:, :, :, i, j], output_shape=(4, full_shape[-3]))
+    # lambda_x_rev = Lambda(lambda l: l[:, :, -1::-1, i, j], output_shape=(4, full_shape[-3]))
+    # x_input = [lambda_x(PReLU()(full)) for (i, j) in x_combos] +[lambda_x_rev(PReLU()(full)) for (i, j) in x_combos]
+    # x_lstm = [LSTM(4, implementation=1)(x) for x in x_input]
+    #
+    # # y LSTM
+    # y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
+    # lambda_y = Lambda(lambda l: l[:, :, i, :, j], output_shape=(4, full_shape[-2]))
+    # lambda_y_rev = Lambda(lambda l: l[:, :, i, -1::-1, j], output_shape=(4, full_shape[-2]))
+    # y_input = [lambda_y(PReLU()(full)) for (i, j) in y_combos] + [lambda_y_rev(PReLU()(full)) for (i, j) in y_combos]
+    # y_lstm = [LSTM(4, implementation=1)(y) for y in y_input]
+    #
+    # # z LSTM
+    # z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
+    # lambda_z = Lambda(lambda l: l[:, :, i, j, :], output_shape=(4, full_shape[-1]))
+    # lambda_z_rev = Lambda(lambda l: l[:, :, i, j, -1::-1], output_shape=(4, full_shape[-1]))
+    # z_input = [lambda_z(PReLU()(full)) for (i, j) in z_combos] + [lambda_z_rev(PReLU()(full)) for (i, j) in z_combos]
+    # z_lstm = [LSTM(4, implementation=1)(PReLU()(z)) for z in z_input]
+    #
+    # # Final LSTM
+    # rf = Average()(x_lstm + y_lstm + z_lstm)
 
     # FC labeling
     full = Reshape((4, -1))(full)
