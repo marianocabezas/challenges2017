@@ -245,6 +245,7 @@ def get_iseg_experimental4(input_shape, filters_list, kernel_size_list, dense_si
     while np.product(K.int_shape(rf)[1:]) > 1:
         rf = Conv3D(4, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
     rf = Flatten()(rf)
+    print(K.int_shape(rf))
 
     # FC labeling
     full = Reshape((4, -1))(full)
