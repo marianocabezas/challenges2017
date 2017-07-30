@@ -165,34 +165,30 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     full = Conv3D(4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
 
     full_shape = K.int_shape(full)
-    rf = full
 
-    while np.product(K.int_shape(rf)[1:]) > 1:
-        rf = Conv3D(4, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
+    # x LSTM
+    x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
+    lambda_x = Lambda(lambda l: l[:, :, :, i, j], output_shape=(4, full_shape[-3]))
+    lambda_x_rev = Lambda(lambda l: l[:, :, -1::-1, i, j], output_shape=(4, full_shape[-3]))
+    x_input = [lambda_x(PReLU()(full)) for (i, j) in x_combos] +[lambda_x_rev(PReLU()(full)) for (i, j) in x_combos]
+    x_lstm = [LSTM(4, implementation=1)(x) for x in x_input]
 
-    # # x LSTM
-    # x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
-    # lambda_x = Lambda(lambda l: l[:, :, :, i, j], output_shape=(4, full_shape[-3]))
-    # lambda_x_rev = Lambda(lambda l: l[:, :, -1::-1, i, j], output_shape=(4, full_shape[-3]))
-    # x_input = [lambda_x(PReLU()(full)) for (i, j) in x_combos] +[lambda_x_rev(PReLU()(full)) for (i, j) in x_combos]
-    # x_lstm = [LSTM(4, implementation=1)(x) for x in x_input]
-    #
-    # # y LSTM
-    # y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
-    # lambda_y = Lambda(lambda l: l[:, :, i, :, j], output_shape=(4, full_shape[-2]))
-    # lambda_y_rev = Lambda(lambda l: l[:, :, i, -1::-1, j], output_shape=(4, full_shape[-2]))
-    # y_input = [lambda_y(PReLU()(full)) for (i, j) in y_combos] + [lambda_y_rev(PReLU()(full)) for (i, j) in y_combos]
-    # y_lstm = [LSTM(4, implementation=1)(y) for y in y_input]
-    #
-    # # z LSTM
-    # z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
-    # lambda_z = Lambda(lambda l: l[:, :, i, j, :], output_shape=(4, full_shape[-1]))
-    # lambda_z_rev = Lambda(lambda l: l[:, :, i, j, -1::-1], output_shape=(4, full_shape[-1]))
-    # z_input = [lambda_z(PReLU()(full)) for (i, j) in z_combos] + [lambda_z_rev(PReLU()(full)) for (i, j) in z_combos]
-    # z_lstm = [LSTM(4, implementation=1)(PReLU()(z)) for z in z_input]
-    #
-    # # Final LSTM
-    # rf = Average()(x_lstm + y_lstm + z_lstm)
+    # y LSTM
+    y_combos = product(range(full_shape[-3]), range(full_shape[-1]))
+    lambda_y = Lambda(lambda l: l[:, :, i, :, j], output_shape=(4, full_shape[-2]))
+    lambda_y_rev = Lambda(lambda l: l[:, :, i, -1::-1, j], output_shape=(4, full_shape[-2]))
+    y_input = [lambda_y(PReLU()(full)) for (i, j) in y_combos] + [lambda_y_rev(PReLU()(full)) for (i, j) in y_combos]
+    y_lstm = [LSTM(4, implementation=1)(y) for y in y_input]
+
+    # z LSTM
+    z_combos = product(range(full_shape[-3]), range(full_shape[-2]))
+    lambda_z = Lambda(lambda l: l[:, :, i, j, :], output_shape=(4, full_shape[-1]))
+    lambda_z_rev = Lambda(lambda l: l[:, :, i, j, -1::-1], output_shape=(4, full_shape[-1]))
+    z_input = [lambda_z(PReLU()(full)) for (i, j) in z_combos] + [lambda_z_rev(PReLU()(full)) for (i, j) in z_combos]
+    z_lstm = [LSTM(4, implementation=1)(PReLU()(z)) for z in z_input]
+
+    # Final LSTM
+    rf = Average()(x_lstm + y_lstm + z_lstm)
 
     # FC labeling
     full = Reshape((4, -1))(full)
@@ -204,6 +200,59 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     # Final labeling
     merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(rf)])
     # merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(Flatten()(full))])
+    merged = Dropout(0.5)(merged)
+    brain = Dense(4, name='brain', activation='softmax')(merged)
+
+    # Weights and outputs
+    weights = [0.2,     0.5,    0.5,    1.0,   0.8]
+    outputs = [csf_out, gm_out, wm_out, brain, full_out]
+
+    return compile_network(merged_inputs, outputs, weights)
+
+
+def get_iseg_experimental4(input_shape, filters_list, kernel_size_list, dense_size):
+    merged_inputs = Input(shape=input_shape, name='merged_inputs')
+    # Input splitting
+    input_shape = K.int_shape(merged_inputs)
+    t1 = Lambda(lambda l: K.expand_dims(l[:, 0, :, :, :], axis=1), output_shape=(1,) + input_shape[2:])(merged_inputs)
+    t2 = Lambda(lambda l: K.expand_dims(l[:, 1, :, :, :], axis=1), output_shape=(1,) + input_shape[2:])(merged_inputs)
+
+    # Convolutional part
+    t2 = get_convolutional_block(t2, filters_list, kernel_size_list)
+    t1 = get_convolutional_block(t1, filters_list, kernel_size_list)
+
+    # Tissue binary stuff
+    t2_f = Flatten()(t2)
+    t1_f = Flatten()(t1)
+    t2_f = Dense(dense_size, activation='relu')(t2_f)
+    t2_f = Dropout(0.5)(t2_f)
+    t1_f = Dense(dense_size, activation='relu')(t1_f)
+    t1_f = Dropout(0.5)(t1_f)
+    merged = concatenate([t2_f, t1_f])
+    csf, gm, wm, csf_out, gm_out, wm_out = get_tissue_binary_stuff(merged)
+
+    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(concatenate([t1, t2], axis=1))
+    full = PReLU()(full)
+    full = Conv3D(dense_size/2, kernel_size=(1, 1, 1), data_format='channels_first')(full)
+    full = PReLU()(full)
+    full = Conv3D(dense_size/4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
+    full = PReLU()(full)
+    full = Conv3D(4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
+
+    full_shape = K.int_shape(full)
+    rf = full
+
+    while np.product(K.int_shape(rf)[1:]) > 1:
+        rf = Conv3D(4, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
+    rf = Flatten()(rf)
+
+    # FC labeling
+    full = Reshape((4, -1))(full)
+    full = Permute((2, 1))(full)
+    full_out = Activation('softmax', name='fc_out')(full)
+
+    # Final labeling
+    merged = concatenate([t2_f, t1_f, PReLU()(csf), PReLU()(gm), PReLU()(wm), PReLU()(rf)])
     merged = Dropout(0.5)(merged)
     brain = Dense(4, name='brain', activation='softmax')(merged)
 
