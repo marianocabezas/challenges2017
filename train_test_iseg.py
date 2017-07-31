@@ -4,6 +4,7 @@ import os
 from time import strftime
 import numpy as np
 from keras.models import load_model
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 from nibabel import load as load_nii
 from nibabel import save as save_nii
 from utils import color_codes, nfold_cross_validation, get_patient_info
@@ -155,8 +156,10 @@ def train_net(fold_n, train_data, train_labels, options):
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
               c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(net.summary())
-        net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
-        net.save(net_name)
+        callbacks = [EarlyStopping(patience=5), ModelCheckpoint(net_name, save_best_only=True)]
+        net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs, callbacks=callbacks)
+        # net.save(net_name)
+        net = load_model(net_name)
     return net
 
 
@@ -295,7 +298,7 @@ def main():
             dsc_results.append(results)
             print('%s DSC: %f/%f/%f' % results)
 
-    dsc_results = sorted(dsc_results, lambda x, y: int(x[0][8:]) - int(y[0][8:]))
+    dsc_results = sorted(dsc_results, cmp=lambda x, y: int(x[0][8:]) - int(y[0][8:]))
     for results in dsc_results:
         print(c['c'] + '%s DSC: \033[32;1m%f/%f/%f' % results + c['nc'])
     f_dsc = tuple(np.asarray([results[1:] for results in dsc_results]).mean(axis=0))
