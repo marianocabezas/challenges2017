@@ -97,14 +97,14 @@ def transfer_learning(
     net_domain_conv_layers = [l for l in net_domain.layers if 'conv' in l.name]
     net_conv_layers = sorted(
         [l for l in net.layers if 'conv' in l.name],
-        lambda l1, l2: int(l1.name[7:]) - int(l2.name[7:])
+        cmp=lambda l1, l2: int(l1.name[7:]) - int(l2.name[7:])
     )
 
     # We freeze the convolutional layers for the final net
     for layer in net.layers:
         if not isinstance(layer, Dense):
             layer.trainable = False
-    net_domain_params = int(np.sum([K.count_params(p) for p in set(net_domain.trainable_weights)]))
+    net_domain_params = np.sum([K.count_params(p) for p in set(net_domain.trainable_weights)])
 
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
@@ -151,7 +151,7 @@ def transfer_learning(
                 else:
                     layer.trainable = True
         net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
-        net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
+        net_params = np.sum([K.count_params(p) for p in set(net.trainable_weights)])
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original (dense)' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
         net.fit(x, y, epochs=net_epochs, batch_size=batch_size)
@@ -162,7 +162,7 @@ def transfer_learning(
                 else:
                     layer.trainable = False
         net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
-        net_params = int(np.sum([K.count_params(p) for p in set(net.trainable_weights)]))
+        net_params = np.sum([K.count_params(p) for p in set(net.trainable_weights)])
         print(''.join([' ']*14) + c['g'] + c['b'] + 'Original (out)' + c['nc'] + c['g'] + ' net ' + c['nc'] +
               c['b'] + '(%d parameters)' % net_params + c['nc'])
         net.fit(x, y, epochs=net_epochs, batch_size=batch_size)
@@ -357,7 +357,7 @@ def main():
         net_orig = keras.models.load_model(net_name)
         net_orig_conv_layers = sorted(
             [l for l in net_orig.layers if 'conv' in l.name],
-            lambda x, y: int(x.name[7:]) - int(y.name[7:])
+            cmp=lambda x, y: int(x.name[7:]) - int(y.name[7:])
         )
 
         options_s = 'e%d.E%d.D%d.' % (options['epochs'], options['net_epochs'], options['down_factor'])
