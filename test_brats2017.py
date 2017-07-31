@@ -20,6 +20,13 @@ from scipy.ndimage.interpolation import zoom
 from skimage.measure import compare_ssim as ssim
 
 
+def check_dsc(gt_name, image):
+    gt_nii = load_nii(gt_name)
+    gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
+    labels = np.unique(gt.flatten())
+    return [dsc_seg(gt == l, image == l) for l in labels[1:]]
+
+
 def parse_inputs():
     # I decided to separate this function, for easier acces to the command line parameters
     parser = argparse.ArgumentParser(description='Test different nets with 3D data.')
@@ -36,6 +43,7 @@ def parse_inputs():
     parser.add_argument('--no-t1', action='store_false', dest='use_t1', default=True)
     parser.add_argument('--no-t1ce', action='store_false', dest='use_t1ce', default=True)
     parser.add_argument('--no-t2', action='store_false', dest='use_t2', default=True)
+    parser.add_argument('--no-dsc', action='store_false', dest='use_dsc', default=True)
     parser.add_argument('--flair', action='store', dest='flair', default='_flair.nii.gz')
     parser.add_argument('--t1', action='store', dest='t1', default='_t1.nii.gz')
     parser.add_argument('--t1ce', action='store', dest='t1ce', default='_t1ce.nii.gz')
@@ -168,6 +176,7 @@ def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=Non
     c = color_codes()
     p_name = p[0].rsplit('/')[-2]
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
+    # outputname = os.path.join(patient_path, p_name + sufix + '.nii.gz')
     outputname = os.path.join(patient_path, 'deep-brats17.test.' + sufix + '.nii.gz')
     roiname = os.path.join(patient_path, 'deep-brats17.orig.test.' + sufix + '.roi.nii.gz')
     try:
@@ -334,7 +343,8 @@ def main():
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
-    dsc_results = list()
+    dsc_results_o = list()
+    dsc_results_d = list()
 
     net_roi_name = os.path.join(path, 'CBICA-brats2017.D25.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
     net_roi = keras.models.load_model(net_roi_name)
@@ -349,17 +359,12 @@ def main():
             [l for l in net_orig.layers if 'conv' in l.name],
             lambda x, y: int(x.name[7:]) - int(y.name[7:])
         )
-        gt_nii = load_nii(gt_name)
-        gt = np.copy(gt_nii.get_data()).astype(dtype=np.uint8)
-        labels = np.unique(gt.flatten())
 
         options_s = 'e%d.E%d.D%d.' % (options['epochs'], options['net_epochs'], options['down_factor'])
         image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original')
-
-        results_o = [dsc_seg(gt == l, image_o == l) for l in labels[1:]]
-        subject_name = c['c'] + c['b'] + '%s' + c['nc']
-        dsc_string = c['g'] + '/'.join(['%f']*len(results_o)) + c['nc']
-        text = subject_name + ' DSC: ' + dsc_string
+        if options['use_dsc']:
+            results_o = check_dsc(gt_name, image_o)
+            dsc_results_o.append(results_o)
 
         # Now let's create the domain network and train it
         net_new_name = os.path.join(path, 'domain-exp-brats2017.' + options_s + p_name + '.mdl')
@@ -416,17 +421,23 @@ def main():
 
         image_d = test_network(net_orig, p, batch_size, patch_size, sufix=options_s + 'domain')
 
-        results_d = [dsc_seg(gt == l, image_d == l) for l in labels[1:]]
-        results = (p_name,) + tuple(results_o)
-        print(''.join([' ']*14) + 'Original ' + text % results)
-        results = (p_name,) + tuple(results_d)
-        print(''.join([' ']*14) + 'Domain   ' + text % results)
+        if options['use_dsc']:
+            results_d = check_dsc(gt_name, image_d)
+            dsc_results_o.append(results_o)
 
-        dsc_results.append(results_o + results_d)
+            subject_name = c['c'] + c['b'] + '%s' + c['nc']
+            dsc_string = c['g'] + '/'.join(['%f']*len(results_o)) + c['nc']
+            text = subject_name + ' DSC: ' + dsc_string
+            results = (p_name,) + tuple(results_o)
+            print(''.join([' ']*14) + 'Original ' + text % results)
+            results = (p_name,) + tuple(results_d)
+            print(''.join([' ']*14) + 'Domain   ' + text % results)
 
-    print(np.asarray(dsc_results))
-    f_dsc = tuple(np.asarray(dsc_results).mean(axis=0))
-    print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
+    f_dsc_o = tuple([np.array([dsc[i] for dsc in dsc_results_o]).mean() for i in range(3)])
+    f_dsc_d = tuple([np.array([dsc[i] for dsc in dsc_results_d]).mean() for i in range(3)])
+    f_dsc = f_dsc_o + f_dsc_d
+    if options['use_dsc']:
+        print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
 
 
 if __name__ == '__main__':
