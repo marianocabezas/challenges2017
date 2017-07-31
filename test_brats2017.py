@@ -381,7 +381,7 @@ def main():
                 image_r = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
                 roi = np.logical_and(image_r.astype(dtype=np.bool), image_o.astype(dtype=np.bool))
                 p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
-                data, clip = clip_to_roi(p_images, roi)
+                data, clip = clip_to_roi(p_images, roi) if np.count_nonzero(roi) > 0 else clip_to_roi(p_images, image_r)
                 data_s = c['g'] + c['b'] + 'x'.join(['%d' % i_len for i_len in data.shape[1:]]) + c['nc']
                 print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'domain' + c['nc'] +
                       c['g'] + ' data' + c['nc'] + c['g'] + '(shape = ' + data_s + c['g'] + ')' + c['nc'])
