@@ -240,11 +240,9 @@ def get_iseg_experimental4(input_shape, filters_list, kernel_size_list, dense_si
     full = Conv3D(4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
 
     rf = full
-    print(K.int_shape(rf))
 
-    while np.product(K.int_shape(rf)[1:]) > 1:
+    while np.product(K.int_shape(rf)[2:]) > 1:
         rf = Conv3D(4, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
-        print(K.int_shape(rf), np.product(K.int_shape(rf)[1:]))
     rf = Flatten()(rf)
 
     # FC labeling
