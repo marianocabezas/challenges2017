@@ -367,60 +367,64 @@ def main():
             dsc_results_o.append(results_o)
 
         # Now let's create the domain network and train it
-        net_new_name = os.path.join(path, 'domain-exp-brats2017.' + options_s + p_name + '.mdl')
+        outputname = os.path.join('/'.join(p[0].rsplit('/')[:-1]), 'deep-brats17.test.' + options_s + 'domain.nii.gz')
         try:
-            net_new = keras.models.load_model(net_new_name)
-            net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
+            image_d = load_nii(outputname).get_data()
         except IOError:
-            # First we get the tumor ROI
-            image_r = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
-            roi = np.logical_and(image_r.astype(dtype=np.bool), image_o.astype(dtype=np.bool))
-            p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
-            data, clip = clip_to_roi(p_images, roi)
-            data_s = c['g'] + c['b'] + 'x'.join(['%d' % i_len for i_len in data.shape[1:]]) + c['nc']
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'domain' + c['nc'] +
-                  c['g'] + ' data' + c['nc'] + c['g'] + '(shape = ' + data_s + c['g'] + ')' + c['nc'])
-            # We prepare the zoomed tumors for training
-            roi_name = os.path.join(path, p_name + '.roi.pkl')
-            mask_name = os.path.join(path, p_name + '.mask.pkl')
-            image_name = os.path.join(path, p_name + '.image.pkl')
-            rate_name = os.path.join(path, p_name + '.rate.pkl')
+            net_new_name = os.path.join(path, 'domain-exp-brats2017.' + options_s + p_name + '.mdl')
             try:
-                train_roi = pickle.load(open(roi_name, 'rb'))
-                train_mask = pickle.load(open(mask_name, 'rb'))
-                train_image = pickle.load(open(image_name, 'rb'))
-                train_rate = pickle.load(open(rate_name, 'rb'))
+                net_new = keras.models.load_model(net_new_name)
+                net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             except IOError:
-                train_num, train_roi, train_rate = get_best_roi(data, train_data, train_labels)
-                train_image = np.stack(load_norm_list(train_data[train_num])).astype(dtype=np.float32)
-                train_mask = load_nii(train_labels[train_num]).get_data().astype(dtype=np.uint8)
-                pickle.dump(train_roi, open(roi_name, 'wb'))
-                pickle.dump(train_mask, open(mask_name, 'wb'))
-                pickle.dump(train_image, open(image_name, 'wb'))
-                pickle.dump(train_rate, open(rate_name, 'wb'))
-            _, train_clip = clip_to_roi(train_image, train_mask)
+                # First we get the tumor ROI
+                image_r = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
+                roi = np.logical_and(image_r.astype(dtype=np.bool), image_o.astype(dtype=np.bool))
+                p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
+                data, clip = clip_to_roi(p_images, roi)
+                data_s = c['g'] + c['b'] + 'x'.join(['%d' % i_len for i_len in data.shape[1:]]) + c['nc']
+                print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'domain' + c['nc'] +
+                      c['g'] + ' data' + c['nc'] + c['g'] + '(shape = ' + data_s + c['g'] + ')' + c['nc'])
+                # We prepare the zoomed tumors for training
+                roi_name = os.path.join(path, p_name + '.roi.pkl')
+                mask_name = os.path.join(path, p_name + '.mask.pkl')
+                image_name = os.path.join(path, p_name + '.image.pkl')
+                rate_name = os.path.join(path, p_name + '.rate.pkl')
+                try:
+                    train_roi = pickle.load(open(roi_name, 'rb'))
+                    train_mask = pickle.load(open(mask_name, 'rb'))
+                    train_image = pickle.load(open(image_name, 'rb'))
+                    train_rate = pickle.load(open(rate_name, 'rb'))
+                except IOError:
+                    train_num, train_roi, train_rate = get_best_roi(data, train_data, train_labels)
+                    train_image = np.stack(load_norm_list(train_data[train_num])).astype(dtype=np.float32)
+                    train_mask = load_nii(train_labels[train_num]).get_data().astype(dtype=np.uint8)
+                    pickle.dump(train_roi, open(roi_name, 'wb'))
+                    pickle.dump(train_mask, open(mask_name, 'wb'))
+                    pickle.dump(train_image, open(image_name, 'wb'))
+                    pickle.dump(train_rate, open(rate_name, 'wb'))
+                _, train_clip = clip_to_roi(train_image, train_mask)
 
-            train_x = zoom(train_image, train_rate)
-            train_y = zoom(train_mask, train_rate[1:], order=0)
+                train_x = zoom(train_image, train_rate)
+                train_y = zoom(train_mask, train_rate[1:], order=0)
 
-            # We create the domain network
-            net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
-            net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
+                # We create the domain network
+                net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list)
+                net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
+                for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
+                    l_new.set_weights(l_orig.get_weights())
+
+                # Transfer learning
+                train_centers_r = [range(int(cl[0] * tr), int(cl[1] * tr)) for cl, tr in zip(train_clip, train_rate[1:])]
+                train_centers = list(product(*train_centers_r))
+
+                transfer_learning(net_new, net_orig, data, train_x, train_y, train_roi, train_centers, options)
+                net_new.save(net_new_name)
+
+            # Now we transfer the new weights an re-test
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
-                l_new.set_weights(l_orig.get_weights())
+                l_orig.set_weights(l_new.get_weights())
 
-            # Transfer learning
-            train_centers_r = [range(int(cl[0] * tr), int(cl[1] * tr)) for cl, tr in zip(train_clip, train_rate[1:])]
-            train_centers = list(product(*train_centers_r))
-
-            transfer_learning(net_new, net_orig, data, train_x, train_y, train_roi, train_centers, options)
-            net_new.save(net_new_name)
-
-        # Now we transfer the new weights an re-test
-        for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
-            l_orig.set_weights(l_new.get_weights())
-
-        image_d = test_network(net_orig, p, batch_size, patch_size, sufix=options_s + 'domain')
+            image_d = test_network(net_orig, p, batch_size, patch_size, sufix=options_s + 'domain')
 
         if options['use_dsc']:
             results_d = check_dsc(gt_name, image_d)
