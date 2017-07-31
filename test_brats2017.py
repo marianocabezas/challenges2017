@@ -340,6 +340,7 @@ def main():
     filters_list = n_filters if len(n_filters) > 1 else n_filters*conv_blocks
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
+    options_s = 'e%d.E%d.D%d.' % (options['epochs'], options['net_epochs'], options['down_factor'])
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
@@ -352,25 +353,23 @@ def main():
         p_name = p[0].rsplit('/')[-2]
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
               c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
-
-        # First let's test the original network
-        net_orig = keras.models.load_model(net_name)
-        net_orig_conv_layers = sorted(
-            [l for l in net_orig.layers if 'conv' in l.name],
-            cmp=lambda x, y: int(x.name[7:]) - int(y.name[7:])
-        )
-
-        options_s = 'e%d.E%d.D%d.' % (options['epochs'], options['net_epochs'], options['down_factor'])
-        image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original')
-        if options['use_dsc']:
-            results_o = check_dsc(gt_name, image_o)
-            dsc_results_o.append(results_o)
-
-        # Now let's create the domain network and train it
-        outputname = os.path.join('/'.join(p[0].rsplit('/')[:-1]), 'deep-brats17.test.' + options_s + 'domain.nii.gz')
         try:
+            patient_path = '/'.join(p[0].rsplit('/')[:-1])
+            outputname = os.path.join(patient_path, 'deep-brats17.test.original.nii.gz')
+            image_o = load_nii(outputname).get_data()
+            outputname = os.path.join(patient_path, 'deep-brats17.test.' + options_s + 'domain.nii.gz')
             image_d = load_nii(outputname).get_data()
         except IOError:
+            # First let's test the original network
+            net_orig = keras.models.load_model(net_name)
+            net_orig_conv_layers = sorted(
+                [l for l in net_orig.layers if 'conv' in l.name],
+                cmp=lambda x, y: int(x.name[7:]) - int(y.name[7:])
+            )
+
+            image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original')
+
+            # Now let's create the domain network and train it
             net_new_name = os.path.join(path, 'domain-exp-brats2017.' + options_s + p_name + '.mdl')
             try:
                 net_new = keras.models.load_model(net_new_name)
@@ -427,6 +426,8 @@ def main():
             image_d = test_network(net_orig, p, batch_size, patch_size, sufix=options_s + 'domain')
 
         if options['use_dsc']:
+            results_o = check_dsc(gt_name, image_o)
+            dsc_results_o.append(results_o)
             results_d = check_dsc(gt_name, image_d)
             dsc_results_o.append(results_o)
 
