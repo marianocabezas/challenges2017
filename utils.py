@@ -71,7 +71,6 @@ def get_biggest_region(labels, opening=False):
     nu_labels = np.copy(labels)
     bin_mask = labels.astype(dtype=np.bool)
     if opening:
-        print(bin_mask.shape)
         strel = nd.morphology.iterate_structure(nd.morphology.generate_binary_structure(3, 3), 5)
         bin_op_mask = nd.morphology.binary_opening(bin_mask, strel)
         if np.count_nonzero(bin_op_mask) > 0:
