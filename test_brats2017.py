@@ -371,6 +371,12 @@ def main():
             outputname = os.path.join(patient_path, 'deep-brats17.test.' + options_s + 'domain.nii.gz')
             image_d = load_nii(outputname).get_data()
         except IOError:
+            net_orig = keras.models.load_model(net_name)
+            net_orig_conv_layers = sorted(
+                [l for l in net_orig.layers if 'conv' in l.name],
+                cmp=lambda x, y: int(x.name[7:]) - int(y.name[7:])
+            )
+
             # Now let's create the domain network and train it
             net_new_name = os.path.join(path, 'domain-exp-brats2017.' + options_s + p_name + '.mdl')
             try:
