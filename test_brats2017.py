@@ -351,14 +351,12 @@ def main():
     net_roi = keras.models.load_model(net_roi_name)
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
         p_name = p[0].rsplit('/')[-2]
+        patient_path = '/'.join(p[0].rsplit('/')[:-1])
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
               c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
         try:
-            patient_path = '/'.join(p[0].rsplit('/')[:-1])
             outputname = os.path.join(patient_path, 'deep-brats17.test.original.nii.gz')
             image_o = load_nii(outputname).get_data()
-            outputname = os.path.join(patient_path, 'deep-brats17.test.' + options_s + 'domain.nii.gz')
-            image_d = load_nii(outputname).get_data()
         except IOError:
             # First let's test the original network
             net_orig = keras.models.load_model(net_name)
@@ -369,6 +367,10 @@ def main():
 
             image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original')
 
+        try:
+            outputname = os.path.join(patient_path, 'deep-brats17.test.' + options_s + 'domain.nii.gz')
+            image_d = load_nii(outputname).get_data()
+        except IOError:
             # Now let's create the domain network and train it
             net_new_name = os.path.join(path, 'domain-exp-brats2017.' + options_s + p_name + '.mdl')
             try:
