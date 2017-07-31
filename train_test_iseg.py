@@ -156,7 +156,10 @@ def train_net(fold_n, train_data, train_labels, options):
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
               c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(net.summary())
-        callbacks = [EarlyStopping(patience=5), ModelCheckpoint(net_name, save_best_only=True)]
+        callbacks = [
+            EarlyStopping(monitor='val_brain_loss', patience=5),
+            ModelCheckpoint(net_name, monitor='val_brain_loss', save_best_only=True)
+        ]
         net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs, callbacks=callbacks)
         # net.save(net_name)
         net = load_model(net_name)
