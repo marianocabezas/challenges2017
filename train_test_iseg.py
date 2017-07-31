@@ -27,6 +27,7 @@ def parse_inputs():
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=1024)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
     parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=1)
+    parser.add_argument('-p', '--patience', dest='patience', type=int, default=5)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=50)
     parser.add_argument('-E', '--experimental', action='store', dest='experimental', type=int, default=0)
@@ -157,7 +158,7 @@ def train_net(fold_n, train_data, train_labels, options):
               c['g'] + 'Training the model ' + c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
         print(net.summary())
         callbacks = [
-            EarlyStopping(monitor='val_brain_loss', patience=5),
+            EarlyStopping(monitor='val_brain_loss', patience=options['patience']),
             ModelCheckpoint(net_name, monitor='val_brain_loss', save_best_only=True)
         ]
         net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs, callbacks=callbacks)
