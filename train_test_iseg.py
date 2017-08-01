@@ -221,7 +221,7 @@ def test_net(net, p, gt_name, options):
         )
         [x, y, z] = np.stack(centers, axis=1)
 
-        if options['experimental'] == 3:
+        if options['experimental'] >= 3:
             y_pr_pred = y_pr_pred[:-1]
 
         for num, results in enumerate(y_pr_pred):
