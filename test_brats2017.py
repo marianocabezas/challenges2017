@@ -437,7 +437,7 @@ def main():
             results_o = check_dsc(gt_name, image_o)
             dsc_results_o.append(results_o)
             results_d = check_dsc(gt_name, image_d)
-            dsc_results_o.append(results_o)
+            dsc_results_d.append(results_d)
 
             subject_name = c['c'] + c['b'] + '%s' + c['nc']
             dsc_string = c['g'] + '/'.join(['%f']*len(results_o)) + c['nc']
