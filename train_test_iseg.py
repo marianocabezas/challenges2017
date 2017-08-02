@@ -162,8 +162,8 @@ def train_net(fold_n, train_data, train_labels, options):
             ModelCheckpoint(net_name, monitor='val_brain_loss', save_best_only=True)
         ]
         net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs, callbacks=callbacks)
-        # net.save(net_name)
-        net = load_model(net_name)
+        net.save(net_name)
+        # net = load_model(net_name)
     return net
 
 
