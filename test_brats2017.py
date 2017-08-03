@@ -447,10 +447,10 @@ def main():
             results = (p_name,) + tuple(results_d)
             print(''.join([' ']*14) + 'Domain   ' + text % results)
 
-    f_dsc_o = tuple([np.array([dsc[i] for dsc in dsc_results_o if len(dsc) > i]).mean() for i in range(3)])
-    f_dsc_d = tuple([np.array([dsc[i] for dsc in dsc_results_d if len(dsc) > i]).mean() for i in range(3)])
-    f_dsc = f_dsc_o + f_dsc_d
     if options['use_dsc']:
+        f_dsc_o = tuple([np.array([dsc[i] for dsc in dsc_results_o if len(dsc) > i]).mean() for i in range(3)])
+        f_dsc_d = tuple([np.array([dsc[i] for dsc in dsc_results_d if len(dsc) > i]).mean() for i in range(3)])
+        f_dsc = f_dsc_o + f_dsc_d
         print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
 
 
