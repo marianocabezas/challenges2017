@@ -22,7 +22,7 @@ def compile_network(inputs, outputs, weights):
 def get_convolutional_block(input_l, filters_list, kernel_size_list, activation=PReLU, drop=0.5):
     for filters, kernel_size in zip(filters_list, kernel_size_list):
         input_l = Conv3D(filters, kernel_size=kernel_size, data_format='channels_first')(input_l)
-        input_l = BatchNormalization(axis=1)(input_l)
+        # input_l = BatchNormalization(axis=1)(input_l)
         input_l = activation()(input_l)
         input_l = Dropout(drop)(input_l)
 

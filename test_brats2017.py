@@ -171,16 +171,16 @@ def transfer_learning(
         l_orig.set_weights(l_new.get_weights())
 
 
-def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None):
+def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=None, filename=None):
 
     c = color_codes()
     p_name = p[0].rsplit('/')[-2]
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
-    outputname = os.path.join(patient_path, p_name + '.nii.gz')
-    # outputname = os.path.join(patient_path, 'deep-brats17.test.' + sufix + '.nii.gz')
-    roiname = os.path.join(patient_path, 'deep-brats17.orig.test.' + sufix + '.roi.nii.gz')
+    outputname = filename if filename is not None else 'deep-brats17.test.' + sufix
+    outputname_path = os.path.join(patient_path, outputname + '.nii.gz')
+    roiname = os.path.join(patient_path, outputname + '.roi.nii.gz')
     try:
-        image = load_nii(outputname).get_data()
+        image = load_nii(outputname_path).get_data()
         load_nii(roiname)
     except IOError:
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing ' +
@@ -231,7 +231,7 @@ def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=Non
         image = get_biggest_region(image, is_roi)
         print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
         roi_nii.get_data()[:] = image
-        roi_nii.to_filename(outputname)
+        roi_nii.to_filename(outputname_path)
     return image
 
 
@@ -355,9 +355,7 @@ def main():
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
               c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
         try:
-            outputname = os.path.join(patient_path, p_name + '.nii.gz')
-            # outputname = os.path.join(patient_path, 'deep-brats17.test.original.nii.gz')
-            image_o = load_nii(outputname).get_data()
+            image_o = load_nii(os.path.join(patient_path, p_name + '.nii.gz')).get_data()
         except IOError:
             # First let's test the original network
             net_orig = keras.models.load_model(net_name)
@@ -366,11 +364,11 @@ def main():
                 cmp=lambda x, y: int(x.name[7:]) - int(y.name[7:])
             )
 
-            image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original')
+            image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original', filename=p_name)
 
         try:
-            outputname = os.path.join(patient_path, 'deep-brats17.test.' + options_s + 'domain.nii.gz')
-            image_d = load_nii(outputname).get_data()
+            outputname = 'deep-brats17.test.' + options_s + 'domain'
+            image_d = load_nii(os.path.join(patient_path, outputname + '.nii.gz')).get_data()
         except IOError:
             net_orig = keras.models.load_model(net_name)
             net_orig_conv_layers = sorted(
@@ -385,7 +383,7 @@ def main():
                 net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             except IOError:
                 # First we get the tumor ROI
-                image_r = test_network(net_roi, p, batch_size, patch_size, sufix='tumor')
+                image_r = test_network(net_roi, p, batch_size, patch_size, sufix='tumor', filename=outputname)
                 roi = np.logical_and(image_r.astype(dtype=np.bool), image_o.astype(dtype=np.bool))
                 p_images = np.stack(load_norm_list(p)).astype(dtype=np.float32)
                 data, clip = clip_to_roi(p_images, roi) if np.count_nonzero(roi) > 0 else clip_to_roi(p_images, image_r)
