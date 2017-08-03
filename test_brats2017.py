@@ -176,8 +176,8 @@ def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=Non
     c = color_codes()
     p_name = p[0].rsplit('/')[-2]
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
-    # outputname = os.path.join(patient_path, p_name + sufix + '.nii.gz')
-    outputname = os.path.join(patient_path, 'deep-brats17.test.' + sufix + '.nii.gz')
+    outputname = os.path.join(patient_path, p_name + '.nii.gz')
+    # outputname = os.path.join(patient_path, 'deep-brats17.test.' + sufix + '.nii.gz')
     roiname = os.path.join(patient_path, 'deep-brats17.orig.test.' + sufix + '.roi.nii.gz')
     try:
         image = load_nii(outputname).get_data()
