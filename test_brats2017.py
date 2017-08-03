@@ -229,7 +229,7 @@ def test_network(net, p, batch_size, patch_size, queue=50, sufix='', centers=Non
         image[x, y, z] = tumor if is_roi else y_pred
         # Post-processing (Basically keep the biggest connected region)
         image = get_biggest_region(image, is_roi)
-        print(c['g'] + '                   -- Saving image ' + c['b'] + outputname + c['nc'])
+        print(c['g'] + '                   -- Saving image ' + c['b'] + outputname_path + c['nc'])
         roi_nii.get_data()[:] = image
         roi_nii.to_filename(outputname_path)
     return image
