@@ -355,7 +355,8 @@ def main():
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
               c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
         try:
-            outputname = os.path.join(patient_path, 'deep-brats17.test.original.nii.gz')
+            outputname = os.path.join(patient_path, p_name + '.nii.gz')
+            # outputname = os.path.join(patient_path, 'deep-brats17.test.original.nii.gz')
             image_o = load_nii(outputname).get_data()
         except IOError:
             # First let's test the original network
