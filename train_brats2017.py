@@ -140,7 +140,7 @@ def main():
     fc_width = patch_width - sum(kernel_size_list) + conv_blocks
     fc_shape = (fc_width,) * 3
 
-    checkpoint = net_name + '{epoch:02d}.{tumor_val_acc:.2f}.hdf5'
+    checkpoint = net_name + '{epoch:02d}.{val_tumor_acc:.2f}.hdf5'
     callbacks = [
         EarlyStopping(monitor='val_tumor_loss', patience=options['patience']),
         ModelCheckpoint(os.path.join(path, checkpoint), monitor='val_tumor_loss', save_best_only=True)

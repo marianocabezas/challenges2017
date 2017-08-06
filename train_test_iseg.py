@@ -107,7 +107,7 @@ def train_net(fold_n, train_data, train_labels, options):
     sufix = get_sufix(options)
 
     net_name = os.path.join(path, 'iseg2017.fold%d' % fold_n + sufix + 'mdl')
-    checkpoint = 'iseg2017.fold%d' % fold_n + sufix + '{epoch:02d}.{brain_val_acc:.2f}.hdf5'
+    checkpoint = 'iseg2017.fold%d' % fold_n + sufix + '{epoch:02d}.{val_brain_acc:.2f}.hdf5'
 
     c = color_codes()
     try:
