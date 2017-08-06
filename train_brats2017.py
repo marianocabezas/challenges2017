@@ -83,6 +83,7 @@ def train_net(net, train_data, train_labels, options, net_name, nlabels):
     dfactor = options['dfactor']
     # Prepare the net hyperparameters
     epochs = options['epochs']
+    r_epochs = options['r_epochs']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
     batch_size = options['batch_size']
@@ -105,8 +106,8 @@ def train_net(net, train_data, train_labels, options, net_name, nlabels):
         ModelCheckpoint(os.path.join(path, checkpoint), monitor='val_tumor_loss', save_best_only=True)
     ]
 
-    for i in range(options['r_epochs']):
-        print(c['b'] + 'Epoch %d/%d ' % (i + 1, epochs) + c['nc'])
+    for i in range(r_epochs):
+        print(c['b'] + 'Epoch %d/%d ' % (i + 1, r_epochs) + c['nc'])
         try:
             net = load_model(net_name + ('e%d.' % i) + 'mdl')
         except IOError:
