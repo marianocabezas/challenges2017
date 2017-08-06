@@ -29,8 +29,9 @@ def norm(image):
     return (image - image_nonzero.mean()) / image_nonzero.std()
 
 
-def norm_load(image_name):
-    print(''.join([' '] * 15) + '- Norm image ' + image_name)
+def norm_load(image_name, verbose=0):
+    if verbose:
+        print(''.join([' '] * 15) + '- Norm image ' + image_name)
     return norm(load_nii(image_name).get_data())
 
 
