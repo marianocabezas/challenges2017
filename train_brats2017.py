@@ -138,6 +138,8 @@ def main():
     fc_width = patch_width - sum(kernel_size_list) + conv_blocks
     fc_shape = (fc_width,) * 3
 
+    print(fc_shape)
+
     for _ in range(options['r_epochs']):
         train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
         train_samples = len(train_centers) / dfactor

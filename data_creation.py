@@ -127,7 +127,6 @@ def get_xy(
                         for l, lc in izip(labels_generator(label_names), centers)]
                 y_fc = np.concatenate(y_fc)
                 y_fc[idx] = y_fc
-                print(y_fc.shape)
                 y = [
                     keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=nlabels),
                     keras.utils.to_categorical(y_fc, num_classes=nlabels).reshape((len(y_fc), -1, nlabels))
