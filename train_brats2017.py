@@ -119,7 +119,7 @@ def main():
     full = PReLU()(full)
     full = Conv3D(2, kernel_size=(1, 1, 1), data_format='channels_first')(full)
 
-    rf = concatenate([conv, full])
+    rf = concatenate([conv, full], axis=1)
 
     while np.product(K.int_shape(rf)[2:]) > 1:
         rf = Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
