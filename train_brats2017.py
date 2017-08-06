@@ -129,7 +129,7 @@ def main():
     full = Permute((2, 1))(full)
     full_out = Activation('softmax', name='fc_out')(full)
 
-    tumor = Dense(2, activation='softmax', name='tumor')(rf)
+    tumor = Dense(2, activation='softmax', name='tumor')(Flatten()(rf))
 
     outputs = [tumor, full_out]
 
