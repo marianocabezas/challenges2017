@@ -3,7 +3,8 @@ import argparse
 import os
 from time import strftime
 import numpy as np
-from keras.models import Model
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.models import Model, load_model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, PReLU, Input, Reshape, Permute, Activation, concatenate
 from utils import color_codes
 from data_creation import get_cnn_centers, load_patches_train
@@ -99,7 +100,7 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + c['g'] +
           'Number of training images (%d=%d)' % (len(train_data), len(train_labels)) + c['nc'])
     #  Also, prepare the network
-    net_name = os.path.join(path, 'CBICA-brats2017' + sufix + 'mdl')
+    net_name = os.path.join(path, 'CBICA-brats2017' + sufix)
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' + c['nc'])
     input_shape = (train_data.shape[1],) + patch_size
@@ -138,33 +139,42 @@ def main():
     fc_width = patch_width - sum(kernel_size_list) + conv_blocks
     fc_shape = (fc_width,) * 3
 
-    for _ in range(options['r_epochs']):
-        train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
-        train_samples = len(train_centers) / dfactor
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
-              c['b'] + '(%d centers)' % (len(train_centers) / dfactor) + c['nc'])
-        x, y = load_patches_train(
-            image_names=train_data,
-            label_names=train_labels,
-            centers=train_centers,
-            size=patch_size,
-            fc_shape=fc_shape,
-            nlabels=2,
-            dfactor=dfactor,
-            preload=preload,
-            split=True,
-            iseg=False,
-            experimental=1,
-            datatype=np.float32
-        )
+    checkpoint = net_name + '{epoch:02d}.{brain_val_acc:.2f}.hdf5'
+    callbacks = [
+        EarlyStopping(monitor='val_brain_loss', patience=options['patience']),
+        ModelCheckpoint(os.path.join(path, checkpoint), monitor='val_brain_loss', save_best_only=True)
+    ]
 
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-              c['g'] + 'Training the model with a generator for ' +
-              c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
-        print(net.summary())
+    for i in range(options['r_epochs']):
+        try:
+            net = load_model(net_name + ('e%d.' % i) + 'mdl')
+        except IOError:
+            train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
+            train_samples = len(train_centers) / dfactor
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
+                  c['b'] + '(%d centers)' % (len(train_centers) / dfactor) + c['nc'])
+            x, y = load_patches_train(
+                image_names=train_data,
+                label_names=train_labels,
+                centers=train_centers,
+                size=patch_size,
+                fc_shape=fc_shape,
+                nlabels=2,
+                dfactor=dfactor,
+                preload=preload,
+                split=True,
+                iseg=False,
+                experimental=1,
+                datatype=np.float32
+            )
 
-        net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs)
-    net.save(net_name)
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
+                  c['g'] + 'Training the model with a generator for ' +
+                  c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
+            print(net.summary())
+
+            net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
+            net.save(net_name + ('e%d.' % i) + 'mdl')
 
 
 if __name__ == '__main__':

@@ -107,12 +107,12 @@ def train_net(fold_n, train_data, train_labels, options):
     sufix = get_sufix(options)
 
     net_name = os.path.join(path, 'iseg2017.fold%d' % fold_n + sufix + 'mdl')
-    checkpooint = 'iseg2017.fold%d' % fold_n + sufix + '{epoch:02d}.{brain_val_acc:.2f}.hdf5'
+    checkpoint = 'iseg2017.fold%d' % fold_n + sufix + '{epoch:02d}.{brain_val_acc:.2f}.hdf5'
 
     c = color_codes()
     try:
         net = load_model(net_name)
-        net.load_weights(os.path.join(path, checkpooint))
+        net.load_weights(os.path.join(path, checkpoint))
     except IOError:
         # Data loading
         train_centers = get_cnn_centers(train_data[:, 0], train_labels)
@@ -161,11 +161,11 @@ def train_net(fold_n, train_data, train_labels, options):
         print(net.summary())
         callbacks = [
             EarlyStopping(monitor='val_brain_loss', patience=options['patience']),
-            ModelCheckpoint(os.path.join(path, checkpooint), monitor='val_brain_loss', save_best_only=True)
+            ModelCheckpoint(os.path.join(path, checkpoint), monitor='val_brain_loss', save_best_only=True)
         ]
         net.save(net_name)
         net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs, callbacks=callbacks)
-        net.load_weights(os.path.join(path, checkpooint))
+        net.load_weights(os.path.join(path, checkpoint))
     return net
 
 
