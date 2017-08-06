@@ -107,7 +107,7 @@ def get_xy(
             )
             y_cat = [keras.utils.to_categorical(y_cat, num_classes=labels)]
             if experimental >= 3:
-                y_fc = [np.asarray(get_patches(l, lc, fc_shape, preload))
+                y_fc = [np.asarray(get_patches(l, lc, fc_shape))
                         for l, lc in izip(labels_generator(label_names), centers)]
                 y_fc = np.concatenate(y_fc)
                 y_fc[idx] = y_fc
@@ -123,10 +123,8 @@ def get_xy(
             y = y_labels + y_cat
         else:
             if experimental == 1:
-                y_fc = [np.asarray(get_patches(l, lc, fc_shape, preload), dtype=np.bool)
+                y_fc = [np.asarray(get_patches(l, lc, fc_shape), dtype=np.bool)
                         for l, lc in izip(labels_generator(label_names), centers)]
-                for y_fci in y_fc:
-                    print(y_fci.shape)
                 y_fc = np.concatenate(y_fc)
                 print(y_fc.shape)
                 y_fc[idx] = y_fc
