@@ -163,7 +163,7 @@ def main():
         centers=train_centers,
         size=patch_size,
         fc_shape=fc_shape,
-        nlabels=4,
+        nlabels=2,
         dfactor=dfactor,
         preload=preload,
         split=True,

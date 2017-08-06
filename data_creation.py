@@ -104,7 +104,9 @@ def get_xy(
                 y_fc_cat = np.sum(
                     map(lambda (lab, val): (y_fc == val).astype(dtype=np.uint8) * lab, enumerate(vals)), axis=0
                 )
-                y_fc_cat = [keras.utils.to_categorical(y_fc_cat, num_classes=labels).reshape((len(y_fc), -1, 4))]
+                y_fc_cat = [
+                    keras.utils.to_categorical(y_fc_cat, num_classes=labels).reshape((len(y_fc), -1, labels))
+                ]
                 y_cat = y_cat + y_fc_cat
             elif experimental > 1:
                 y_cat *= 3
@@ -118,8 +120,8 @@ def get_xy(
                 y = y.astype(dtype=np.bool)
                 y_fc = y_fc.astype(dtype=np.bool)
                 y = [
-                    keras.utils.to_categorical(y, num_classes=2),
-                    keras.utils.to_categorical(y_fc, num_classes=2).reshape((len(y_fc), -1, 2))
+                    keras.utils.to_categorical(y, num_classes=nlabels),
+                    keras.utils.to_categorical(y_fc, num_classes=nlabels).reshape((len(y_fc), -1, nlabels))
                 ]
             else:
                 y = [
