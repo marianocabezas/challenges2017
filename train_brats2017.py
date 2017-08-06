@@ -3,6 +3,7 @@ import argparse
 import os
 from time import strftime
 import numpy as np
+import kears as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model, load_model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, PReLU, Input, Reshape, Permute, Activation, concatenate
@@ -117,14 +118,18 @@ def main():
     full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(conv)
     full = PReLU()(full)
     full = Conv3D(2, kernel_size=(1, 1, 1), data_format='channels_first')(full)
+
+    rf = concatenate([conv, full])
+
+    while np.product(K.int_shape(rf)[2:]) > 1:
+        rf = Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
+        rf = Dropout(0.5)(rf)
+
     full = Reshape((2, -1))(full)
     full = Permute((2, 1))(full)
     full_out = Activation('softmax', name='fc_out')(full)
 
-    dense = concatenate([Flatten()(conv), Flatten()(full)])
-    dense = Dense(dense_size, activation='relu')(dense)
-    dense = Dropout(0.5)(dense)
-    tumor = Dense(2, activation='softmax', name='tumor')(dense)
+    tumor = Dense(2, activation='softmax', name='tumor')(rf)
 
     outputs = [tumor, full_out]
 
