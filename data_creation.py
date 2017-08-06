@@ -81,10 +81,14 @@ def get_xy(
 ):
     n_images = len(image_list)
     centers, idx = centers_and_idx(batch_centers, n_images)
+    print([' '] * 14 + 'x loading')
     x = filter(lambda z: z.any(), get_patches_list(image_list, centers, size, preload))
     x = np.concatenate(x)
+    print([' '] * 14 + '- concatenation')
     x[idx] = x
+    print([' '] * 14 + 'y loading')
     y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
+    print([' '] * 14 + '- concatenation')
     y = np.concatenate(y)
     y[idx] = y
     if split:
