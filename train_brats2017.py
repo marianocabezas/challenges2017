@@ -101,10 +101,7 @@ def main():
     #  Also, prepare the network
     net_name = os.path.join(path, 'CBICA-brats2017' + sufix + 'mdl')
 
-    train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
-    train_samples = len(train_centers)/dfactor
-    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
-          c['b'] + '(%d samples)' % train_samples + c['nc'])
+    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' + c['nc'])
     input_shape = (train_data.shape[1],) + patch_size
 
     # Sequential model that merges all 4 images. This architecture is just a set of convolutional blocks
@@ -142,6 +139,8 @@ def main():
     fc_shape = (fc_width,) * 3
 
     for _ in range(options['r_epochs']):
+        train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
+        train_samples = len(train_centers) / dfactor
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
               c['b'] + '(%d centers)' % (len(train_centers) / dfactor) + c['nc'])
         x, y = load_patches_train(
