@@ -73,6 +73,7 @@ def get_net(input_shape, filters_list, kernel_size_list, dense_size, nlabels):
         loss_weights=[0.8, 1.0],
         metrics=['accuracy']
     )
+    print(net.summary())
 
     return net
 
@@ -129,7 +130,6 @@ def train_net(net, train_data, train_labels, options, net_name, nlabels):
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the model for ' +
                   c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
-            print(net.summary())
 
             net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
             net.save(net_name + ('e%d.' % i) + 'mdl')
