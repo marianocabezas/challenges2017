@@ -115,9 +115,11 @@ def get_xy(
                         for l, lc in izip(labels_generator(label_names), centers)]
                 y_fc = np.concatenate(y_fc)
                 y_fc[idx] = y_fc
+                y = y.astype(dtype=np.bool)
+                y_fc = y_fc.astype(dtype=np.bool)
                 y = [
-                    keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=2),
-                    keras.utils.to_categorical(np.copy(y_fc), num_classes=2).reshape((len(y_fc), -1, 2))
+                    keras.utils.to_categorical(y, num_classes=2),
+                    keras.utils.to_categorical(y_fc, num_classes=2).reshape((len(y_fc), -1, 2))
                 ]
             else:
                 y = [

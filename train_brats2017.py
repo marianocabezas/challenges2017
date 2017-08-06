@@ -132,8 +132,8 @@ def main():
 
     full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(conv)
     full = PReLU()(full)
-    full = Conv3D(4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
-    full = Reshape((4, -1))(full)
+    full = Conv3D(2, kernel_size=(1, 1, 1), data_format='channels_first')(full)
+    full = Reshape((2, -1))(full)
     full = Permute((2, 1))(full)
     full_out = Activation('softmax', name='fc_out')(full)
 
