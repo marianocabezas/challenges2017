@@ -157,6 +157,8 @@ def main():
           c['g'] + 'Training the model with a generator for ' +
           c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
     print(net.summary())
+    fc_width = patch_width - sum(kernel_size_list) + conv_blocks
+    fc_shape = (fc_width,) * 3
     net.fit_generator(
         generator=load_patch_batch_train(
             image_names=train_data,
@@ -164,6 +166,7 @@ def main():
             centers=train_centers,
             batch_size=batch_size,
             size=patch_size,
+            fc_shape=fc_shape,
             nlabels=num_classes,
             dfactor=dfactor,
             preload=preload,
@@ -177,6 +180,7 @@ def main():
             centers=val_centers,
             batch_size=batch_size,
             size=patch_size,
+            fc_shape=fc_shape,
             nlabels=num_classes,
             dfactor=dfactor,
             preload=preload,
