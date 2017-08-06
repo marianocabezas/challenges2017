@@ -76,6 +76,7 @@ def main():
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     balanced = options['balanced']
+    val_rate = options['val_rate']
     # Data loading parameters
     preload = options['preload']
     queue = options['queue']
@@ -92,19 +93,7 @@ def main():
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting training' + preload_s + c['nc'])
     # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
-    data_names, label_names = get_names_from_path(options)
-
-    shuffled_indices = np.random.permutation(xrange(len(data_names)))
-    data_names = data_names[shuffled_indices]
-    label_names = label_names[shuffled_indices]
-
-    val_rate = options['val_rate']
-
-    val_len = int(len(data_names) * val_rate)
-    train_data = data_names[val_len:]
-    train_labels = label_names[val_len:]
-    val_data = data_names[:val_len]
-    val_labels = label_names[:val_len]
+    train_data, train_labels = get_names_from_path(options)
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + c['g'] +
           'Number of training/validation images (%d=%d/%d=%d)' %
@@ -177,7 +166,7 @@ def main():
           c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
     print(net.summary())
 
-    net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
+    net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs)
     net.save(net_name)
 
 
