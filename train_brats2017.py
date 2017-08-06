@@ -6,7 +6,7 @@ import numpy as np
 from keras.models import Model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, PReLU, Input, Reshape, Permute, Activation, concatenate
 from utils import color_codes
-from data_creation import load_patch_batch_train, get_cnn_centers
+from data_creation import load_patch_batch_train, get_cnn_centers, load_patches_train
 
 
 def parse_inputs():
@@ -159,40 +159,23 @@ def main():
     print(net.summary())
     fc_width = patch_width - sum(kernel_size_list) + conv_blocks
     fc_shape = (fc_width,) * 3
-    net.fit_generator(
-        generator=load_patch_batch_train(
-            image_names=train_data,
-            label_names=train_labels,
-            centers=train_centers,
-            batch_size=batch_size,
-            size=patch_size,
-            fc_shape=fc_shape,
-            nlabels=num_classes,
-            dfactor=dfactor,
-            preload=preload,
-            split=True,
-            datatype=np.float32,
-            experimental=1
-        ),
-        validation_data=load_patch_batch_train(
-            image_names=val_data,
-            label_names=val_labels,
-            centers=val_centers,
-            batch_size=batch_size,
-            size=patch_size,
-            fc_shape=fc_shape,
-            nlabels=num_classes,
-            dfactor=dfactor,
-            preload=preload,
-            split=True,
-            datatype=np.float32,
-            experimental=1
-        ),
-        steps_per_epoch=train_steps_per_epoch,
-        validation_steps=val_steps_per_epoch,
-        max_q_size=queue,
-        epochs=epochs
+
+    x, y = load_patches_train(
+        image_names=train_data,
+        label_names=train_labels,
+        centers=train_centers,
+        size=patch_size,
+        fc_shape=fc_shape,
+        nlabels=4,
+        dfactor=dfactor,
+        preload=preload,
+        split=True,
+        iseg=True,
+        experimental=1,
+        datatype=np.float32
     )
+
+    net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
     net.save(net_name)
 
 
