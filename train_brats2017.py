@@ -3,7 +3,7 @@ import argparse
 import os
 from time import strftime
 import numpy as np
-import kears as K
+import keras as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model, load_model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, PReLU, Input, Reshape, Permute, Activation, concatenate
