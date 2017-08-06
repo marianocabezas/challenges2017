@@ -121,6 +121,7 @@ def main():
 
     rf = concatenate([conv, full], axis=1)
 
+
     while np.product(K.int_shape(rf)[2:]) > 1:
         rf = Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
         rf = Dropout(0.5)(rf)
