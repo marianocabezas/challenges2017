@@ -167,8 +167,7 @@ def load_patch_batch_train(
         iseg=False,
         experimental=False,
 ):
-    image_list = [load_norm_list(patient)
-                  for patient in image_names] if preload or not generator else image_names
+    image_list = [load_norm_list(patient) for patient in image_names] if preload else image_names
     while True:
         gen = load_patch_batch_generator_train(
             image_list=image_list,

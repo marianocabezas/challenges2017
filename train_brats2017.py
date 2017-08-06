@@ -6,7 +6,7 @@ import numpy as np
 from keras.models import Model
 from keras.layers import Dense, Conv3D, Dropout, Flatten, PReLU, Input, Reshape, Permute, Activation, concatenate
 from utils import color_codes
-from data_creation import load_patch_batch_train, get_cnn_centers, load_patches_train
+from data_creation import get_cnn_centers, load_patches_train
 
 
 def parse_inputs():
