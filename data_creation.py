@@ -29,6 +29,11 @@ def norm(image):
     return (image - image_nonzero.mean()) / image_nonzero.std()
 
 
+def norm_load(image_name):
+    print(''.join([' '] * 15) + '- Norm image ' + image_name)
+    return norm(load_nii(image_name).get_data())
+
+
 def load_norm_list(image_list):
     return [norm(load_nii(image).get_data()) for image in image_list]
 
@@ -42,7 +47,7 @@ def subsample(center_list, sizes, random_state):
 
 def get_image_patches(image_list, centers, size, preload):
     patches = [get_patches(image, centers, size) for image in image_list] if preload\
-        else [get_patches(norm(load_nii(name).get_data()), centers, size) for name in image_list]
+        else [get_patches(norm_load(name), centers, size) for name in image_list]
     return np.stack(patches, axis=1)
 
 
@@ -81,14 +86,14 @@ def get_xy(
 ):
     n_images = len(image_list)
     centers, idx = centers_and_idx(batch_centers, n_images)
-    print(''.join([' '] * 14) + 'x loading')
+    print(''.join([' '] * 15) + 'Loading x')
     x = filter(lambda z: z.any(), get_patches_list(image_list, centers, size, preload))
     x = np.concatenate(x)
-    print(''.join([' '] * 14) + '- concatenation')
+    print(''.join([' '] * 15) + '- Concatenation')
     x[idx] = x
-    print(''.join([' '] * 14) + 'y loading')
+    print(''.join([' '] * 15) + 'Loading y')
     y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
-    print(''.join([' '] * 14) + '- concatenation')
+    print(''.join([' '] * 15) + '- Concatenation')
     y = np.concatenate(y)
     y[idx] = y
     if split:
