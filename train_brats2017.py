@@ -30,6 +30,7 @@ def parse_inputs():
     parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
     parser.add_argument('-r', '--recurrent', action='store_true', dest='recurrent', default=False)
     parser.add_argument('-p', '--preload', action='store_true', dest='preload', default=False)
+    parser.add_argument('-P', '--patience', dest='patience', type=int, default=5)
     parser.add_argument('--flair', action='store', dest='flair', default='_flair.nii.gz')
     parser.add_argument('--t1', action='store', dest='t1', default='_t1.nii.gz')
     parser.add_argument('--t1ce', action='store', dest='t1ce', default='_t1ce.nii.gz')
