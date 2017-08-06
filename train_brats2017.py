@@ -154,7 +154,7 @@ def main():
     )
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
-          c['b'] + '(%d centers)' % len(train_centers/dfactor) + c['nc'])
+          c['b'] + '(%d centers)' % len(train_centers)/dfactor + c['nc'])
     fc_width = patch_width - sum(kernel_size_list) + conv_blocks
     fc_shape = (fc_width,) * 3
     x, y = load_patches_train(
