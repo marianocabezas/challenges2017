@@ -105,6 +105,7 @@ def train_net(net, train_data, train_labels, options, net_name, nlabels):
     ]
 
     for i in range(options['r_epochs']):
+        print(c['b'] + 'Epoch %d/%d ' % (i + 1, epochs) + c['nc'])
         try:
             net = load_model(net_name + ('e%d.' % i) + 'mdl')
         except IOError:
