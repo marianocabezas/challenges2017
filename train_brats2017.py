@@ -77,7 +77,7 @@ def get_net(input_shape, filters_list, kernel_size_list, dense_size, nlabels):
     return net
 
 
-def train_net(net, train_data, train_labels, options, net_name, experimental):
+def train_net(net, train_data, train_labels, options, net_name, nlabels):
     # Prepare the net architecture parameters
     dfactor = options['dfactor']
     # Prepare the net hyperparameters
@@ -90,7 +90,6 @@ def train_net(net, train_data, train_labels, options, net_name, experimental):
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width] * conv_blocks
     balanced = options['balanced']
     val_rate = options['val_rate']
-    # Data loading parameters
     preload = options['preload']
 
     path = options['dir_name']
@@ -118,12 +117,12 @@ def train_net(net, train_data, train_labels, options, net_name, experimental):
                 centers=train_centers,
                 size=patch_size,
                 fc_shape=fc_shape,
-                nlabels=2,
+                nlabels=nlabels,
                 dfactor=dfactor,
                 preload=preload,
                 split=True,
                 iseg=False,
-                experimental=experimental,
+                experimental=1,
                 datatype=np.float32
             )
 
@@ -194,14 +193,24 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + c['g'] +
           'Number of training images (%d=%d)' % (len(train_data), len(train_labels)) + c['nc'])
     #  Also, prepare the network
-    net_name = os.path.join(path, 'CBICA-brats2017' + sufix)
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' + c['nc'])
     input_shape = (train_data.shape[1],) + patch_size
 
     # Region based net
     roi_net = get_net(input_shape, filters_list, kernel_size_list, dense_size, 2)
-    train_net(roi_net, train_data, train_labels, options, net_name, 1)
+    roi_net_name = os.path.join(path, 'brats2017-roi' + sufix)
+    train_net(roi_net, train_data, train_labels, options, roi_net_name, 2)
+
+    seg_net = get_net(input_shape, filters_list, kernel_size_list, dense_size, 4)
+
+    roi_net_conv_layers = [l for l in roi_net.layers if 'conv' in l.name]
+    seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]
+    for lr, ls in zip(roi_net_conv_layers, seg_net_conv_layers):
+        ls.set_weights(lr.get_weights())
+
+    seg_net_name = os.path.join(path, 'brats2017-seg' + sufix)
+    train_net(roi_net, train_data, train_labels, options, seg_net_name, 4)
 
 
 if __name__ == '__main__':
