@@ -100,16 +100,15 @@ def train_net(net, train_data, train_labels, options, net_name, nlabels):
     fc_width = patch_width - sum(kernel_size_list) + conv_blocks
     fc_shape = (fc_width,) * 3
 
-    checkpoint = net_name + 'best.hdf5'
-    callbacks = [
-        EarlyStopping(monitor='val_tumor_loss', patience=options['patience']),
-        ModelCheckpoint(os.path.join(path, checkpoint), monitor='val_tumor_loss', save_best_only=True)
-    ]
-
     for i in range(r_epochs):
+        checkpoint = net_name + 'e%d.best.hdf5' % i
+        callbacks = [
+            EarlyStopping(monitor='val_tumor_loss', patience=options['patience']),
+            ModelCheckpoint(os.path.join(path, checkpoint), monitor='val_tumor_loss', save_best_only=True)
+        ]
         print(c['b'] + 'Epoch %d/%d ' % (i + 1, r_epochs) + c['nc'])
         try:
-            net = load_model(net_name + ('e%d.' % i) + 'mdl')
+            net = load_model(checkpoint)
         except IOError:
             train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
@@ -133,8 +132,7 @@ def train_net(net, train_data, train_labels, options, net_name, nlabels):
                   c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
 
             net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
-            net.save(net_name + ('e%d.' % i) + 'mdl')
-    net = load_model(checkpoint)
+            net = load_model(checkpoint)
 
 
 def list_directories(path):
