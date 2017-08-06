@@ -153,13 +153,10 @@ def main():
         metrics=['accuracy']
     )
 
-    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-          c['g'] + 'Training the model with a generator for ' +
-          c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
-    print(net.summary())
+    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
+          c['b'] + '(%d centers)' % len(train_centers) + c['nc'])
     fc_width = patch_width - sum(kernel_size_list) + conv_blocks
     fc_shape = (fc_width,) * 3
-
     x, y = load_patches_train(
         image_names=train_data,
         label_names=train_labels,
@@ -174,6 +171,11 @@ def main():
         experimental=1,
         datatype=np.float32
     )
+
+    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
+          c['g'] + 'Training the model with a generator for ' +
+          c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
+    print(net.summary())
 
     net.fit(x, y, batch_size=batch_size, validation_split=0.25, epochs=epochs)
     net.save(net_name)
