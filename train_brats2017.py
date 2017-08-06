@@ -168,8 +168,7 @@ def main():
                 datatype=np.float32
             )
 
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
-                  c['g'] + 'Training the model with a generator for ' +
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the model for ' +
                   c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
             print(net.summary())
 
