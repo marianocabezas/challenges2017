@@ -122,7 +122,7 @@ def main():
     dense = concatenate([Flatten()(conv), Flatten()(full)])
     dense = Dense(dense_size, activation='relu')(dense)
     dense = Dropout(0.5)(dense)
-    tumor = Dense(2, activation='softmax')(dense)
+    tumor = Dense(2, activation='softmax', name='tumor')(dense)
 
     outputs = [tumor, full_out]
 
