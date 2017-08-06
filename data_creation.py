@@ -123,14 +123,13 @@ def get_xy(
             y = y_labels + y_cat
         else:
             if experimental == 1:
-                y_fc = [np.asarray(get_patches(l, lc, fc_shape, preload))
+                y_fc = [np.asarray(get_patches(l, lc, fc_shape, preload),dtype=np.bool)
                         for l, lc in izip(labels_generator(label_names), centers)]
                 y_fc = np.concatenate(y_fc)
                 y_fc[idx] = y_fc
-                y = y.astype(dtype=np.bool)
-                y_fc = y_fc.astype(dtype=np.bool)
+                print(y_fc.shape)
                 y = [
-                    keras.utils.to_categorical(y, num_classes=nlabels),
+                    keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=nlabels),
                     keras.utils.to_categorical(y_fc, num_classes=nlabels).reshape((len(y_fc), -1, nlabels))
                 ]
             else:
