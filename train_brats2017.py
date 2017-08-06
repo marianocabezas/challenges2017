@@ -40,6 +40,101 @@ def parse_inputs():
     return vars(parser.parse_args())
 
 
+def get_net(input_shape, filters_list, kernel_size_list, dense_size, nlabels):
+    inputs = Input(shape=input_shape, name='merged_inputs')
+    conv = inputs
+    for filters, kernel_size in zip(filters_list, kernel_size_list):
+        conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')(conv)
+        conv = Dropout(0.5)(conv)
+
+    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(conv)
+    full = PReLU()(Dropout(0.5)(full))
+    full = Conv3D(nlabels, kernel_size=(1, 1, 1), data_format='channels_first')(full)
+
+    rf = concatenate([conv, full], axis=1)
+
+    while np.product(K.int_shape(rf)[2:]) > 1:
+        rf = Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
+        rf = Dropout(0.5)(rf)
+
+    full = Reshape((nlabels, -1))(full)
+    full = Permute((2, 1))(full)
+    full_out = Activation('softmax', name='fc_out')(full)
+
+    tumor = Dense(nlabels, activation='softmax', name='tumor')(Flatten()(rf))
+
+    outputs = [tumor, full_out]
+
+    net = Model(inputs=inputs, outputs=outputs)
+
+    net.compile(
+        optimizer='adadelta',
+        loss='categorical_crossentropy',
+        loss_weights=[0.8, 1.0],
+        metrics=['accuracy']
+    )
+
+    return net
+
+
+def train_net(net, train_data, train_labels, options, net_name, experimental):
+    # Prepare the net architecture parameters
+    dfactor = options['dfactor']
+    # Prepare the net hyperparameters
+    epochs = options['epochs']
+    patch_width = options['patch_width']
+    patch_size = (patch_width, patch_width, patch_width)
+    batch_size = options['batch_size']
+    conv_blocks = options['conv_blocks']
+    conv_width = options['conv_width']
+    kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width] * conv_blocks
+    balanced = options['balanced']
+    val_rate = options['val_rate']
+    # Data loading parameters
+    preload = options['preload']
+
+    path = options['dir_name']
+
+    c = color_codes()
+    fc_width = patch_width - sum(kernel_size_list) + conv_blocks
+    fc_shape = (fc_width,) * 3
+
+    checkpoint = net_name + '{epoch:02d}.{val_tumor_acc:.2f}.hdf5'
+    callbacks = [
+        EarlyStopping(monitor='val_tumor_loss', patience=options['patience']),
+        ModelCheckpoint(os.path.join(path, checkpoint), monitor='val_tumor_loss', save_best_only=True)
+    ]
+
+    for i in range(options['r_epochs']):
+        try:
+            net = load_model(net_name + ('e%d.' % i) + 'mdl')
+        except IOError:
+            train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
+                  c['b'] + '(%d centers)' % (len(train_centers) / dfactor) + c['nc'])
+            x, y = load_patches_train(
+                image_names=train_data,
+                label_names=train_labels,
+                centers=train_centers,
+                size=patch_size,
+                fc_shape=fc_shape,
+                nlabels=2,
+                dfactor=dfactor,
+                preload=preload,
+                split=True,
+                iseg=False,
+                experimental=experimental,
+                datatype=np.float32
+            )
+
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the model for ' +
+                  c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
+            print(net.summary())
+
+            net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
+            net.save(net_name + ('e%d.' % i) + 'mdl')
+
+
 def list_directories(path):
     return filter(os.path.isdir, [os.path.join(path, f) for f in os.listdir(path)])
 
@@ -68,7 +163,6 @@ def main():
     # Prepare the net architecture parameters
     dfactor = options['dfactor']
     # Prepare the net hyperparameters
-    num_classes = 4
     epochs = options['epochs']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
@@ -83,7 +177,6 @@ def main():
     val_rate = options['val_rate']
     # Data loading parameters
     preload = options['preload']
-    queue = options['queue']
 
     # Prepare the sufix that will be added to the results for the net and images
     path = options['dir_name']
@@ -92,7 +185,6 @@ def main():
     ub_s = '.ub' if not balanced else ''
     params_s = (ub_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
     sufix = '%s.D%d.p%d.c%s.n%s.d%d.e%d.' % params_s
-    n_channels = 4
     preload_s = ' (with ' + c['b'] + 'preloading' + c['nc'] + c['c'] + ')' if preload else ''
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting training' + preload_s + c['nc'])
@@ -107,79 +199,9 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' + c['nc'])
     input_shape = (train_data.shape[1],) + patch_size
 
-    # Sequential model that merges all 4 images. This architecture is just a set of convolutional blocks
-    #  that end in a dense layer. This is supposed to be an original baseline.
-    inputs = Input(shape=input_shape, name='merged_inputs')
-    conv = inputs
-    for filters, kernel_size in zip(filters_list, kernel_size_list):
-        conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')(conv)
-        conv = Dropout(0.5)(conv)
-
-    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(conv)
-    full = PReLU()(Dropout(0.5)(full))
-    full = Conv3D(2, kernel_size=(1, 1, 1), data_format='channels_first')(full)
-
-    rf = concatenate([conv, full], axis=1)
-
-    while np.product(K.int_shape(rf)[2:]) > 1:
-        rf = Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
-        rf = Dropout(0.5)(rf)
-
-    full = Reshape((2, -1))(full)
-    full = Permute((2, 1))(full)
-    full_out = Activation('softmax', name='fc_out')(full)
-
-    tumor = Dense(2, activation='softmax', name='tumor')(Flatten()(rf))
-
-    outputs = [tumor, full_out]
-
-    net = Model(inputs=inputs, outputs=outputs)
-
-    net.compile(
-        optimizer='adadelta',
-        loss='categorical_crossentropy',
-        loss_weights=[0.8, 1.0],
-        metrics=['accuracy']
-    )
-
-    fc_width = patch_width - sum(kernel_size_list) + conv_blocks
-    fc_shape = (fc_width,) * 3
-
-    checkpoint = net_name + '{epoch:02d}.{val_tumor_acc:.2f}.hdf5'
-    callbacks = [
-        EarlyStopping(monitor='val_tumor_loss', patience=options['patience']),
-        ModelCheckpoint(os.path.join(path, checkpoint), monitor='val_tumor_loss', save_best_only=True)
-    ]
-
-    for i in range(options['r_epochs']):
-        try:
-            net = load_model(net_name + ('e%d.' % i) + 'mdl')
-        except IOError:
-            train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
-            train_samples = len(train_centers) / dfactor
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
-                  c['b'] + '(%d centers)' % (len(train_centers) / dfactor) + c['nc'])
-            x, y = load_patches_train(
-                image_names=train_data,
-                label_names=train_labels,
-                centers=train_centers,
-                size=patch_size,
-                fc_shape=fc_shape,
-                nlabels=2,
-                dfactor=dfactor,
-                preload=preload,
-                split=True,
-                iseg=False,
-                experimental=1,
-                datatype=np.float32
-            )
-
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the model for ' +
-                  c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
-            print(net.summary())
-
-            net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
-            net.save(net_name + ('e%d.' % i) + 'mdl')
+    # Region based net
+    roi_net = get_net(input_shape, filters_list, kernel_size_list, dense_size, 2)
+    train_net(roi_net, train_data, train_labels, options, net_name, 1)
 
 
 if __name__ == '__main__':
