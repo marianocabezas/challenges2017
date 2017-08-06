@@ -154,7 +154,7 @@ def main():
             dfactor=dfactor,
             preload=preload,
             split=True,
-            iseg=True,
+            iseg=False,
             experimental=1,
             datatype=np.float32
         )
