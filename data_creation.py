@@ -81,14 +81,14 @@ def get_xy(
 ):
     n_images = len(image_list)
     centers, idx = centers_and_idx(batch_centers, n_images)
-    print([' '] * 14 + 'x loading')
+    print(''.join([' '] * 14) + 'x loading')
     x = filter(lambda z: z.any(), get_patches_list(image_list, centers, size, preload))
     x = np.concatenate(x)
-    print([' '] * 14 + '- concatenation')
+    print(''.join([' '] * 14) + '- concatenation')
     x[idx] = x
-    print([' '] * 14 + 'y loading')
+    print(''.join([' '] * 14) + 'y loading')
     y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
-    print([' '] * 14 + '- concatenation')
+    print(''.join([' '] * 14) + '- concatenation')
     y = np.concatenate(y)
     y[idx] = y
     if split:
@@ -198,7 +198,7 @@ def load_patches_train(
         iseg=False,
         experimental=False,
 ):
-    image_list = [load_norm_list(patient) for patient in image_names]
+    image_list = [load_norm_list(patient) for patient in image_names] if preload else image_names
     batch_centers = np.random.permutation(centers)[::dfactor]
     x, y = get_xy(
         image_list,
