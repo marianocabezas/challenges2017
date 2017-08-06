@@ -125,7 +125,10 @@ def get_xy(
             if experimental == 1:
                 y_fc = [np.asarray(get_patches(l, lc, fc_shape, preload), dtype=np.bool)
                         for l, lc in izip(labels_generator(label_names), centers)]
+                for y_fci in y_fc:
+                    print(y_fci.shape)
                 y_fc = np.concatenate(y_fc)
+                print(y_fc.shape)
                 y_fc[idx] = y_fc
                 y = [
                     keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=nlabels),
