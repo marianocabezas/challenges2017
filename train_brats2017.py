@@ -96,20 +96,15 @@ def main():
     train_data, train_labels = get_names_from_path(options)
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + c['g'] +
-          'Number of training/validation images (%d=%d/%d=%d)' %
-          (len(train_data), len(train_labels), len(val_data), len(val_labels)) + c['nc'])
+          'Number of training images (%d=%d)' % (len(train_data), len(train_labels)) + c['nc'])
     #  Also, prepare the network
     net_name = os.path.join(path, 'CBICA-brats2017' + sufix + 'mdl')
 
     train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
-    val_centers = get_cnn_centers(val_data[:, 0], val_labels, balanced=balanced)
     train_samples = len(train_centers)/dfactor
-    val_samples = len(val_centers) / dfactor
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' +
           c['b'] + '(%d samples)' % train_samples + c['nc'])
-    train_steps_per_epoch = -(-train_samples/batch_size)
-    val_steps_per_epoch = -(-val_samples / batch_size)
-    input_shape = (data_names.shape[1],) + patch_size
+    input_shape = (train_data.shape[1],) + patch_size
 
     # Sequential model that merges all 4 images. This architecture is just a set of convolutional blocks
     #  that end in a dense layer. This is supposed to be an original baseline.
