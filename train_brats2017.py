@@ -3,8 +3,8 @@ import argparse
 import os
 from time import strftime
 import numpy as np
-from keras.models import Sequential
-from keras.layers import Dense, Conv3D, Dropout, Flatten
+from keras.models import Model
+from keras.layers import Dense, Conv3D, Dropout, Flatten, PReLU, Input, Reshape, Permute, Activation, concatenate
 from utils import color_codes
 from data_creation import load_patch_batch_train, get_cnn_centers
 
@@ -14,7 +14,7 @@ def parse_inputs():
     parser = argparse.ArgumentParser(description='Test different nets with 3D data.')
     parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/DATA/Brats17Test-Training/')
     parser.add_argument('-F', '--n-fold', dest='folds', type=int, default=5)
-    parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=13)
+    parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=17)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
@@ -109,11 +109,9 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + c['g'] +
           'Number of training/validation images (%d=%d/%d=%d)' %
           (len(train_data), len(train_labels), len(val_data), len(val_labels)) + c['nc'])
-    # Prepare the data relevant to the leave-one-out (subtract the patient from the dataset and set the path)
     #  Also, prepare the network
     net_name = os.path.join(path, 'CBICA-brats2017' + sufix + 'mdl')
 
-    # NET definition using Keras
     train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
     val_centers = get_cnn_centers(val_data[:, 0], val_labels, balanced=balanced)
     train_samples = len(train_centers)/dfactor
@@ -126,25 +124,34 @@ def main():
 
     # Sequential model that merges all 4 images. This architecture is just a set of convolutional blocks
     #  that end in a dense layer. This is supposed to be an original baseline.
-    net = Sequential()
-    net.add(Conv3D(
-        filters_list[0],
-        kernel_size=kernel_size_list[0],
-        input_shape=input_shape,
-        activation='relu',
-        data_format='channels_first'
-    ))
-    for filters, kernel_size in zip(filters_list[1:], kernel_size_list[1:]):
-        net.add(Dropout(0.5))
-        net.add(Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first'))
-        net.add(Dropout(0.5))
+    inputs = Input(shape=input_shape, name='merged_inputs')
+    conv = inputs
+    for filters, kernel_size in zip(filters_list, kernel_size_list):
+        conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')(conv)
+        conv = Dropout(0.5)(conv)
 
-    net.add(Flatten())
-    net.add(Dense(dense_size, activation='relu'))
-    net.add(Dropout(0.5))
-    net.add(Dense(2, activation='softmax'))
+    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(conv)
+    full = PReLU()(full)
+    full = Conv3D(4, kernel_size=(1, 1, 1), data_format='channels_first')(full)
+    full = Reshape((4, -1))(full)
+    full = Permute((2, 1))(full)
+    full_out = Activation('softmax', name='fc_out')(full)
 
-    net.compile(optimizer='adadelta', loss='categorical_crossentropy', metrics=['accuracy'])
+    dense = concatenate(Flatten()(conv), Flatten()(full))
+    dense = Dense(dense_size, activation='relu')(dense)
+    dense = Dropout(0.5)(dense)
+    tumor = Dense(2, activation='softmax')(dense)
+
+    outputs = [tumor, full_out]
+
+    net = Model(inputs=inputs, outputs=outputs)
+
+    net.compile(
+        optimizer='adadelta',
+        loss='categorical_crossentropy',
+        loss_weights=[0.8, 1.0],
+        metrics=['accuracy']
+    )
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' +
           c['g'] + 'Training the model with a generator for ' +
@@ -160,8 +167,9 @@ def main():
             nlabels=num_classes,
             dfactor=dfactor,
             preload=preload,
-            split=False,
-            datatype=np.float32
+            split=True,
+            datatype=np.float32,
+            experimental=1
         ),
         validation_data=load_patch_batch_train(
             image_names=val_data,
@@ -172,8 +180,9 @@ def main():
             nlabels=num_classes,
             dfactor=dfactor,
             preload=preload,
-            split=False,
-            datatype=np.float32
+            split=True,
+            datatype=np.float32,
+            experimental=1
         ),
         steps_per_epoch=train_steps_per_epoch,
         validation_steps=val_steps_per_epoch,

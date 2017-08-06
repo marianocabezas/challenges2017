@@ -110,20 +110,30 @@ def get_xy(
                 y_cat *= 3
             y = y_labels + y_cat
         else:
-            y = [
-                keras.utils.to_categorical(
-                    np.copy(y).astype(dtype=np.bool),
-                    num_classes=2
-                ),
-                keras.utils.to_categorical(
-                    np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
-                    num_classes=3
-                ),
-                keras.utils.to_categorical(
-                    y,
-                    num_classes=nlabels
-                )
-            ]
+            if experimental == 1:
+                y_fc = [np.asarray(get_patches(l, lc, fc_shape, preload))
+                        for l, lc in izip(labels_generator(label_names), centers)]
+                y_fc = np.concatenate(y_fc)
+                y_fc[idx] = y_fc
+                y = [
+                    keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=2),
+                    keras.utils.to_categorical(np.copy(y_fc), num_classes=2).reshape((len(y_fc), -1, 2))
+                ]
+            else:
+                y = [
+                    keras.utils.to_categorical(
+                        np.copy(y).astype(dtype=np.bool),
+                        num_classes=2
+                    ),
+                    keras.utils.to_categorical(
+                        np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
+                        num_classes=3
+                    ),
+                    keras.utils.to_categorical(
+                        y,
+                        num_classes=nlabels
+                    )
+                ]
     else:
         y = keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=2)
     return x.astype(dtype=datatype), y
