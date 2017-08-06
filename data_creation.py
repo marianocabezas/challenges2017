@@ -126,7 +126,6 @@ def get_xy(
                 y_fc = [np.asarray(get_patches(l, lc, fc_shape), dtype=np.bool)
                         for l, lc in izip(labels_generator(label_names), centers)]
                 y_fc = np.concatenate(y_fc)
-                print(y_fc.shape)
                 y_fc[idx] = y_fc
                 y = [
                     keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=nlabels),
