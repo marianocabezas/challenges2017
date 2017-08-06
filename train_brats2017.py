@@ -137,7 +137,7 @@ def main():
     full = Permute((2, 1))(full)
     full_out = Activation('softmax', name='fc_out')(full)
 
-    dense = concatenate(Flatten()(conv), Flatten()(full))
+    dense = concatenate([Flatten()(conv), Flatten()(full)])
     dense = Dense(dense_size, activation='relu')(dense)
     dense = Dropout(0.5)(dense)
     tumor = Dense(2, activation='softmax')(dense)
