@@ -203,7 +203,7 @@ def main():
     roi_net_name = os.path.join(path, 'brats2017-roi' + sufix)
     train_net(roi_net, train_data, train_labels, options, roi_net_name, 2)
 
-    seg_net = get_net(input_shape, filters_list, kernel_size_list, dense_size, 4)
+    seg_net = get_net(input_shape, filters_list, kernel_size_list, dense_size, 5)
 
     roi_net_conv_layers = [l for l in roi_net.layers if 'conv' in l.name]
     seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]
@@ -211,7 +211,7 @@ def main():
         ls.set_weights(lr.get_weights())
 
     seg_net_name = os.path.join(path, 'brats2017-seg' + sufix)
-    train_net(seg_net, train_data, train_labels, options, seg_net_name, 4)
+    train_net(seg_net, train_data, train_labels, options, seg_net_name, 5)
 
 
 if __name__ == '__main__':
