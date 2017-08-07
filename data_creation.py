@@ -127,7 +127,7 @@ def get_xy(
                         for l, lc in izip(labels_generator(label_names), centers)]
                 y_fc = np.concatenate(y_fc)
                 y_fc[idx] = y_fc
-                if nlabels > 2:
+                if nlabels <= 2:
                     y = y.astype(dtype=np.bool)
                     y_fc = y_fc.astype(dtype=np.bool)
                 y = [
