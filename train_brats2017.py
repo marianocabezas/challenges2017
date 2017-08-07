@@ -211,7 +211,7 @@ def main():
         ls.set_weights(lr.get_weights())
 
     seg_net_name = os.path.join(path, 'brats2017-seg' + sufix)
-    train_net(roi_net, train_data, train_labels, options, seg_net_name, 4)
+    train_net(seg_net, train_data, train_labels, options, seg_net_name, 4)
 
 
 if __name__ == '__main__':
