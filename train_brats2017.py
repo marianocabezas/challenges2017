@@ -207,7 +207,7 @@ def main():
 
     roi_net_conv_layers = [l for l in roi_net.layers if 'conv' in l.name]
     seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]
-    for lr, ls in zip(roi_net_conv_layers[:10], seg_net_conv_layers[:10]):
+    for lr, ls in zip(roi_net_conv_layers[:conv_blocks], seg_net_conv_layers[:conv_blocks]):
         ls.set_weights(lr.get_weights())
 
     seg_net_name = os.path.join(path, 'brats2017-seg' + sufix)
