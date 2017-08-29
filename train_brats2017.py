@@ -166,7 +166,6 @@ def main():
     epochs = options['epochs']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
-    batch_size = options['batch_size']
     dense_size = options['dense_size']
     conv_blocks = options['conv_blocks']
     n_filters = options['n_filters']
@@ -174,7 +173,6 @@ def main():
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width]*conv_blocks
     balanced = options['balanced']
-    val_rate = options['val_rate']
     # Data loading parameters
     preload = options['preload']
 
