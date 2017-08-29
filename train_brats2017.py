@@ -3,10 +3,9 @@ import argparse
 import os
 from time import strftime
 import numpy as np
-from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint
-from keras.models import Model, load_model
-from keras.layers import Dense, Conv3D, Dropout, Flatten, PReLU, Input, Reshape, Permute, Activation, concatenate
+from keras.models import load_model
+from nets import get_brats_net
 from utils import color_codes
 from data_creation import get_cnn_centers, load_patches_train
 
@@ -38,44 +37,6 @@ def parse_inputs():
     parser.add_argument('--t2', action='store', dest='t2', default='_t2.nii.gz')
     parser.add_argument('--labels', action='store', dest='labels', default='_seg.nii.gz')
     return vars(parser.parse_args())
-
-
-def get_net(input_shape, filters_list, kernel_size_list, dense_size, nlabels):
-    inputs = Input(shape=input_shape, name='merged_inputs')
-    conv = inputs
-    for filters, kernel_size in zip(filters_list, kernel_size_list):
-        conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')(conv)
-        conv = Dropout(0.5)(conv)
-
-    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(conv)
-    full = PReLU()(Dropout(0.5)(full))
-    full = Conv3D(nlabels, kernel_size=(1, 1, 1), data_format='channels_first')(full)
-
-    rf = concatenate([conv, full], axis=1)
-
-    while np.product(K.int_shape(rf)[2:]) > 1:
-        rf = Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
-        rf = Dropout(0.5)(rf)
-
-    full = Reshape((nlabels, -1))(full)
-    full = Permute((2, 1))(full)
-    full_out = Activation('softmax', name='fc_out')(full)
-
-    tumor = Dense(nlabels, activation='softmax', name='tumor')(Flatten()(rf))
-
-    outputs = [tumor, full_out]
-
-    net = Model(inputs=inputs, outputs=outputs)
-
-    net.compile(
-        optimizer='adadelta',
-        loss='categorical_crossentropy',
-        loss_weights=[0.8, 1.0],
-        metrics=['accuracy']
-    )
-    print(net.summary())
-
-    return net
 
 
 def train_net(net, train_data, train_labels, options, net_name, nlabels):
@@ -164,6 +125,7 @@ def main():
     dfactor = options['dfactor']
     # Prepare the net hyperparameters
     epochs = options['epochs']
+    r_epochs = options['r_epochs']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
     dense_size = options['dense_size']
@@ -181,8 +143,8 @@ def main():
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     ub_s = '.ub' if not balanced else ''
-    params_s = (ub_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
-    sufix = '%s.D%d.p%d.c%s.n%s.d%d.e%d.' % params_s
+    params_s = (ub_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs, r_epochs)
+    sufix = '%s.D%d.p%d.c%s.n%s.d%d.e%d.E%d' % params_s
     preload_s = ' (with ' + c['b'] + 'preloading' + c['nc'] + c['c'] + ')' if preload else ''
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting training' + preload_s + c['nc'])
@@ -197,11 +159,11 @@ def main():
     input_shape = (train_data.shape[1],) + patch_size
 
     # Region based net
-    roi_net = get_net(input_shape, filters_list, kernel_size_list, dense_size, 2)
+    roi_net = get_brats_net(input_shape, filters_list, kernel_size_list, dense_size, 2)
     roi_net_name = os.path.join(path, 'brats2017-roi' + sufix)
     train_net(roi_net, train_data, train_labels, options, roi_net_name, 2)
 
-    seg_net = get_net(input_shape, filters_list, kernel_size_list, dense_size, 5)
+    seg_net = get_brats_net(input_shape, filters_list, kernel_size_list, dense_size, 5)
 
     roi_net_conv_layers = [l for l in roi_net.layers if 'conv' in l.name]
     seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]

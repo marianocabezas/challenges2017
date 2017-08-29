@@ -74,14 +74,45 @@ def get_names_from_path(path, options):
     return image_names, label_names
 
 
+def data_loading(image, labels, centers, options):
+    c = color_codes()
+    # Network hyperparameters
+    patch_width = options['patch_width']
+    patch_size = (patch_width, patch_width, patch_width)
+    d_factor = options['down_factor']
+
+    centers = [tuple(center) for center in np.random.permutation(centers)[::d_factor]]
+    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'net' + c['nc'] +
+          c['g'] + ' data (' + c['b'] + '%d' % len(centers) + c['nc'] + c['g'] + ' samples)' + c['nc'])
+    x = [get_patches(image, centers, patch_size)
+         for image in image]
+    x = np.stack(x, axis=1).astype(np.float32)
+    y = np.array([labels[center] for center in centers])
+    y = [
+        keras.utils.to_categorical(
+            np.copy(y).astype(dtype=np.bool),
+            num_classes=2
+        ),
+        keras.utils.to_categorical(
+            np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
+            num_classes=3
+        ),
+        keras.utils.to_categorical(
+            y,
+            num_classes=5
+        )
+    ]
+
+    return x, y
+
+
 def transfer_learning(
         net_domain,
         net,
         data,
-        train_image,
-        train_labels,
+        x,
+        y,
         train_roi,
-        train_centers,
         options
 ):
     c = color_codes()
@@ -89,9 +120,7 @@ def transfer_learning(
     epochs = options['epochs']
     net_epochs = options['net_epochs']
     patch_width = options['patch_width']
-    patch_size = (patch_width, patch_width, patch_width)
     batch_size = options['batch_size']
-    d_factor = options['down_factor']
 
     # We prepare the layers for transfer learning
     net_domain_conv_layers = [l for l in net_domain.layers if 'conv' in l.name]
@@ -109,35 +138,8 @@ def transfer_learning(
     # We start retraining.
     # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
     # retrain the classifier with the new convolutional weights.
-
-    # Data loading
-    centers = [tuple(center) for center in np.random.permutation(train_centers)[::d_factor]]
-    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'net' + c['nc'] +
-          c['g'] + ' data (' + c['b'] + '%d' % len(centers) + c['nc'] + c['g'] + ' samples)' + c['nc'])
-    x = [get_patches(image, centers, patch_size)
-         for image in train_image]
-    x = np.stack(x, axis=1).astype(np.float32)
-    y = np.array([train_labels[center] for center in centers])
-    y = [
-        keras.utils.to_categorical(
-            np.copy(y).astype(dtype=np.bool),
-            num_classes=2
-        ),
-        keras.utils.to_categorical(
-            np.array(y > 0).astype(dtype=np.int8) + np.array(y > 1).astype(dtype=np.int8),
-            num_classes=3
-        ),
-        keras.utils.to_categorical(
-            y,
-            num_classes=5
-        )
-    ]
-
-    # We start retraining.
-    # First we retrain the convolutional so the tumor rois appear similar after convolution, and then we
-    # retrain the classifier with the new convolutional weights.
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the models ' + c['nc'] +
-          c['b'] + '(%d patches)' % len(centers) + c['nc'])
+          c['b'] + '(%d patches)' % len(x) + c['nc'])
     conv_data = net_domain.predict(np.expand_dims(train_roi, axis=0), batch_size=1)
     for e in range(epochs):
         print(c['b'] + 'Epoch %d/%d ' % (e+1, epochs) + c['nc'])
@@ -366,8 +368,8 @@ def main():
 
             image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original', filename=p_name)
 
+        outputname = 'deep-brats17.test.' + options_s + 'domain'
         try:
-            outputname = 'deep-brats17.test.' + options_s + 'domain'
             image_d = load_nii(os.path.join(patient_path, outputname + '.nii.gz')).get_data()
         except IOError:
             net_orig = keras.models.load_model(net_name)
@@ -423,10 +425,11 @@ def main():
                 train_centers_r = [range(int(cl[0] * tr), int(cl[1] * tr)) for cl, tr in zip(train_clip, train_rate[1:])]
                 train_centers = list(product(*train_centers_r))
 
-                transfer_learning(net_new, net_orig, data, train_x, train_y, train_roi, train_centers, options)
+                train_x, train_y = data_loading(train_x, train_y, train_centers, options)
+                transfer_learning(net_new, net_orig, data, train_x, train_y, train_roi, options)
                 net_new.save(net_new_name)
 
-            # Now we transfer the new weights an re-test
+            # Now we transfer the new weights and re-test
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_orig.set_weights(l_new.get_weights())
 

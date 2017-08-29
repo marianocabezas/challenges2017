@@ -260,3 +260,41 @@ def get_iseg_experimental4(input_shape, filters_list, kernel_size_list, dense_si
     outputs = [csf_out, gm_out, wm_out, brain, full_out]
 
     return compile_network(merged_inputs, outputs, weights)
+
+
+def get_brats_net(input_shape, filters_list, kernel_size_list, dense_size, nlabels):
+    inputs = Input(shape=input_shape, name='merged_inputs')
+    conv = inputs
+    for filters, kernel_size in zip(filters_list, kernel_size_list):
+        conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')(conv)
+        conv = Dropout(0.5)(conv)
+
+    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first')(conv)
+    full = PReLU()(Dropout(0.5)(full))
+    full = Conv3D(nlabels, kernel_size=(1, 1, 1), data_format='channels_first')(full)
+
+    rf = concatenate([conv, full], axis=1)
+
+    while np.product(K.int_shape(rf)[2:]) > 1:
+        rf = Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first')(rf)
+        rf = Dropout(0.5)(rf)
+
+    full = Reshape((nlabels, -1))(full)
+    full = Permute((2, 1))(full)
+    full_out = Activation('softmax', name='fc_out')(full)
+
+    tumor = Dense(nlabels, activation='softmax', name='tumor')(Flatten()(rf))
+
+    outputs = [tumor, full_out]
+
+    net = Model(inputs=inputs, outputs=outputs)
+
+    net.compile(
+        optimizer='adadelta',
+        loss='categorical_crossentropy',
+        loss_weights=[0.8, 1.0],
+        metrics=['accuracy']
+    )
+    print(net.summary())
+
+    return net
