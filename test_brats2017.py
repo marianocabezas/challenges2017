@@ -366,7 +366,7 @@ def main():
             image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original', filename=p_name)
 
         try:
-            image_o2 = load_nii(os.path.join(patient_path, p_name + '.2.nii.gz')).get_data()
+            image_o2 = load_nii(os.path.join(patient_path, p_name + 'original.2.nii.gz')).get_data()
         except IOError:
             # First let's test the original network
             net_orig2 = keras.models.load_model(net_name2)
