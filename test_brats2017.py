@@ -332,6 +332,7 @@ def main():
     test_data, test_labels = get_names_from_path(path, options)
     train_data, train_labels = get_names_from_path(os.path.join(path, '../Brats17Test-Training'), options)
     net_name = os.path.join(path, 'baseline-brats2017.D50.f.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
+    net_name2 = os.path.join(path, 'brats2017-seg.D100.p17.c3c3c3c3.n32n32n32n32.d256.e5.E10.e9.best.hdf5')
 
     # Prepare the net hyperparameters
     patch_width = options['patch_width']
@@ -347,6 +348,7 @@ def main():
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
     dsc_results_o = list()
+    dsc_results_o2 = list()
     dsc_results_d = list()
 
     net_roi_name = os.path.join(path, 'CBICA-brats2017.D25.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
@@ -361,12 +363,14 @@ def main():
         except IOError:
             # First let's test the original network
             net_orig = keras.models.load_model(net_name)
-            net_orig_conv_layers = sorted(
-                [l for l in net_orig.layers if 'conv' in l.name],
-                cmp=lambda x, y: int(x.name[7:]) - int(y.name[7:])
-            )
-
             image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original', filename=p_name)
+
+        try:
+            image_o2 = load_nii(os.path.join(patient_path, p_name + '.2.nii.gz')).get_data()
+        except IOError:
+            # First let's test the original network
+            net_orig2 = keras.models.load_model(net_name2)
+            image_o2 = test_network(net_orig2, p, batch_size, (17, 17, 17), sufix='original.2', filename=p_name)
 
         outputname = 'deep-brats17.test.' + options_s + 'domain'
         try:
@@ -438,6 +442,8 @@ def main():
         if options['use_dsc']:
             results_o = check_dsc(gt_name, image_o)
             dsc_results_o.append(results_o)
+            results_o2 = check_dsc(gt_name, image_o2)
+            dsc_results_o2.append(results_o2)
             results_d = check_dsc(gt_name, image_d)
             dsc_results_d.append(results_d)
 
@@ -446,14 +452,17 @@ def main():
             text = subject_name + ' DSC: ' + dsc_string
             results = (p_name,) + tuple(results_o)
             print(''.join([' ']*14) + 'Original ' + text % results)
+            results = (p_name,) + tuple(results_o2)
+            print(''.join([' '] * 14) + 'FCN net  ' + text % results)
             results = (p_name,) + tuple(results_d)
             print(''.join([' ']*14) + 'Domain   ' + text % results)
 
     if options['use_dsc']:
         f_dsc_o = tuple([np.array([dsc[i] for dsc in dsc_results_o if len(dsc) > i]).mean() for i in range(3)])
+        f_dsc_o2 = tuple([np.array([dsc[i] for dsc in dsc_results_o2 if len(dsc) > i]).mean() for i in range(3)])
         f_dsc_d = tuple([np.array([dsc[i] for dsc in dsc_results_d if len(dsc) > i]).mean() for i in range(3)])
-        f_dsc = f_dsc_o + f_dsc_d
-        print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
+        f_dsc = f_dsc_o + f_dsc_d + f_dsc_o2
+        print('Final results DSC: (%f/%f/%f) - (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
 
 
 if __name__ == '__main__':

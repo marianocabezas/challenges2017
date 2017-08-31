@@ -144,7 +144,7 @@ def main():
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     ub_s = '.ub' if not balanced else ''
     params_s = (ub_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs, r_epochs)
-    sufix = '%s.D%d.p%d.c%s.n%s.d%d.e%d.E%d' % params_s
+    sufix = '%s.D%d.p%d.c%s.n%s.d%d.e%d.E%d.' % params_s
     preload_s = ' (with ' + c['b'] + 'preloading' + c['nc'] + c['c'] + ')' if preload else ''
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting training' + preload_s + c['nc'])
