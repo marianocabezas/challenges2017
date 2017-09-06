@@ -304,6 +304,66 @@ def get_brats_net(input_shape, filters_list, kernel_size_list, dense_size, nlabe
 
         net.compile(optimizer='adadelta', loss='mean_squared_error', metrics=['accuracy'])
 
-    print(net.summary())
+    return net
+
+
+def get_brats_old_domain(patch_size, filters_list, kernel_size_list):
+    # This architecture is based on the functional Keras API to introduce 3 output paths:
+    # - Whole tumor segmentation
+    # - Core segmentation (including whole tumor)
+    # - Whole segmentation (tumor, core and enhancing parts)
+    # The idea is to let the network work on the three parts to improve the multiclass segmentation.
+    merged_inputs = Input(shape=(4,) + patch_size, name='merged_inputs')
+    flair = Reshape((1,) + patch_size)(
+        Lambda(
+            lambda l: l[:, 0, :, :, :],
+            output_shape=(1,) + patch_size)(merged_inputs),
+    )
+    t2 = Reshape((1,) + patch_size)(
+        Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
+    )
+    t1 = Lambda(lambda l: l[:, 2:, :, :, :], output_shape=(2,) + patch_size)(merged_inputs)
+    for filters, kernel_size in zip(filters_list[:-1], kernel_size_list[:-1]):
+        flair = Conv3D(filters,
+                       kernel_size=kernel_size,
+                       activation='relu',
+                       data_format='channels_first'
+                       )(flair)
+        t2 = Conv3D(filters,
+                    kernel_size=kernel_size,
+                    activation='relu',
+                    data_format='channels_first'
+                    )(t2)
+        t1 = Conv3D(filters,
+                    kernel_size=kernel_size,
+                    activation='relu',
+                    data_format='channels_first'
+                    )(t1)
+        flair = Dropout(0.5)(flair)
+        t2 = Dropout(0.5)(t2)
+        t1 = Dropout(0.5)(t1)
+
+    flair = Conv3D(filters_list[-1],
+                   kernel_size=kernel_size_list[-1],
+                   activation='relu',
+                   data_format='channels_first',
+                   name='flair'
+                   )(flair)
+    t2 = Conv3D(filters_list[-1],
+                kernel_size=kernel_size_list[-1],
+                activation='relu',
+                data_format='channels_first',
+                name='t2'
+                )(t2)
+    t1 = Conv3D(filters_list[-1],
+                kernel_size=kernel_size_list[-1],
+                activation='relu',
+                data_format='channels_first',
+                name='t1'
+                )(t1)
+
+    net = Model(inputs=merged_inputs, outputs=[flair, t2, t1])
+
+    net.compile(optimizer='adadelta', loss='mean_squared_error', metrics=['accuracy'])
 
     return net

@@ -8,15 +8,14 @@ from time import strftime
 import numpy as np
 import keras
 import keras.backend as K
-from keras.models import Model
-from keras.layers import Conv3D, Dropout, Input, Reshape, Lambda, Dense
+from keras.layers import Dense
 from nibabel import load as load_nii
 from utils import color_codes, get_biggest_region
 from data_creation import load_norm_list, clip_to_roi
 from data_creation import get_patches_list
 from data_manipulation.generate_features import get_mask_voxels, get_patches
 from data_manipulation.metrics import dsc_seg
-from nets import get_brats_net
+from nets import get_brats_net, get_brats_old_domain
 from scipy.ndimage.interpolation import zoom
 from skimage.measure import compare_ssim as ssim
 
@@ -33,10 +32,14 @@ def parse_inputs():
     parser = argparse.ArgumentParser(description='Test different nets with 3D data.')
     parser.add_argument('-f', '--folder', dest='dir_name', default='/home/mariano/DATA/Brats17Test/')
     parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=13)
+    parser.add_argument('-I', '--patch-width-fcn', dest='patch_width_fcn', type=int, default=17)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
+    parser.add_argument('-C', '--conv-blocks-fcn', dest='conv_blocks_fcn', type=int, default=4)
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
-    parser.add_argument('-D', '--down-factor', dest='down_factor', type=int, default=4)
+    parser.add_argument('-B', '--batch-test-size', dest='batch_test_size', type=int, default=32768)
+    parser.add_argument('-d', '--down-factor', dest='down_factor', type=int, default=4)
+    parser.add_argument('-D', '--down-factor-fcn', dest='down_factor_fcn', type=int, default=16)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=2)
     parser.add_argument('-E', '--net-epochs', action='store', dest='net_epochs', type=int, default=1)
@@ -75,17 +78,16 @@ def get_names_from_path(path, options):
     return image_names, label_names
 
 
-def data_loading(image, labels, centers, fcn=False):
+def data_loading(image, labels, centers, nlabels=5, fcn=False):
     c = color_codes()
     options = parse_inputs()
     # Network hyperparameters
-    conv_blocks = options['conv_blocks']
+    patch_width = options['patch_width'] if not fcn else options['patch_width_fcn']
+    patch_size = (patch_width, patch_width, patch_width)
+    conv_blocks = options['conv_blocks'] if not fcn else options['conv_blocks_fcn']
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width] * conv_blocks
-    patch_width = options['patch_width'] if not fcn else 17
-    patch_size = (patch_width, patch_width, patch_width)
-    d_factor = options['down_factor']
-
+    d_factor = options['down_factor'] if not fcn else options['down_factor_fcn']
     centers = [tuple(center) for center in np.random.permutation(centers)[::d_factor]]
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'net' + c['nc'] +
           c['g'] + ' data (' + c['b'] + '%d' % len(centers) + c['nc'] + c['g'] + ' samples)' + c['nc'])
@@ -105,20 +107,17 @@ def data_loading(image, labels, centers, fcn=False):
             ),
             keras.utils.to_categorical(
                 y,
-                num_classes=5
+                num_classes=nlabels
             )
         ]
     else:
+        dtype = np.int8 if nlabels > 2 else np.bool
         fc_width = patch_width - sum(kernel_size_list) + conv_blocks
         fc_shape = (fc_width,) * 3
-        y_fc = [np.asarray(get_patches(l, lc, fc_shape))
-                for l, lc in zip(labels, centers)]
-        y_fc = np.concatenate(y_fc)
-        y = y.astype(dtype=np.bool)
-        y_fc = y_fc.astype(dtype=np.bool)
+        y_fc = np.asarray(get_patches(labels, centers, fc_shape), dtype=dtype)
         y = [
-            keras.utils.to_categorical(y, num_classes=5),
-            keras.utils.to_categorical(y_fc, num_classes=5).reshape((len(y_fc), -1, 5))
+            keras.utils.to_categorical(y.astype(dtype=dtype), num_classes=nlabels),
+            keras.utils.to_categorical(y_fc, num_classes=nlabels).reshape((len(y_fc), -1, nlabels))
         ]
 
     return x, y
@@ -190,9 +189,10 @@ def transfer_learning(
         l_orig.set_weights(l_new.get_weights())
 
 
-def test_network(net, p, batch_size, patch_size, sufix='', centers=None, filename=None, fcn=False):
+def test_network(net, p, batch_size, patch_size, sufix='', centers=None, filename=None, fcn=False, roi=None):
 
     c = color_codes()
+    options = parse_inputs()
     p_name = p[0].rsplit('/')[-2]
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
     outputname = filename if filename is not None else 'deep-brats17.test.' + sufix
@@ -205,31 +205,41 @@ def test_network(net, p, batch_size, patch_size, sufix='', centers=None, filenam
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing ' +
               c['b'] + sufix + c['nc'] + c['g'] + ' network' + c['nc'])
         roi_nii = load_nii(p[0])
-        roi = roi_nii.get_data().astype(dtype=np.bool)
+        if roi is None:
+            roi = roi_nii.get_data().astype(dtype=np.bool)
         centers = get_mask_voxels(roi) if centers is None else centers
         test_samples = np.count_nonzero(roi)
         image = np.zeros_like(roi).astype(dtype=np.uint8)
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
-              '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] +
-              ' (%d samples)>' % test_samples + c['nc'])
+              '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] + ' - ' + c['b'] + outputname + c['nc']
+              + c['g'] + ' (%d samples)>' % test_samples + c['nc'])
 
         n_centers = len(centers)
         image_list = [load_norm_list(p)]
         is_roi = False
-        for i in range(0, n_centers, 2097152):
-            print('%f%% tested (step %d)' % (100.0 * i / n_centers, (i / batch_size) + 1), end='\r')
+        roi = np.zeros_like(roi).astype(dtype=np.uint8)
+        fcn_out = np.zeros_like(roi).astype(dtype=np.uint8)
+        out = np.zeros_like(roi).astype(dtype=np.uint8)
+        for i in range(0, n_centers, batch_size):
+            print(
+                '%f%% tested (step %d/%d)' % (100.0 * i / n_centers, (i / batch_size) + 1, -(-n_centers/batch_size)),
+                end='\r'
+            )
             sys.stdout.flush()
             centers_i = [centers[i:i + batch_size]]
             x = get_patches_list(image_list, centers_i, patch_size, True)
             x = np.concatenate(x).astype(dtype=np.float32)
-            y_pr_pred = net.predict(x)
+            y_pr_pred = net.predict(x, batch_size=options['batch_size'])
 
             [x, y, z] = np.stack(centers_i[0], axis=1)
 
             if fcn:
-                y_pr_pred = y_pr_pred[0]
-                tumor = np.argmax(y_pr_pred, axis=1).astype(np.bool)
-                is_roi = False
+                out[x, y, z] = np.argmax(y_pr_pred[0], axis=1)
+                y_pr_pred = y_pr_pred[1][:, y_pr_pred[1].shape[1]/2+1, :]
+                y_pr_pred = np.squeeze(y_pr_pred)
+                fcn_out[x, y, z] = np.argmax(y_pr_pred, axis=1)
+                tumor = np.argmax(y_pr_pred, axis=1)
+                is_roi = tumor.flatten().max() < 2
             else:
                 if isinstance(y_pr_pred, list):
                     tumor = np.argmax(y_pr_pred[0], axis=1)
@@ -240,8 +250,7 @@ def test_network(net, p, batch_size, patch_size, sufix='', centers=None, filenam
                     is_roi = True
 
             # We store the ROI
-            roi = np.zeros_like(roi).astype(dtype=np.uint8)
-            roi[x, y, z] = tumor
+            roi[x, y, z] = tumor.astype(dtype=np.bool)
             # We store the results
             y_pred = np.argmax(y_pr_pred, axis=1)
             image[x, y, z] = tumor if is_roi else y_pred
@@ -255,72 +264,16 @@ def test_network(net, p, batch_size, patch_size, sufix='', centers=None, filenam
 
         roi_nii.get_data()[:] = roi
         roi_nii.to_filename(roiname)
+        if fcn and not is_roi:
+            outputname = filename if filename else 'deep-brats17.test.' + sufix
+            roi_nii.get_data()[:] = get_biggest_region(fcn_out, is_roi)
+            roi_nii.to_filename(os.path.join(patient_path, outputname + '.fcn.nii.gz'))
 
+            roi_nii.get_data()[:] = get_biggest_region(out, is_roi)
+            roi_nii.to_filename(os.path.join(patient_path, outputname + '.dense.nii.gz'))
         roi_nii.get_data()[:] = image
         roi_nii.to_filename(outputname_path)
     return image
-
-
-def create_new_network(patch_size, filters_list, kernel_size_list):
-    # This architecture is based on the functional Keras API to introduce 3 output paths:
-    # - Whole tumor segmentation
-    # - Core segmentation (including whole tumor)
-    # - Whole segmentation (tumor, core and enhancing parts)
-    # The idea is to let the network work on the three parts to improve the multiclass segmentation.
-    merged_inputs = Input(shape=(4,) + patch_size, name='merged_inputs')
-    flair = Reshape((1,) + patch_size)(
-        Lambda(
-            lambda l: l[:, 0, :, :, :],
-            output_shape=(1,) + patch_size)(merged_inputs),
-    )
-    t2 = Reshape((1,) + patch_size)(
-        Lambda(lambda l: l[:, 1, :, :, :], output_shape=(1,) + patch_size)(merged_inputs)
-    )
-    t1 = Lambda(lambda l: l[:, 2:, :, :, :], output_shape=(2,) + patch_size)(merged_inputs)
-    for filters, kernel_size in zip(filters_list[:-1], kernel_size_list[:-1]):
-        flair = Conv3D(filters,
-                       kernel_size=kernel_size,
-                       activation='relu',
-                       data_format='channels_first'
-                       )(flair)
-        t2 = Conv3D(filters,
-                    kernel_size=kernel_size,
-                    activation='relu',
-                    data_format='channels_first'
-                    )(t2)
-        t1 = Conv3D(filters,
-                    kernel_size=kernel_size,
-                    activation='relu',
-                    data_format='channels_first'
-                    )(t1)
-        flair = Dropout(0.5)(flair)
-        t2 = Dropout(0.5)(t2)
-        t1 = Dropout(0.5)(t1)
-
-    flair = Conv3D(filters_list[-1],
-                   kernel_size=kernel_size_list[-1],
-                   activation='relu',
-                   data_format='channels_first',
-                   name='flair'
-                   )(flair)
-    t2 = Conv3D(filters_list[-1],
-                kernel_size=kernel_size_list[-1],
-                activation='relu',
-                data_format='channels_first',
-                name='t2'
-                )(t2)
-    t1 = Conv3D(filters_list[-1],
-                kernel_size=kernel_size_list[-1],
-                activation='relu',
-                data_format='channels_first',
-                name='t1'
-                )(t1)
-
-    net = Model(inputs=merged_inputs, outputs=[flair, t2, t1])
-
-    net.compile(optimizer='adadelta', loss='mean_squared_error', metrics=['accuracy'])
-
-    return net
 
 
 def get_domain_image(
@@ -329,7 +282,6 @@ def get_domain_image(
         net_new_name,
         net_roi_name,
         image_o,
-        patch_size,
         outputname,
         fcn=False,
         roi=None
@@ -341,27 +293,28 @@ def get_domain_image(
     train_data, train_labels = get_names_from_path(os.path.join(path, '../Brats17Test-Training'), options)
 
     # Prepare the net hyperparameters
-    batch_size = options['batch_size']
+    patch_width = options['patch_width'] if not fcn else options['patch_width_fcn']
+    patch_size = (patch_width, patch_width, patch_width)
+    batch_size = options['batch_test_size']
     conv_blocks = options['conv_blocks']
     n_filters = options['n_filters']
     filters_list = n_filters if len(n_filters) > 1 else n_filters * conv_blocks
     conv_width = options['conv_width']
     kernel_size_list = conv_width if isinstance(conv_width, list) else [conv_width] * conv_blocks
-    options_s = 'e%d.E%d.D%d.' % (options['epochs'], options['net_epochs'], options['down_factor'])
 
     p_name = p[0].rsplit('/')[-2]
     patient_path = '/'.join(p[0].rsplit('/')[:-1])
 
+    roi_input = roi is not None
+
     try:
         image_d = load_nii(os.path.join(patient_path, outputname + '.nii.gz')).get_data()
     except IOError:
-        net_roi = keras.models.load_model(net_roi_name)
         net_orig = keras.models.load_model(net_name)
         net_orig_conv_layers = sorted(
             [l for l in net_orig.layers if 'conv' in l.name],
             cmp=lambda x, y: int(x.name[7:]) - int(y.name[7:])
         )
-
         # Now let's create the domain network and train it
         try:
             net_new = keras.models.load_model(net_new_name)
@@ -372,6 +325,7 @@ def get_domain_image(
         except IOError:
             # First we get the tumor ROI
             if roi is None:
+                net_roi = keras.models.load_model(net_roi_name)
                 image_r = test_network(net_roi, p, batch_size, patch_size, filename=outputname + '.tumor', fcn=fcn)
                 roi = np.logical_and(image_r.astype(dtype=np.bool), image_o.astype(dtype=np.bool))
                 if np.count_nonzero(roi) == 0:
@@ -404,9 +358,12 @@ def get_domain_image(
             train_x = zoom(train_image, train_rate)
             train_y = zoom(train_mask, train_rate[1:], order=0)
 
+            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'domain' + c['nc'] +
+                  c['g'] + ' net' + c['nc'])
             # We create the domain network
-            net_new = create_new_network(data.shape[1:], filters_list, kernel_size_list) if not fcn\
-                else get_brats_net(data.shape[1:], filters_list, kernel_size_list, [32]*4, 5, domain=True)
+            net_new = get_brats_old_domain(data.shape[1:], filters_list, kernel_size_list) if not fcn\
+                else get_brats_net(data.shape, filters_list, kernel_size_list, [32]*4, 5, domain=True)
+
             net_new_conv_layers = [l for l in net_new.layers if 'conv' in l.name]
             for l_new, l_orig in zip(net_new_conv_layers, net_orig_conv_layers):
                 l_new.set_weights(l_orig.get_weights())
@@ -416,12 +373,15 @@ def get_domain_image(
             train_centers = list(product(*train_centers_r))
 
             print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Preparing ' + c['b'] + 'domain' + c['nc'] +
-                  c['g'] + ' patches ' + ['b'] + '(%d patches)' % len(train_centers) + c['nc'])
-            train_x, train_y = data_loading(train_x, train_y, train_centers, fcn=fcn)
+                  c['g'] + ' patches ' + c['b'] + '(%d patches)' % len(train_centers) + c['nc'])
+            train_x, train_y = data_loading(train_x, train_y, train_centers, fcn=fcn) if not roi_input else \
+                data_loading(train_x, train_y, train_centers, fcn=fcn, nlabels=2)
             transfer_learning(net_new, net_orig, data, train_x, train_y, train_roi)
             net_new.save(net_new_name)
 
-        image_d = test_network(net_orig, p, batch_size, patch_size, sufix=options_s + 'domain', fcn=fcn)
+        if roi_input:
+            net_orig.save(net_roi_name)
+        image_d = test_network(net_orig, p, batch_size, patch_size, filename=outputname, fcn=fcn, roi=roi)
 
     return image_d
 
@@ -458,20 +418,22 @@ def main():
     path = options['dir_name']
     test_data, test_labels = get_names_from_path(path, options)
     net_name = os.path.join(path, 'baseline-brats2017.D50.f.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
-    net_name2 = os.path.join(path, 'brats2017-seg.D100.p17.c3c3c3c3.n32n32n32n32.d256.e5.E10.e9.best.hdf5')
+    net_name2 = os.path.join(path, 'brats2017-seg.D200.p17.c3c3c3c3.n32n32n32n32.d256.e10.E50.e49.best.hdf5')
 
     # Prepare the net hyperparameters
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
-    batch_size = options['batch_size']
+    batch_size = options['batch_test_size']
     options_s = 'e%d.E%d.D%d.' % (options['epochs'], options['net_epochs'], options['down_factor'])
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting testing' + c['nc'])
     # Testing. We retrain the convolutionals and then apply testing. We also check the results without doing it.
     dsc_results_o = list()
     dsc_results_o2 = list()
+    dsc_results_fcn = list()
     dsc_results_d = list()
     dsc_results_d2 = list()
+    dsc_results_dfcn = list()
 
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
         p_name = p[0].rsplit('/')[-2]
@@ -485,10 +447,6 @@ def main():
             net_orig = keras.models.load_model(net_name)
             image_o = test_network(net_orig, p, batch_size, patch_size, sufix='original', filename=p_name)
 
-        # First let's test the original network
-        net_orig2 = keras.models.load_model(net_name2)
-        image_o2 = test_network(net_orig2, p, batch_size, (17, 17, 17), sufix='original.2', fcn=True)
-
         outputname = 'deep-brats17.test.' + options_s + 'domain'
         net_new_name = os.path.join(path, 'domain-exp-brats2017.' + options_s + p_name + '.mdl')
         net_roi_name = os.path.join(path, 'CBICA-brats2017.D25.p13.c3c3c3c3c3.n32n32n32n32n32.d256.e50.mdl')
@@ -498,44 +456,60 @@ def main():
             net_new_name,
             net_roi_name,
             image_o,
-            patch_size,
             outputname
         )
 
-        net_roi_name2 = os.path.join(path, 'roi.2-brats2017.' + options_s + p_name + '.mdl')
+        # First let's test the original network
+        net_orig2 = keras.models.load_model(net_name2)
+        test_network(net_orig2, p, batch_size, (17, 17, 17), sufix='original.2', fcn=True)
+
+        image_fcn = load_nii(os.path.join(patient_path, 'deep-brats17.test.original.2.fcn.nii.gz')).get_data()
+        image_o2 = load_nii(os.path.join(patient_path, 'deep-brats17.test.original.2.dense.nii.gz')).get_data()
+
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Retraining ' + c['b'] + 'roi 2' + c['nc'])
+        net_roi_name2 = os.path.join(path, 'brats2017-roi.D200.p17.c3c3c3c3.n32n32n32n32.d256.e10.E50.e49.best.hdf5')
+        net_roir_name2 = os.path.join(path, 'roi.2-brats2017.' + options_s + p_name + '.mdl')
+        net_roidomain_name2 = os.path.join(path, 'roi.domain.2-brats2017.' + options_s + p_name + '.mdl')
         get_domain_image(
             p,
-            net_name2,
             net_roi_name2,
-            net_name2,
+            net_roidomain_name2,
+            net_roir_name2,
             image_o2,
-            (17, 17, 17),
-            'dummy',
+            outputname='dummy',
             roi=load_nii(p[0]).get_data().astype(np.bool),
             fcn=True
         )
+
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Retraining ' + c['b'] + 'network 2' + c['nc'])
         outputname = 'deep-brats17.test.' + options_s + 'domain.2'
         net_new_name2 = os.path.join(path, 'domain-exp.2-brats2017.' + options_s + p_name + '.mdl')
-        image_d2 = get_domain_image(
+        get_domain_image(
             p,
             net_name2,
             net_new_name2,
-            net_roi_name2,
+            net_roir_name2,
             image_o2,
-            (17, 17, 17),
             outputname,
             fcn=True
         )
+
+        image_dfcn = load_nii(os.path.join(patient_path, 'deep-brats17.test.original.2.fcn.nii.gz')).get_data()
+        image_d2 = load_nii(os.path.join(patient_path, 'deep-brats17.test.original.2.dense.nii.gz')).get_data()
 
         if options['use_dsc']:
             results_o = check_dsc(gt_name, image_o)
             dsc_results_o.append(results_o)
             results_o2 = check_dsc(gt_name, image_o2)
             dsc_results_o2.append(results_o2)
+            results_fcn = check_dsc(gt_name, image_fcn)
+            dsc_results_fcn.append(results_fcn)
             results_d = check_dsc(gt_name, image_d)
             dsc_results_d.append(results_d)
             results_d2 = check_dsc(gt_name, image_d2)
             dsc_results_d2.append(results_d2)
+            results_dfcn = check_dsc(gt_name, image_dfcn)
+            dsc_results_dfcn.append(results_dfcn)
 
             subject_name = c['c'] + c['b'] + '%s' + c['nc']
             dsc_string = c['g'] + '/'.join(['%f']*len(results_o)) + c['nc']
@@ -543,19 +517,26 @@ def main():
             results = (p_name,) + tuple(results_o)
             print(''.join([' ']*14) + 'Original   ' + text % results)
             results = (p_name,) + tuple(results_o2)
+            print(''.join([' ']*14) + 'Original 2 ' + text % results)
+            results = (p_name,) + tuple(results_fcn)
             print(''.join([' '] * 14) + 'FCN        ' + text % results)
             results = (p_name,) + tuple(results_d)
             print(''.join([' ']*14) + 'Domain     ' + text % results)
             results = (p_name,) + tuple(results_d2)
+            print(''.join([' ']*14) + 'Domain 2   ' + text % results)
+            results = (p_name,) + tuple(results_dfcn)
             print(''.join([' ']*14) + 'Domain FCN ' + text % results)
 
     if options['use_dsc']:
         f_dsc_o = tuple([np.array([dsc[i] for dsc in dsc_results_o if len(dsc) > i]).mean() for i in range(3)])
         f_dsc_o2 = tuple([np.array([dsc[i] for dsc in dsc_results_o2 if len(dsc) > i]).mean() for i in range(3)])
+        f_dsc_fcn = tuple([np.array([dsc[i] for dsc in dsc_results_fcn if len(dsc) > i]).mean() for i in range(3)])
         f_dsc_d = tuple([np.array([dsc[i] for dsc in dsc_results_d if len(dsc) > i]).mean() for i in range(3)])
         f_dsc_d2 = tuple([np.array([dsc[i] for dsc in dsc_results_d2 if len(dsc) > i]).mean() for i in range(3)])
-        f_dsc = f_dsc_o + f_dsc_o2 + f_dsc_d + f_dsc_d2
-        print('Final results DSC: (%f/%f/%f) - (%f/%f/%f) vs (%f/%f/%f) - (%f/%f/%f)' % f_dsc)
+        f_dsc_dfcn = tuple([np.array([dsc[i] for dsc in dsc_results_dfcn if len(dsc) > i]).mean() for i in range(3)])
+        f_dsc = f_dsc_o + f_dsc_o2 + f_dsc_fcn + f_dsc_d + f_dsc_d2 + f_dsc_dfcn
+        f_string = 'Final results DSC: (%f/%f/%f) - (%f/%f/%f) - (%f/%f/%f) vs (%f/%f/%f) - (%f/%f/%f) - (%f/%f/%f)'
+        print(f_string % f_dsc)
 
 
 if __name__ == '__main__':
