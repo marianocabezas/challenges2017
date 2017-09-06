@@ -216,7 +216,7 @@ def test_network(net, p, batch_size, patch_size, sufix='', centers=None, filenam
 
         n_centers = len(centers)
         image_list = [load_norm_list(p)]
-        is_roi = False
+        is_roi = True
         roi = np.zeros_like(roi).astype(dtype=np.uint8)
         fcn_out = np.zeros_like(roi).astype(dtype=np.uint8)
         out = np.zeros_like(roi).astype(dtype=np.uint8)
@@ -239,7 +239,7 @@ def test_network(net, p, batch_size, patch_size, sufix='', centers=None, filenam
                 y_pr_pred = np.squeeze(y_pr_pred)
                 fcn_out[x, y, z] = np.argmax(y_pr_pred, axis=1)
                 tumor = np.argmax(y_pr_pred, axis=1)
-                is_roi = tumor.flatten().max() < 2
+                is_roi = tumor.flatten().max() < 2 and is_roi
             else:
                 if isinstance(y_pr_pred, list):
                     tumor = np.argmax(y_pr_pred[0], axis=1)
@@ -247,7 +247,6 @@ def test_network(net, p, batch_size, patch_size, sufix='', centers=None, filenam
                     is_roi = False
                 else:
                     tumor = np.argmax(y_pr_pred, axis=1)
-                    is_roi = True
 
             # We store the ROI
             roi[x, y, z] = tumor.astype(dtype=np.bool)
@@ -264,8 +263,13 @@ def test_network(net, p, batch_size, patch_size, sufix='', centers=None, filenam
 
         roi_nii.get_data()[:] = roi
         roi_nii.to_filename(roiname)
+        if fcn:
+            print('FCN')
+        if is_roi:
+            print('is roi')
         if fcn and not is_roi:
-            outputname = filename if filename else 'deep-brats17.test.' + sufix
+            outputname = filename if filename is not None else 'deep-brats17.test.' + sufix
+            print(outputname, filename)
             roi_nii.get_data()[:] = get_biggest_region(fcn_out, is_roi)
             roi_nii.to_filename(os.path.join(patient_path, outputname + '.fcn.nii.gz'))
 
@@ -494,8 +498,8 @@ def main():
             fcn=True
         )
 
-        image_dfcn = load_nii(os.path.join(patient_path, 'deep-brats17.test.original.2.fcn.nii.gz')).get_data()
-        image_d2 = load_nii(os.path.join(patient_path, 'deep-brats17.test.original.2.dense.nii.gz')).get_data()
+        image_dfcn = load_nii(os.path.join(patient_path, 'deep-brats17.test.domain.2.fcn.nii.gz')).get_data()
+        image_d2 = load_nii(os.path.join(patient_path, 'deep-brats17.test.domain.2.dense.nii.gz')).get_data()
 
         if options['use_dsc']:
             results_o = check_dsc(gt_name, image_o)
