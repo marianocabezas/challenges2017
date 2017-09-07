@@ -39,12 +39,16 @@ def parse_inputs():
     return vars(parser.parse_args())
 
 
-def train_net(net, train_data, train_labels, options, net_name, nlabels):
+def train_net(net, checkpoint, val_layer_name, weights, nlabels):
+    options = parse_inputs()
+    c = color_codes()
+    # Data stuff
+    path = options['dir_name']
+    train_data, train_labels = get_names_from_path(options)
     # Prepare the net architecture parameters
     dfactor = options['dfactor']
     # Prepare the net hyperparameters
     epochs = options['epochs']
-    r_epochs = options['r_epochs']
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
     batch_size = options['batch_size']
@@ -54,46 +58,63 @@ def train_net(net, train_data, train_labels, options, net_name, nlabels):
     balanced = options['balanced']
     val_rate = options['val_rate']
     preload = options['preload']
-
-    path = options['dir_name']
-
-    c = color_codes()
     fc_width = patch_width - sum(kernel_size_list) + conv_blocks
     fc_shape = (fc_width,) * 3
 
-    for i in range(r_epochs):
-        checkpoint = net_name + 'e%d.best.hdf5' % i
+    try:
+        net = load_model(checkpoint)
+    except IOError:
+
         callbacks = [
-            EarlyStopping(monitor='val_tumor_loss', patience=options['patience']),
-            ModelCheckpoint(os.path.join(path, checkpoint), monitor='val_tumor_loss', save_best_only=True)
+            EarlyStopping(monitor=val_layer_name, patience=options['patience']),
+            ModelCheckpoint(os.path.join(path, checkpoint), monitor=val_layer_name, save_best_only=True)
         ]
-        print(c['b'] + 'Epoch %d/%d ' % (i + 1, r_epochs) + c['nc'])
-        try:
-            net = load_model(checkpoint)
-        except IOError:
-            train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Loading data ' +
-                  c['b'] + '(%d centers)' % (len(train_centers) / dfactor) + c['nc'])
-            x, y = load_patches_train(
-                image_names=train_data,
-                label_names=train_labels,
-                centers=train_centers,
-                size=patch_size,
-                fc_shape=fc_shape,
-                nlabels=nlabels,
-                dfactor=dfactor,
-                preload=preload,
-                split=True,
-                iseg=False,
-                experimental=1,
-                datatype=np.float32
-            )
 
-            print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the model for ' +
-                  c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
+        net.compile(optimizer='adadelta', loss='categorical_crossentropy', loss_weights=weights, metrics=['accuracy'])
 
-            net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
-            net = load_model(checkpoint)
+        train_centers = get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
+        print(' '.join([''] * 16) + c['g'] + 'Loading data ' +
+              c['b'] + '(%d centers)' % (len(train_centers) / dfactor) + c['nc'])
+        x, y = load_patches_train(
+            image_names=train_data,
+            label_names=train_labels,
+            centers=train_centers,
+            size=patch_size,
+            fc_shape=fc_shape,
+            nlabels=nlabels,
+            dfactor=dfactor,
+            preload=preload,
+            split=True,
+            iseg=False,
+            experimental=1,
+            datatype=np.float32
+        )
+
+        print(' '.join([''] * 16) + c['g'] + 'Training the model for ' +
+              c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
+
+        net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
+        net = load_model(checkpoint)
+
+    return net
+
+
+def train_net_loop(net, net_name, nlabels):
+    options = parse_inputs()
+    # Prepare the net hyperparameters
+    r_epochs = options['r_epochs']
+    c = color_codes()
+
+    for i in range(r_epochs):
+        val_loss = 'val_fc_out_loss'
+        checkpoint = net_name + 'fc_out.e%d.best.hdf5' % i
+        print('Epoch (' + c['b'] + val_loss + c['nc'] + ') %d/%d ' % (i + 1, r_epochs) + c['nc'])
+        net = train_net(net, checkpoint, val_loss, [0.5, 1.0], nlabels)
+
+        val_loss = 'val_tumor_loss'
+        checkpoint = net_name + 'tumor.e%d.best.hdf5' % i
+        print('Epoch (' + c['b'] + val_loss + c['nc'] + ') %d/%d ' % (i + 1, r_epochs) + c['nc'])
+        net = train_net(net, checkpoint, val_loss, [1.0, 0.5], nlabels)
 
 
 def list_directories(path):
@@ -161,17 +182,18 @@ def main():
     # Region based net
     roi_net = get_brats_net(input_shape, filters_list, kernel_size_list, dense_size, 2)
     roi_net_name = os.path.join(path, 'brats2017-roi' + sufix)
-    train_net(roi_net, train_data, train_labels, options, roi_net_name, 2)
+    train_net_loop(roi_net, roi_net_name, 2)
 
     seg_net = get_brats_net(input_shape, filters_list, kernel_size_list, dense_size, 5)
 
+    # Tumor substrctures net
     roi_net_conv_layers = [l for l in roi_net.layers if 'conv' in l.name]
     seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]
     for lr, ls in zip(roi_net_conv_layers[:conv_blocks], seg_net_conv_layers[:conv_blocks]):
         ls.set_weights(lr.get_weights())
 
     seg_net_name = os.path.join(path, 'brats2017-seg' + sufix)
-    train_net(seg_net, train_data, train_labels, options, seg_net_name, 5)
+    train_net_loop(seg_net, seg_net_name, 5)
 
 
 if __name__ == '__main__':

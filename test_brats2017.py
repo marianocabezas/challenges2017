@@ -36,7 +36,7 @@ def parse_inputs():
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=5)
     parser.add_argument('-C', '--conv-blocks-fcn', dest='conv_blocks_fcn', type=int, default=4)
-    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=2048)
+    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=1024)
     parser.add_argument('-B', '--batch-test-size', dest='batch_test_size', type=int, default=32768)
     parser.add_argument('-d', '--down-factor', dest='down_factor', type=int, default=4)
     parser.add_argument('-D', '--down-factor-fcn', dest='down_factor_fcn', type=int, default=16)
@@ -498,8 +498,8 @@ def main():
             fcn=True
         )
 
-        image_dfcn = load_nii(os.path.join(patient_path, 'deep-brats17.test.domain.2.fcn.nii.gz')).get_data()
-        image_d2 = load_nii(os.path.join(patient_path, 'deep-brats17.test.domain.2.dense.nii.gz')).get_data()
+        image_dfcn = load_nii(os.path.join(patient_path, 'deep-brats17.test.e1.E1.D4.domain.2.fcn.nii.gz')).get_data()
+        image_d2 = load_nii(os.path.join(patient_path, 'deep-brats17.test.e1.E1.D4.domain.2.dense.nii.gz')).get_data()
 
         if options['use_dsc']:
             results_o = check_dsc(gt_name, image_o)
