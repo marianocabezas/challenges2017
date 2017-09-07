@@ -116,6 +116,8 @@ def train_net_loop(net, net_name, nlabels):
         print('Epoch (' + c['b'] + val_loss + c['nc'] + ') %d/%d ' % (i + 1, r_epochs) + c['nc'])
         net = train_net(net, checkpoint, val_loss, [1.0, 0.5], nlabels)
 
+    net.save(net_name + 'final.hdf5')
+
 
 def list_directories(path):
     return filter(os.path.isdir, [os.path.join(path, f) for f in os.listdir(path)])
