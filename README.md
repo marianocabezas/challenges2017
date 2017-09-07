@@ -1,6 +1,5 @@
-# BraTS2017
-Repository with models, experiments and our final approach for the BraTS 2017 tumor segmentation challenge.
+# MICCAI challenges 2017
 
-This repository is based on the cnn-nolearn repository with modifications for multiclass segmentation. 
-At some point I migh merge the changes. However, the final approach (and most likely weights) for the challenge will be public here.
+This repository is based on the cnn-nolearn repository with modifications for multiclass segmentation (both iSeg and BraTS). 
+At some point I might merge the changes. ~~~However, the final approach (and most likely weights) for the challenge will be public here.~~~ The approaches contained here are just experimental and not final. They do not represent the approaches we presented to any MICCAI's challenge.
 
