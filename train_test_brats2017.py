@@ -95,7 +95,7 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
         net = load_model(net_name)
     except IOError:
         net.save(net_name)
-        centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))[::20]
+        centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))
         print(' '.join([''] * 15) + c['g'] + 'Total number of centers = ' +
               c['b'] + '(%d centers)' % (len(centers_s)) + c['nc'])
         for i in range(dfactor):
