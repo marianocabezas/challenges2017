@@ -1,6 +1,6 @@
 from keras import backend as K
 from keras.layers import Dense, Conv3D, Dropout, Flatten, Input, concatenate, Reshape, Lambda
-from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU, Average
+from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU, Average, Cropping3D
 from keras.models import Model
 from itertools import product
 import numpy as np
@@ -316,33 +316,35 @@ def get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, nlabe
     conv_s = s_inputs
     conv_d = d_inputs
     list_disc = []
-    for filters, kernel_size in zip(filters_list, kernel_size_list):
+    for i, (filters, kernel_size) in enumerate(zip(filters_list, kernel_size_list)):
         conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')
-        conv_s = conv(conv_s)
-        conv_d = conv(conv_d)
-        list_disc.append(conv_d)
+        conv_s = BatchNormalization(axis=1)(conv(conv_s))
+        conv_d = BatchNormalization(axis=1)(conv(conv_d))
+        list_disc.append(Cropping3D(cropping=len(filters_list) - i - 1, data_format='channels_first')(conv_d))
 
     full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first', name='fc_dense')
-    full_s = PReLU()(full(conv_s))
-    full_d = PReLU()(full(conv_d))
+    full_s = PReLU()(BatchNormalization(axis=1)(full(conv_s)))
+    full_d = PReLU()(BatchNormalization(axis=1)(full(conv_d)))
     list_disc.append(full_d)
     full = Conv3D(nlabels, kernel_size=(1, 1, 1), data_format='channels_first', name='fc')
-    full_s = full(full_s)
-    full_d = full(full_d)
+    full_s = BatchNormalization(axis=1)(full(full_s))
+    full_d = BatchNormalization(axis=1)(full(full_d))
     list_disc.append(full_d)
 
     rf = concatenate([conv_s, full_s], axis=1)
 
     rf_num = 1
     while np.product(K.int_shape(rf)[2:]) > 1:
-        rf = Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first', name='rf_%d' % rf_num)(rf)
+        rf = BatchNormalization(axis=1)(
+            Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first', name='rf_%d' % rf_num)(rf)
+        )
         rf_num += 1
 
     combo = concatenate([Flatten()(conv_s), Flatten()(rf)])
 
     seg = Dense(nlabels, activation='softmax', name='seg')(combo)
 
-    disc = Dense(2, activation='softmax', name='disc')(concatenate([Flatten()(o_i) for o_i in list_disc]))
+    disc = Dense(2, activation='softmax', name='disc')(concatenate(list_disc, axis=1))
 
     outputs = [seg, disc]
 

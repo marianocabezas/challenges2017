@@ -91,58 +91,54 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
     net_name = os.path.join(patient_path, name)
     checkpoint_name = os.path.join(patient_path, net_name + '.weights')
 
-    try:
-        net = load_model(net_name)
-    except IOError:
-        net.save(net_name)
-        centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))
-        print(' '.join([''] * 15) + c['g'] + 'Total number of centers = ' +
-              c['b'] + '(%d centers)' % (len(centers_s)) + c['nc'])
-        for i in range(dfactor):
-            print(' '.join([''] * 16) + c['g'] + 'Round ' +
-                  c['b'] + '%d' % (i + 1) + c['nc'] + c['g'] + '/%d' % dfactor + c['nc'])
-            try:
-                net.load_weights(checkpoint_name + '.e%d' % (i+1))
-            except IOError:
-                batch_centers_s = centers_s[i::dfactor]
-                print(' '.join([''] * 16) + c['g'] + 'Loading data ' +
-                      c['b'] + '(%d centers)' % (len(batch_centers_s) * 2) + c['nc'])
-                x, y = load_patches_gan(
-                    source_names=train_data,
-                    target_names=[p],
-                    label_names=train_labels,
-                    source_centers=batch_centers_s,
-                    size=patch_size,
-                    nlabels=nlabels,
-                    preload=preload,
+    centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))
+    print(' '.join([''] * 15) + c['g'] + 'Total number of centers = ' +
+          c['b'] + '(%d centers)' % (len(centers_s)) + c['nc'])
+    for i in range(dfactor):
+        print(' '.join([''] * 16) + c['g'] + 'Round ' +
+              c['b'] + '%d' % (i + 1) + c['nc'] + c['g'] + '/%d' % dfactor + c['nc'])
+        try:
+            net.load_weights(checkpoint_name + '.e%d' % (i+1))
+        except IOError:
+            batch_centers_s = centers_s[i::dfactor]
+            print(' '.join([''] * 16) + c['g'] + 'Loading data ' +
+                  c['b'] + '(%d centers)' % (len(batch_centers_s) * 2) + c['nc'])
+            x, y = load_patches_gan(
+                source_names=train_data,
+                target_names=[p],
+                label_names=train_labels,
+                source_centers=batch_centers_s,
+                size=patch_size,
+                nlabels=nlabels,
+                preload=preload,
+            )
+
+            print(' '.join([''] * 16) + c['g'] + 'Training the model for ' +
+                  c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
+            net.compile(
+                optimizer='adadelta',
+                loss={'seg': 'categorical_crossentropy', 'disc': 'binary_crossentropy'},
+                loss_weights=[1, adversarial_w],
+                metrics=['accuracy']
+            )
+
+            adversarial_w -= 1.0 / dfactor
+
+            callbacks = [
+                EarlyStopping(
+                    monitor=val_layer_name,
+                    patience=options['patience']
+                ),
+                ModelCheckpoint(
+                    checkpoint_name + '.e%d' % (i+1),
+                    monitor=val_layer_name,
+                    save_best_only=True,
+                    save_weights_only=True
                 )
+            ]
 
-                print(' '.join([''] * 16) + c['g'] + 'Training the model for ' +
-                      c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
-                net.compile(
-                    optimizer='adadelta',
-                    loss={'seg': 'categorical_crossentropy', 'disc': 'binary_crossentropy'},
-                    loss_weights=[1, adversarial_w],
-                    metrics=['accuracy']
-                )
-
-                adversarial_w -= 1.0 / dfactor
-
-                callbacks = [
-                    EarlyStopping(
-                        monitor=val_layer_name,
-                        patience=options['patience']
-                    ),
-                    ModelCheckpoint(
-                        checkpoint_name + '.e%d' % (i+1),
-                        monitor=val_layer_name,
-                        save_best_only=True,
-                        save_weights_only=True
-                    )
-                ]
-
-                net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
-                net.load_weights(checkpoint_name + '.e%d' % (i+1))
+            net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
+            net.load_weights(checkpoint_name + '.e%d' % (i+1))
 
 
 def test_net(net, p, outputname):
