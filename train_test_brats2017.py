@@ -18,7 +18,7 @@ import keras.backend as K
 def parse_inputs():
     # I decided to separate this function, for easier acces to the command line parameters
     parser = argparse.ArgumentParser(description='Test different nets with 3D data.')
-    parser.add_argument('-f', '--training-folder', dest='dir_train', default='/home/mariano/DATA/Brats17Test-Training/')
+    parser.add_argument('-f', '--training-folder', dest='dir_train', default='/home/mariano/DATA/Brats17Train/')
     parser.add_argument('-F', '--test-folder', dest='dir_test', default='/home/mariano/DATA/Brats17Test/')
     parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=17)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
@@ -26,16 +26,16 @@ def parse_inputs():
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=512)
     parser.add_argument('-B', '--batch-test-size', dest='test_size', type=int, default=32768)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
-    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=400)
+    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=500)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
-    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=10)
+    parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=5)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=10)
     parser.add_argument('-v', '--validation-rate', action='store', dest='val_rate', type=float, default=0.25)
     parser.add_argument('-u', '--unbalanced', action='store_false', dest='balanced', default=True)
     parser.add_argument('-s', '--sequential', action='store_true', dest='sequential', default=False)
     parser.add_argument('-r', '--recurrent', action='store_true', dest='recurrent', default=False)
     parser.add_argument('-p', '--preload', action='store_true', dest='preload', default=False)
-    parser.add_argument('-P', '--patience', dest='patience', type=int, default=5)
+    parser.add_argument('-P', '--patience', dest='patience', type=int, default=2)
     parser.add_argument('--flair', action='store', dest='flair', default='_flair.nii.gz')
     parser.add_argument('--t1', action='store', dest='t1', default='_t1.nii.gz')
     parser.add_argument('--t1ce', action='store', dest='t1ce', default='_t1ce.nii.gz')
@@ -124,7 +124,7 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
                 metrics=['accuracy']
             )
 
-            adversarial_w -= 1.0 * (i + 1) / dfactor
+            adversarial_w -= 1.0 / dfactor
 
             callbacks = [
                 EarlyStopping(monitor=val_layer_name, patience=options['patience']),
@@ -132,6 +132,7 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
             ]
 
             net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
+            net.load_weights(checkpoint_name)
 
 
 def test_net(net, p, outputname):
