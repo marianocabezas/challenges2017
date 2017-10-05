@@ -248,7 +248,7 @@ def main():
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
               c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
         roi_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 2)
-        train_net(roi_net, p, 'brats2017-roi.tf', nlabels=2)
+        train_net(roi_net, p, 'brats2017-roi' + sufix, nlabels=2)
 
         seg_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 5)
         # Tumor substrctures net
@@ -256,7 +256,7 @@ def main():
         seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]
         for lr, ls in zip(roi_net_conv_layers[:conv_blocks], seg_net_conv_layers[:conv_blocks]):
             ls.set_weights(lr.get_weights())
-        train_net(seg_net, p, 'brats2017-full.tf' + sufix, nlabels=5)
+        train_net(seg_net, p, 'brats2017-full' + sufix, nlabels=5)
 
 
 if __name__ == '__main__':
