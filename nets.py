@@ -307,6 +307,50 @@ def get_brats_net(input_shape, filters_list, kernel_size_list, dense_size, nlabe
     return net
 
 
+def get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, nlabels):
+    s_inputs = Input(shape=input_shape, name='seg_inputs')
+    d_inputs = Input(shape=input_shape, name='disc_inputs')
+
+    inputs = [s_inputs, d_inputs]
+
+    conv_s = s_inputs
+    conv_d = d_inputs
+    list_disc = []
+    for filters, kernel_size in zip(filters_list, kernel_size_list):
+        conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')
+        conv_s = conv(conv_s)
+        conv_d = conv(conv_d)
+        list_disc.append(conv_d)
+
+    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first', name='fc_dense')
+    full_s = PReLU()(full(conv_s))
+    full_d = PReLU()(full(conv_d))
+    list_disc.append(full_d)
+    full = Conv3D(nlabels, kernel_size=(1, 1, 1), data_format='channels_first', name='fc')
+    full_s = full(full_s)
+    full_d = full(full_d)
+    list_disc.append(full_d)
+
+    rf = concatenate([conv_s, full_s], axis=1)
+
+    rf_num = 1
+    while np.product(K.int_shape(rf)[2:]) > 1:
+        rf = Conv3D(dense_size, kernel_size=(3, 3, 3), data_format='channels_first', name='rf_%d' % rf_num)(rf)
+        rf_num += 1
+
+    combo = concatenate([Flatten()(conv_s), Flatten()(rf)])
+
+    seg = Dense(nlabels, activation='softmax', name='seg')(combo)
+
+    disc = Dense(2, activation='softmax', name='disc')(concatenate([Flatten()(o_i) for o_i in list_disc]))
+
+    outputs = [seg, disc]
+
+    net = Model(inputs=inputs, outputs=outputs)
+
+    return net
+
+
 def get_brats_old_domain(patch_size, filters_list, kernel_size_list):
     # This architecture is based on the functional Keras API to introduce 3 output paths:
     # - Whole tumor segmentation

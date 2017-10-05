@@ -10,6 +10,7 @@ from numpy import logical_and as log_and
 from numpy import logical_or as log_or
 from numpy import logical_not as log_not
 import keras
+from keras.utils import to_categorical
 
 
 def clip_to_roi(images, roi):
@@ -152,6 +153,71 @@ def get_xy(
     else:
         y = keras.utils.to_categorical(np.copy(y).astype(dtype=np.bool), num_classes=2)
     return x.astype(dtype=datatype), y
+
+
+def centers_from_data(names):
+    centers_list = [get_mask_voxels(np.squeeze(load_nii(p[0]).get_data().astype(dtype=np.bool)))
+                    for p in names]
+    centers = np.concatenate([np.array([(i, c) for c in centers], dtype=object)
+                              for i, centers in enumerate(centers_list)])
+    return centers
+
+
+def load_patches_gan(
+        source_names,
+        target_names,
+        label_names,
+        source_centers,
+        size,
+        nlabels,
+        datatype=np.float32,
+        preload=False,
+):
+    # Preload data if needed
+    source_list = [load_norm_list(patient) for patient in source_names] if preload else source_names
+    target_list = [load_norm_list(patient) for patient in target_names] if preload else target_names
+
+    # Initial variables
+    n_centers = len(source_centers)
+    n_images = len(source_list)
+
+    # Source loading according to the source centers for the segmenter
+    seg_centers, idx = centers_and_idx(source_centers, n_images)
+    print(''.join([' '] * 15) + 'Loading source (seg) - %d centers' % len(source_centers))
+    x_seg = filter(lambda z: z.any(), get_patches_list(source_list, seg_centers, size, preload))
+    print(''.join([' '] * 15) + '- Concatenation')
+    x_seg = np.concatenate(x_seg)
+    x_seg[idx] = x_seg
+    print(''.join([' '] * 15) + 'Loading y')
+    y = [np.array([l[c] for c in lc]) for l, lc in zip(labels_generator(label_names), seg_centers)]
+    print(''.join([' '] * 15) + '- Concatenation')
+    y = np.concatenate(y)
+    y[idx] = y
+    if nlabels <= 2:
+        y = y.astype(dtype=np.bool)
+    y_seg = to_categorical(y, num_classes=nlabels)
+
+    # Source and target loading for the discriminator
+    centers_s = np.random.permutation(centers_from_data(source_names))[:(n_centers / 2)]
+    centers_t = np.random.permutation(centers_from_data(target_names))[:(n_centers / 2)]
+    disc_centers_s, _ = centers_and_idx(centers_s, n_images)
+    disc_centers_t, _ = centers_and_idx(centers_t, n_images)
+    print(''.join([' '] * 15) + 'Loading source (disc) - %d centers' % (len(centers_s)))
+    x_s = filter(lambda z: z.any(), get_patches_list(source_list, disc_centers_s, size, preload))
+    print(''.join([' '] * 15) + '- Concatenation')
+    x_s = np.concatenate(x_s)
+    print(''.join([' '] * 15) + 'Loading target (disc) - %d centers' % (len(centers_t)))
+    x_t = filter(lambda z: z.any(), get_patches_list(target_list, disc_centers_t, size, preload))
+    print(''.join([' '] * 15) + '- Concatenation')
+    x_t = np.concatenate(x_t)
+    x_disc = np.concatenate([x_s, x_t])
+    idx = np.random.permutation(range(len(x_disc)))
+    x_disc = x_disc[idx]
+    print(''.join([' '] * 15) + 'Creating y (disc)')
+    y = np.concatenate([np.zeros(len(centers_s)), np.ones(len(centers_t))])[idx]
+    y_disc = to_categorical(y, num_classes=2)
+
+    return [x_seg.astype(dtype=datatype), x_disc.astype(dtype=datatype)], [y_seg, y_disc]
 
 
 def load_patch_batch_train(
