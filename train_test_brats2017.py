@@ -26,7 +26,7 @@ def parse_inputs():
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=512)
     parser.add_argument('-B', '--batch-test-size', dest='test_size', type=int, default=32768)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
-    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=500)
+    parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=50)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=5)
     parser.add_argument('-q', '--queue', action='store', dest='queue', type=int, default=10)
@@ -93,7 +93,7 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
 
     try:
         net = load_model(net_name)
-        net.load_weights(checkpoint_name)
+        net.load_weights(checkpoint_name + '.e%d' % dfactor)
     except IOError:
         net.save(net_name)
         centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))
@@ -127,8 +127,16 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
             adversarial_w -= 1.0 / dfactor
 
             callbacks = [
-                EarlyStopping(monitor=val_layer_name, patience=options['patience']),
-                ModelCheckpoint(checkpoint_name, monitor=val_layer_name, save_best_only=True, save_weights_only=True)
+                EarlyStopping(
+                    monitor=val_layer_name,
+                    patience=options['patience']
+                ),
+                ModelCheckpoint(
+                    checkpoint_name + '.e%d' % (i+1),
+                    monitor=val_layer_name,
+                    save_best_only=True,
+                    save_weights_only=True
+                )
             ]
 
             net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
@@ -228,21 +236,17 @@ def main():
     preload_s = ' (with ' + c['b'] + 'preloading' + c['nc'] + c['c'] + ')' if preload else ''
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting training' + preload_s + c['nc'])
-    # N-fold cross validation main loop (we'll do 2 training iterations with testing for each patient)
-    train_data, train_labels = get_names_from_path(options)
+    train_data, _ = get_names_from_path(options)
     test_data, test_labels = get_names_from_path(options, False)
 
-    print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + c['g'] +
-          'Number of training images (%d=%d)' % (len(train_data), len(train_labels)) + c['nc'])
-    #  Also, prepare the network
-
-    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Creating and compiling the model ' + c['nc'])
     input_shape = (train_data.shape[1],) + patch_size
 
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
+        p_name = p[0].rsplit('/')[-2]
+        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
+              c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
         roi_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 2)
-        net_name = os.path.join(path, 'brats2017-roi.tf' + sufix)
-        train_net(roi_net, p, net_name, nlabels=2)
+        train_net(roi_net, p, 'brats2017-roi.tf', nlabels=2)
 
         seg_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 5)
         # Tumor substrctures net
@@ -250,8 +254,7 @@ def main():
         seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]
         for lr, ls in zip(roi_net_conv_layers[:conv_blocks], seg_net_conv_layers[:conv_blocks]):
             ls.set_weights(lr.get_weights())
-        net_name = os.path.join(path, 'brats2017-full.tf' + sufix)
-        train_net(seg_net, p, net_name, nlabels=5)
+        train_net(seg_net, p, 'brats2017-full.tf' + sufix, nlabels=5)
 
 
 if __name__ == '__main__':
