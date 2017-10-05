@@ -124,7 +124,7 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
                 metrics=['accuracy']
             )
 
-            adversarial_w -= 0.1
+            adversarial_w -= 1.0 * (i + 1) / dfactor
 
             callbacks = [
                 EarlyStopping(monitor=val_layer_name, patience=options['patience']),
