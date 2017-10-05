@@ -199,7 +199,7 @@ def load_patches_gan(
 
     # Source and target loading for the discriminator
     centers_s = np.random.permutation(centers_from_data(source_names))[:(n_centers / 2)]
-    centers_t = np.random.permutation(centers_from_data(target_names))[:(n_centers / 2)]
+    centers_t = np.random.permutation(centers_from_data(target_names))[:(n_centers - (n_centers / 2))]
     disc_centers_s, _ = centers_and_idx(centers_s, n_images)
     disc_centers_t, _ = centers_and_idx(centers_t, n_images)
     print(''.join([' '] * 15) + 'Loading source (disc) - %d centers' % (len(centers_s)))
