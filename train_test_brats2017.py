@@ -91,8 +91,8 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
     checkpoint_name = os.path.join(patient_path, net_name + '.weights')
 
     centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))
-    print(' '.join([''] * 15) + c['g'] + 'Total number of centers = ' +
-          c['b'] + '(%d centers)' % (len(centers_s)) + c['nc'])
+    print(' '.join([''] * 15) + c['g'] + 'Total number of source centers = ' +
+          c['b'] + '%d' % (len(centers_s)) + c['nc'])
     for i in range(dfactor):
         print(' '.join([''] * 16) + c['g'] + 'Round ' +
               c['b'] + '%d' % (i + 1) + c['nc'] + c['g'] + '/%d' % dfactor + c['nc'])
