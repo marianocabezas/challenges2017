@@ -1,8 +1,8 @@
 import numpy as np
 from keras.layers.core import Layer
 import keras.backend as K
-import keras.backend.tensorflow_backend as tf
-import keras.backend.theano_backend as T
+import tensorflow as tf
+import theano as T
 
 
 def reverse_gradient(X, hp_lambda):
@@ -43,7 +43,7 @@ class ReverseGradient(T.Op):
         x = T.tensor.as_tensor_variable(x)
         return T.Apply(self, [x], [x.type()])
 
-    def perform(self, node, inputs, output_storage):
+    def perform(self, node, inputs, output_storage, params=None):
         xin, = inputs
         xout, = output_storage
         xout[0] = xin
@@ -66,10 +66,13 @@ class GradientReversal(Layer):
         self.trainable_weights = []
 
     def call(self, x, mask=None):
-        if K.backend() is 'theano':
+        if K.backend() == 'theano':
             return ReverseGradient(self.hp_lambda)(x)
-        elif K.backend() is 'tensorflow':
+        elif K.backend() == 'tensorflow':
             return reverse_gradient(x, self.hp_lambda)
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
 
     def get_output_shape_for(self, input_shape):
         return input_shape

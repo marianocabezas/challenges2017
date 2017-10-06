@@ -205,7 +205,6 @@ def test_net(net, p, outputname):
 
 
 def main():
-    print(K.backend())
     options = parse_inputs()
     c = color_codes()
 

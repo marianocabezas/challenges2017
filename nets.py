@@ -345,13 +345,14 @@ def get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, nlabe
     combo = concatenate([dense_s, Flatten()(rf)])
     seg = Dense(nlabels, activation='softmax', name='seg')(combo)
 
-    disc_input = GradientReversal(1)(concatenate(list_disc, axis=1))
+    disc_input = concatenate(list_disc, axis=1)
+    grad_reverse = GradientReversal(1)(disc_input)
     conv_d = Conv3D(
         filters_list[-1],
         kernel_size=kernel_size_list[-1],
         activation='relu',
         data_format='channels_first'
-    )(disc_input)
+    )(grad_reverse)
     conv_d = Conv3D(
         filters_list[-1],
         kernel_size=kernel_size_list[-1],
