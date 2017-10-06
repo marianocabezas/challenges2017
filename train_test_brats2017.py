@@ -68,7 +68,7 @@ def check_dsc(gt_name, image):
     return [dsc_seg(gt == l, image == l) for l in labels[1:]]
 
 
-def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
+def train_net(net, p, name, val_layer_name='val_loss', nlabels=5, adversarial_w=None):
     options = parse_inputs()
     c = color_codes()
     # Data stuff
@@ -85,7 +85,11 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
     val_rate = options['val_rate']
     preload = options['preload']
 
-    adversarial_w = K.variable(0)
+    if adversarial_w is None:
+        adversarial_w = K.variable(0)
+        loss_weights = [1, adversarial_w]
+    else:
+        loss_weights = [1, 1]
 
     net_name = os.path.join(patient_path, name)
     checkpoint_name = os.path.join(patient_path, net_name + '.weights')
@@ -117,7 +121,7 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
             net.compile(
                 optimizer='adadelta',
                 loss={'seg': 'categorical_crossentropy', 'disc': 'binary_crossentropy'},
-                loss_weights=[1, adversarial_w],
+                loss_weights=loss_weights,
                 metrics=['accuracy']
             )
 
@@ -242,10 +246,12 @@ def main():
         p_name = p[0].rsplit('/')[-2]
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
               c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
-        roi_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 2)
+        adversarial_w = K.variable(0)
+        roi_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 2, lambda_var=adversarial_w)
         train_net(roi_net, p, 'brats2017-roi' + sufix, nlabels=2)
 
-        seg_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 5)
+        adversarial_w = K.variable(0)
+        seg_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 5, lambda_var=adversarial_w)
         # Tumor substructures net
         roi_net_conv_layers = [l for l in roi_net.layers if 'conv' in l.name]
         seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]

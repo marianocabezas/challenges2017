@@ -308,7 +308,7 @@ def get_brats_net(input_shape, filters_list, kernel_size_list, dense_size, nlabe
     return net
 
 
-def get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, nlabels):
+def get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, nlabels, lambda_var=None):
     s_inputs = Input(shape=input_shape, name='seg_inputs')
     d_inputs = Input(shape=input_shape, name='disc_inputs')
 
@@ -346,13 +346,13 @@ def get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, nlabe
     seg = Dense(nlabels, activation='softmax', name='seg')(combo)
 
     disc_input = concatenate(list_disc, axis=1)
-    grad_reverse = GradientReversal(1)(disc_input)
+    grad_reverse = GradientReversal(1) if lambda_var is None else GradientReversal(lambda_var)
     conv_d = Conv3D(
         filters_list[-1],
         kernel_size=kernel_size_list[-1],
         activation='relu',
         data_format='channels_first'
-    )(grad_reverse)
+    )(grad_reverse(disc_input))
     conv_d = Conv3D(
         filters_list[-1],
         kernel_size=kernel_size_list[-1],
