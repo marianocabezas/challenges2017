@@ -4,6 +4,7 @@ from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU, A
 from keras.models import Model
 from itertools import product
 import numpy as np
+from layers import GradientReversal
 
 
 def compile_network(inputs, outputs, weights):
@@ -340,11 +341,37 @@ def get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, nlabe
         )
         rf_num += 1
 
-    combo = concatenate([Flatten()(conv_s), Flatten()(rf)])
-
+    dense_s = Dense(dense_size, activation='softmax')(Flatten()(conv_s))
+    combo = concatenate([dense_s, Flatten()(rf)])
     seg = Dense(nlabels, activation='softmax', name='seg')(combo)
 
-    disc = Dense(2, activation='softmax', name='disc')(concatenate(list_disc, axis=1))
+    disc_input = GradientReversal(1)(concatenate(list_disc, axis=1))
+    conv_d = Conv3D(
+        filters_list[-1],
+        kernel_size=kernel_size_list[-1],
+        activation='relu',
+        data_format='channels_first'
+    )(disc_input)
+    conv_d = Conv3D(
+        filters_list[-1],
+        kernel_size=kernel_size_list[-1],
+        activation='relu',
+        data_format='channels_first'
+    )(conv_d)
+    conv_d = Conv3D(
+        filters_list[-1],
+        kernel_size=kernel_size_list[-1],
+        activation='relu',
+        data_format='channels_first'
+    )(conv_d)
+    conv_d = Conv3D(
+        dense_size,
+        kernel_size=(1, 1, 1),
+        activation='relu',
+        data_format='channels_first'
+    )(conv_d)
+
+    disc = Dense(2, activation='softmax', name='disc')(Flatten()(conv_d))
 
     outputs = [seg, disc]
 

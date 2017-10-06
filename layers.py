@@ -5,7 +5,83 @@ import keras.backend.tensorflow_backend as tf
 import keras.backend.theano as T
 
 
-class Affine3DLayer(Layer):
+def reverse_gradient(X, hp_lambda):
+    '''Flips the sign of the incoming gradient during training.'''
+    try:
+        reverse_gradient.num_calls += 1
+    except AttributeError:
+        reverse_gradient.num_calls = 1
+
+    grad_name = "GradientReversal%d" % reverse_gradient.num_calls
+
+    @tf.RegisterGradient(grad_name)
+    def _flip_gradients(op, grad):
+        return [tf.negative(grad) * hp_lambda]
+
+    g = K.get_session().graph
+    with g.gradient_override_map({'Identity': grad_name}):
+        y = tf.identity(X)
+
+    return y
+
+
+class ReverseGradient(T.Op):
+    """ theano operation to reverse the gradients
+    Introduced in http://arxiv.org/pdf/1409.7495.pdf
+    """
+
+    view_map = {0: [0]}
+
+    __props__ = ('hp_lambda', )
+
+    def __init__(self, hp_lambda):
+        super(ReverseGradient, self).__init__()
+        self.hp_lambda = hp_lambda
+
+    def make_node(self, x):
+        assert hasattr(self, '_props'), "Your version of theano is too old to support __props__."
+        x = T.tensor.as_tensor_variable(x)
+        return T.Apply(self, [x], [x.type()])
+
+    def perform(self, node, inputs, output_storage):
+        xin, = inputs
+        xout, = output_storage
+        xout[0] = xin
+
+    def grad(self, input, output_gradients):
+        return [-self.hp_lambda * output_gradients[0]]
+
+    def infer_shape(self, node, i0_shapes):
+        return i0_shapes
+
+
+class GradientReversal(Layer):
+    '''Flip the sign of gradient during training.'''
+    def __init__(self, hp_lambda, **kwargs):
+        super(GradientReversal, self).__init__(**kwargs)
+        self.supports_masking = False
+        self.hp_lambda = hp_lambda
+
+    def build(self, input_shape):
+        self.trainable_weights = []
+
+    def call(self, x, mask=None):
+        if K.backend() is 'theano':
+            return ReverseGradient(self.hp_lambda)(x)
+        elif K.backend() is 'tensorflow':
+            return reverse_gradient(x, self.hp_lambda)
+
+    def get_output_shape_for(self, input_shape):
+        return input_shape
+
+    def get_config(self):
+        config = {"name": self.__class__.__name__,
+                  "lambda": self.hp_lambda}
+        base_config = super(GradientReversal, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
+class Affine3D(Layer):
     """Spatial Transformer Layer
     Implements a spatial transformer layer as described in [1]_.
     Borrowed from [2]_:
@@ -27,7 +103,7 @@ class Affine3DLayer(Layer):
 
     def __init__(self,
                  **kwargs):
-        super(Affine3DLayer, self).__init__(**kwargs)
+        super(Affine3D, self).__init__(**kwargs)
 
     def build(self, input_shape):
         self.affine = self.add_weight(name='affine',
@@ -62,17 +138,17 @@ class Affine3DLayer(Layer):
         # in Theano. However, it hardly affected performance when we tried.
         x_t = K.dot(
             K.reshape(K.dot(
-                Affine3DLayer._linspace(-1.0, 1.0, height).dimshuffle(0, 'x'),
+                Affine3D._linspace(-1.0, 1.0, height).dimshuffle(0, 'x'),
                 K.ones((1, width))), (height, width, 1)),
             K.ones((1, 1, depth))
         )
         y_t = K.dot(
             K.reshape(K.dot(
                 K.ones((height, 1)),
-                Affine3DLayer._linspace(-1.0, 1.0, width).dimshuffle('x', 0)), (height, width, 1)),
+                Affine3D._linspace(-1.0, 1.0, width).dimshuffle('x', 0)), (height, width, 1)),
             K.ones((1, 1, depth))
         )
-        z_t = K.dot(K.ones((height, width, 1)), K.reshape(Affine3DLayer._linspace(-1.0, 1.0, depth), (1, 1, -1)))
+        z_t = K.dot(K.ones((height, width, 1)), K.reshape(Affine3D._linspace(-1.0, 1.0, depth), (1, 1, -1)))
 
         x_t_flat = x_t.reshape((1, -1))
         y_t_flat = y_t.reshape((1, -1))
@@ -167,7 +243,7 @@ class Affine3DLayer(Layer):
         out_height = K.cast(height, 'int64')
         out_width = K.cast(width, 'int64')
         out_depth = K.cast(depth, 'int64')
-        grid = Affine3DLayer._meshgrid(out_height, out_width, out_depth)
+        grid = Affine3D._meshgrid(out_height, out_width, out_depth)
 
         # Transform A x (x_t, y_t, z_t, 1)^T -> (x_s, y_s, z_s)
         T_g = K.dot(theta, grid)
@@ -180,7 +256,7 @@ class Affine3DLayer(Layer):
 
         # dimshuffle input to  (bs, height, width, depth, channels)
         input_dim = input_layer.dimshuffle(0, 2, 3, 4, 1)
-        input_transformed = _interpolate(
+        input_transformed = Affine3D._interpolate(
             input_dim, x_s_flat, y_s_flat, z_s_flat,
             out_height, out_width, out_depth)
 

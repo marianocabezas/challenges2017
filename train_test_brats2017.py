@@ -23,7 +23,7 @@ def parse_inputs():
     parser.add_argument('-i', '--patch-width', dest='patch_width', type=int, default=17)
     parser.add_argument('-k', '--kernel-size', dest='conv_width', nargs='+', type=int, default=3)
     parser.add_argument('-c', '--conv-blocks', dest='conv_blocks', type=int, default=4)
-    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=512)
+    parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=128)
     parser.add_argument('-B', '--batch-test-size', dest='test_size', type=int, default=32768)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
     parser.add_argument('-D', '--down-factor', dest='dfactor', type=int, default=50)
@@ -122,7 +122,7 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5):
                 metrics=['accuracy']
             )
 
-            adversarial_w -= 1.0 / dfactor
+            adversarial_w += 1.0 / dfactor
 
             callbacks = [
                 EarlyStopping(
@@ -205,6 +205,7 @@ def test_net(net, p, outputname):
 
 
 def main():
+    print(K.backend())
     options = parse_inputs()
     c = color_codes()
 
@@ -247,7 +248,7 @@ def main():
         train_net(roi_net, p, 'brats2017-roi' + sufix, nlabels=2)
 
         seg_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 5)
-        # Tumor substrctures net
+        # Tumor substructures net
         roi_net_conv_layers = [l for l in roi_net.layers if 'conv' in l.name]
         seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]
         for lr, ls in zip(roi_net_conv_layers[:conv_blocks], seg_net_conv_layers[:conv_blocks]):
