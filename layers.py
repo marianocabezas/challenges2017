@@ -2,7 +2,7 @@ import numpy as np
 from keras.layers.core import Layer
 import keras.backend as K
 import keras.backend.tensorflow_backend as tf
-import keras.backend.theano as T
+import keras.backend.theano_backend as T
 
 
 def reverse_gradient(X, hp_lambda):
