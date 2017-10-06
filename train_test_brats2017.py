@@ -10,8 +10,7 @@ from data_creation import get_cnn_centers, load_norm_list, get_patches_list, loa
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
 from nets import get_brats_gan
-from keras.models import load_model
-from keras.callbacks import EarlyStopping, ModelCheckpoint, Callback
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 import keras.backend as K
 
 

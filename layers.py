@@ -1,58 +1,6 @@
 import numpy as np
 from keras.layers.core import Layer
 import keras.backend as K
-import tensorflow as tf
-import theano as T
-
-
-def reverse_gradient(X, hp_lambda):
-    '''Flips the sign of the incoming gradient during training.'''
-    try:
-        reverse_gradient.num_calls += 1
-    except AttributeError:
-        reverse_gradient.num_calls = 1
-
-    grad_name = "GradientReversal%d" % reverse_gradient.num_calls
-
-    @tf.RegisterGradient(grad_name)
-    def _flip_gradients(op, grad):
-        return [tf.negative(grad) * hp_lambda]
-
-    g = K.get_session().graph
-    with g.gradient_override_map({'Identity': grad_name}):
-        y = tf.identity(X)
-
-    return y
-
-
-class ReverseGradient(T.Op):
-    """ theano operation to reverse the gradients
-    Introduced in http://arxiv.org/pdf/1409.7495.pdf
-    """
-
-    view_map = {0: [0]}
-
-    __props__ = ('hp_lambda', )
-
-    def __init__(self, hp_lambda):
-        super(ReverseGradient, self).__init__()
-        self.hp_lambda = hp_lambda
-
-    def make_node(self, x):
-        assert hasattr(self, '_props'), "Your version of theano is too old to support __props__."
-        x = T.tensor.as_tensor_variable(x)
-        return T.Apply(self, [x], [x.type()])
-
-    def perform(self, node, inputs, output_storage, params=None):
-        xin, = inputs
-        xout, = output_storage
-        xout[0] = xin
-
-    def grad(self, input, output_gradients):
-        return [-self.hp_lambda * output_gradients[0]]
-
-    def infer_shape(self, node, i0_shapes):
-        return i0_shapes
 
 
 class GradientReversal(Layer):
@@ -67,8 +15,57 @@ class GradientReversal(Layer):
 
     def call(self, x, mask=None):
         if K.backend() == 'theano':
+            import theano
+
+            class ReverseGradient(theano.Op):
+                """ theano operation to reverse the gradients
+                Introduced in http://arxiv.org/pdf/1409.7495.pdf
+                """
+                view_map = {0: [0]}
+
+                __props__ = ('hp_lambda',)
+
+                def __init__(self, hp_lambda):
+                    super(ReverseGradient, self).__init__()
+                    self.hp_lambda = hp_lambda
+
+                def make_node(self, x):
+                    assert hasattr(self, '_props'), "Your version of theano is too old to support __props__."
+                    x = theano.tensor.as_tensor_variable(x)
+                    return theano.Apply(self, [x], [x.type()])
+
+                def perform(self, node, inputs, output_storage, params=None):
+                    xin, = inputs
+                    xout, = output_storage
+                    xout[0] = xin
+
+                def grad(self, input, output_gradients):
+                    return [-self.hp_lambda * output_gradients[0]]
+
+                def infer_shape(self, node, i0_shapes):
+                    return i0_shapes
+
             return ReverseGradient(self.hp_lambda)(x)
         elif K.backend() == 'tensorflow':
+            def reverse_gradient(X, hp_lambda):
+                import tensorflow as tf
+                '''Flips the sign of the incoming gradient during training.'''
+                try:
+                    reverse_gradient.num_calls += 1
+                except AttributeError:
+                    reverse_gradient.num_calls = 1
+
+                grad_name = "GradientReversal%d" % reverse_gradient.num_calls
+
+                @tf.RegisterGradient(grad_name)
+                def _flip_gradients(op, grad):
+                    return [tf.negative(grad) * hp_lambda]
+
+                g = K.get_session().graph
+                with g.gradient_override_map({'Identity': grad_name}):
+                    y = tf.identity(X)
+
+                return y
             return reverse_gradient(x, self.hp_lambda)
 
     def compute_output_shape(self, input_shape):
