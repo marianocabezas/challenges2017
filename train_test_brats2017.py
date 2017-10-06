@@ -125,7 +125,6 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5, adversarial_w=
                 metrics=['accuracy']
             )
 
-            adversarial_w += 1.0 / dfactor
 
             callbacks = [
                 EarlyStopping(
@@ -142,6 +141,7 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5, adversarial_w=
 
             net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
             net.load_weights(checkpoint_name + '.e%d' % (i+1))
+        adversarial_w += 1.0 / dfactor
 
 
 def test_net(net, p, outputname):
@@ -248,7 +248,7 @@ def main():
               c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
         adversarial_w = K.variable(0)
         roi_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 2, lambda_var=adversarial_w)
-        train_net(roi_net, p, 'brats2017-roi' + sufix, nlabels=2)
+        train_net(roi_net, p, 'brats2017-roi' + sufix, nlabels=2, adversarial_w=adversarial_w)
 
         adversarial_w = K.variable(0)
         seg_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 5, lambda_var=adversarial_w)
@@ -257,7 +257,7 @@ def main():
         seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]
         for lr, ls in zip(roi_net_conv_layers[:conv_blocks], seg_net_conv_layers[:conv_blocks]):
             ls.set_weights(lr.get_weights())
-        train_net(seg_net, p, 'brats2017-full' + sufix, nlabels=5)
+        train_net(seg_net, p, 'brats2017-full' + sufix, nlabels=5, adversarial_w=adversarial_w)
 
 
 if __name__ == '__main__':
