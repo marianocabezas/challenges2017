@@ -376,9 +376,109 @@ def get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, nlabe
 
     outputs = [seg, disc]
 
-    net = Model(inputs=inputs, outputs=outputs)
+    gan_net = Model(inputs=inputs, outputs=outputs)
+    seg_net = Model(inputs=s_inputs, outputs=seg)
 
-    return net
+    return gan_net, seg_net
+
+
+def get_brats_gan_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabels, lambda_var=None):
+    s_inputs = Input(shape=input_shape, name='seg_inputs')
+    d_inputs = Input(shape=input_shape, name='disc_inputs')
+
+    inputs = [s_inputs, d_inputs]
+
+    conv_s = s_inputs
+    conv_d = d_inputs
+    list_disc = []
+    for i, (filters, kernel_size) in enumerate(zip(filters_list, kernel_size_list)):
+        conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')
+        conv_s = BatchNormalization(axis=1)(conv(conv_s))
+        conv_d = BatchNormalization(axis=1)(conv(conv_d))
+        list_disc.append(Cropping3D(cropping=len(filters_list) - i - 1, data_format='channels_first')(conv_d))
+
+    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first', name='fc_dense')
+    full_s = PReLU()(BatchNormalization(axis=1)(full(conv_s)))
+    full = Conv3D(nlabels, kernel_size=(1, 1, 1), data_format='channels_first', name='fc')
+    full_s = BatchNormalization(axis=1)(full(full_s))
+
+    disc_input = concatenate(list_disc, axis=1)
+    grad_reverse = GradientReversal(1) if lambda_var is None else GradientReversal(lambda_var)
+    conv_d = Conv3D(
+        filters_list[-1],
+        kernel_size=kernel_size_list[-1],
+        activation='relu',
+        data_format='channels_first'
+    )(grad_reverse(disc_input))
+    conv_d = Conv3D(
+        filters_list[-1],
+        kernel_size=kernel_size_list[-1],
+        activation='relu',
+        data_format='channels_first'
+    )(conv_d)
+    conv_d = Conv3D(
+        filters_list[-1],
+        kernel_size=kernel_size_list[-1],
+        activation='relu',
+        data_format='channels_first'
+    )(conv_d)
+    conv_d = Conv3D(
+        dense_size,
+        kernel_size=(1, 1, 1),
+        activation='relu',
+        data_format='channels_first'
+    )(conv_d)
+
+    seg = Activation('softmax', name='seg')(
+        Flatten()(
+            Cropping3D(cropping=K.int_shape(full_s)[2]/2, data_format='channels_first')(full_s)
+        )
+    )
+    disc = Dense(2, activation='softmax', name='disc')(Flatten()(conv_d))
+
+    outputs = [seg, disc]
+
+    gan_net = Model(inputs=inputs, outputs=outputs)
+    seg_net = Model(inputs=s_inputs, outputs=seg)
+
+    gan_net.compile(
+        optimizer='adadelta',
+        loss={'seg': 'categorical_crossentropy', 'disc': 'binary_crossentropy'},
+        loss_weights=[1, 1],
+        metrics=['accuracy']
+    )
+
+    return gan_net, seg_net
+
+
+def get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabels):
+    s_inputs = Input(shape=input_shape, name='seg_inputs')
+
+    conv_s = s_inputs
+    for i, (filters, kernel_size) in enumerate(zip(filters_list, kernel_size_list)):
+        conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')
+        conv_s = BatchNormalization(axis=1)(conv(conv_s))
+
+    full = Conv3D(dense_size, kernel_size=(1, 1, 1), data_format='channels_first', name='fc_dense')
+    full_s = PReLU()(BatchNormalization(axis=1)(full(conv_s)))
+    full = Conv3D(nlabels, kernel_size=(1, 1, 1), data_format='channels_first', name='fc')
+    full_s = BatchNormalization(axis=1)(full(full_s))
+
+    seg = Activation('softmax', name='seg')(
+        Flatten()(
+            Cropping3D(cropping=K.int_shape(full_s)[2]/2, data_format='channels_first')(full_s)
+        )
+    )
+
+    seg_net = Model(inputs=s_inputs, outputs=seg)
+
+    seg_net.compile(
+        optimizer='adadelta',
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+
+    return seg_net
 
 
 def get_brats_old_domain(patch_size, filters_list, kernel_size_list):

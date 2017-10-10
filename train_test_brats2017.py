@@ -5,11 +5,11 @@ import sys
 from time import strftime
 import numpy as np
 from nibabel import load as load_nii
-from utils import color_codes, get_biggest_region
+from utils import color_codes
 from data_creation import get_cnn_centers, load_norm_list, get_patches_list, load_patches_gan
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
-from nets import get_brats_gan
+from nets import get_brats_gan_fc, get_brats_fc
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 import keras.backend as K
 
@@ -68,7 +68,7 @@ def check_dsc(gt_name, image):
     return [dsc_seg(gt == l, image == l) for l in labels[1:]]
 
 
-def train_net(net, p, name, val_layer_name='val_loss', nlabels=5, adversarial_w=None):
+def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlabels=5):
     options = parse_inputs()
     c = color_codes()
     # Data stuff
@@ -85,23 +85,18 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5, adversarial_w=
     val_rate = options['val_rate']
     preload = options['preload']
 
-    if adversarial_w is None:
-        adversarial_w = K.variable(0)
-        loss_weights = [1, adversarial_w]
-    else:
-        loss_weights = [1, 1]
-
     net_name = os.path.join(patient_path, name)
     checkpoint_name = os.path.join(patient_path, net_name + '.weights')
 
-    centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))
+    centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))[::10]
     print(' '.join([''] * 15) + c['g'] + 'Total number of source centers = ' +
           c['b'] + '%d' % (len(centers_s)) + c['nc'])
     for i in range(dfactor):
         print(' '.join([''] * 16) + c['g'] + 'Round ' +
               c['b'] + '%d' % (i + 1) + c['nc'] + c['g'] + '/%d' % dfactor + c['nc'])
         try:
-            net.load_weights(checkpoint_name + '.e%d' % (i+1))
+            gan.load_weights(checkpoint_name + '.gan.e%d' % (i+1))
+            cnn.load_weights(checkpoint_name + '.net.e%d' % (i + 1))
         except IOError:
             batch_centers_s = centers_s[i::dfactor]
             print(' '.join([''] * 16) + c['g'] + 'Loading data ' +
@@ -117,14 +112,7 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5, adversarial_w=
             )
 
             print(' '.join([''] * 16) + c['g'] + 'Training the model for ' +
-                  c['b'] + '(%d parameters)' % net.count_params() + c['nc'])
-            net.compile(
-                optimizer='adadelta',
-                loss={'seg': 'categorical_crossentropy', 'disc': 'binary_crossentropy'},
-                loss_weights=loss_weights,
-                metrics=['accuracy']
-            )
-
+                  c['b'] + '(%d parameters)' % gan.count_params() + c['nc'])
 
             callbacks = [
                 EarlyStopping(
@@ -132,15 +120,34 @@ def train_net(net, p, name, val_layer_name='val_loss', nlabels=5, adversarial_w=
                     patience=options['patience']
                 ),
                 ModelCheckpoint(
-                    checkpoint_name + '.e%d' % (i+1),
+                    checkpoint_name + '.gan.e%d' % (i+1),
                     monitor=val_layer_name,
                     save_best_only=True,
                     save_weights_only=True
                 )
             ]
 
-            net.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
-            net.load_weights(checkpoint_name + '.e%d' % (i+1))
+            gan.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
+            gan.load_weights(checkpoint_name + '.gan.e%d' % (i+1))
+
+            print(' '.join([''] * 16) + c['g'] + 'Training the model for ' +
+                  c['b'] + '(%d parameters)' % cnn.count_params() + c['nc'])
+
+            callbacks = [
+                EarlyStopping(
+                    monitor=val_layer_name,
+                    patience=options['patience']
+                ),
+                ModelCheckpoint(
+                    checkpoint_name + '.cnn.e%d' % (i+1),
+                    monitor=val_layer_name,
+                    save_best_only=True,
+                    save_weights_only=True
+                )
+            ]
+
+            cnn.fit(x[0], y[0], batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
+            cnn.load_weights(checkpoint_name + '.cnn.e%d' % (i+1))
         adversarial_w += 1.0 / dfactor
 
 
@@ -171,7 +178,6 @@ def test_net(net, p, outputname):
 
         n_centers = len(centers)
         image_list = [load_norm_list(p)]
-        is_roi = True
         roi = np.zeros_like(roi).astype(dtype=np.uint8)
 
         for i in range(0, n_centers, batch_size):
@@ -188,15 +194,15 @@ def test_net(net, p, outputname):
             [x, y, z] = np.stack(centers_i[0], axis=1)
 
             # We store the ROI
-            roi[x, y, z] = np.argmax(y_pr_pred[0], axis=1).astype(dtype=np.bool)
+            roi[x, y, z] = np.argmax(y_pr_pred, axis=1).astype(dtype=np.bool)
             # We store the results
-            image[x, y, z] = np.argmax(y_pr_pred[0], axis=1).astype(dtype=np.int8)
+            image[x, y, z] = np.argmax(y_pr_pred, axis=1).astype(dtype=np.int8)
 
         print(' '.join([''] * 50), end='\r')
         sys.stdout.flush()
 
         # Post-processing (Basically keep the biggest connected region)
-        image = get_biggest_region(image, is_roi)
+        # image = get_biggest_region(image)
         print(c['g'] + '                   -- Saving image ' + c['b'] + outputname_path + c['nc'])
 
         roi_nii.get_data()[:] = roi
@@ -228,7 +234,6 @@ def main():
     preload = options['preload']
 
     # Prepare the sufix that will be added to the results for the net and images
-    path = options['dir_train']
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     ub_s = '.ub' if not balanced else ''
@@ -242,23 +247,88 @@ def main():
 
     input_shape = (train_data.shape[1],) + patch_size
 
+    dsc_results_gan = list()
+    dsc_results_cnn = list()
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
         p_name = p[0].rsplit('/')[-2]
+        patient_path = '/'.join(p[0].rsplit('/')[:-1])
         print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
               c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
-        adversarial_w = K.variable(0)
-        roi_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 2, lambda_var=adversarial_w)
-        train_net(roi_net, p, 'brats2017-roi' + sufix, nlabels=2, adversarial_w=adversarial_w)
 
+        # ROI segmentation
         adversarial_w = K.variable(0)
-        seg_net = get_brats_gan(input_shape, filters_list, kernel_size_list, dense_size, 5, lambda_var=adversarial_w)
+        roi_cnn = get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, 2)
+        roi_gan, _ = get_brats_gan_fc(
+            input_shape,
+            filters_list,
+            kernel_size_list,
+            dense_size,
+            2,
+            lambda_var=adversarial_w
+        )
+        train_nets(
+            gan=roi_gan,
+            cnn=roi_cnn,
+            p=p,
+            name='brats2017-roi' + sufix,
+            nlabels=2,
+            adversarial_w=adversarial_w
+        )
+
         # Tumor substructures net
-        roi_net_conv_layers = [l for l in roi_net.layers if 'conv' in l.name]
-        seg_net_conv_layers = [l for l in seg_net.layers if 'conv' in l.name]
+        adversarial_w = K.variable(0)
+        seg_cnn = get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, 5)
+        seg_gan_tr, seg_gan_tst = get_brats_gan_fc(
+            input_shape,
+            filters_list,
+            kernel_size_list,
+            dense_size,
+            5,
+            lambda_var=adversarial_w
+        )
+        roi_net_conv_layers = [l for l in roi_gan.layers if 'conv' in l.name]
+        seg_net_conv_layers = [l for l in seg_gan_tr.layers if 'conv' in l.name]
         for lr, ls in zip(roi_net_conv_layers[:conv_blocks], seg_net_conv_layers[:conv_blocks]):
             ls.set_weights(lr.get_weights())
-        train_net(seg_net, p, 'brats2017-full' + sufix, nlabels=5, adversarial_w=adversarial_w)
+        train_nets(
+            gan=seg_gan_tr,
+            cnn=seg_cnn,
+            p=p,
+            name='brats2017-full' + sufix,
+            nlabels=5,
+            adversarial_w=adversarial_w)
 
+        image_cnn_name = os.path.join(patient_path, p_name + '.cnn.test')
+        try:
+            image_cnn = load_nii(image_cnn_name + '.nii.gz').get_data()
+        except IOError:
+            image_cnn = test_net(seg_cnn, p, image_cnn_name)
+
+        image_gan_name = os.path.join(patient_path, p_name + '.gan.test')
+        try:
+            image_gan = load_nii(image_gan_name + '.nii.gz').get_data()
+        except IOError:
+            image_gan = test_net(seg_gan_tst, p, image_gan_name)
+
+        results_cnn = check_dsc(gt_name, image_cnn)
+        dsc_string = c['g'] + '/'.join(['%f'] * len(results_cnn)) + c['nc']
+        print(''.join([' '] * 14) + c['c'] + c['b'] + p_name + c['nc'] + ' CNN DSC: ' +
+              dsc_string % tuple(results_cnn))
+
+        results_gan = check_dsc(gt_name, image_gan)
+        dsc_string = c['g'] + '/'.join(['%f'] * len(results_gan)) + c['nc']
+        print(''.join([' '] * 14) + c['c'] + c['b'] + p_name + c['nc'] + ' GAN DSC: ' +
+              dsc_string % tuple(results_gan))
+
+        dsc_results_cnn.append(results_cnn)
+        dsc_results_gan.append(results_gan)
+
+    f_dsc = tuple(
+        [np.array([dsc[i] for dsc in dsc_results_cnn if len(dsc) > i]).mean() for i in range(3)]
+    ) + tuple(
+        [np.array([dsc[i] for dsc in dsc_results_gan if len(dsc) > i]).mean() for i in range(3)]
+    )
+    print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
 
 if __name__ == '__main__':
     main()
