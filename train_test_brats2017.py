@@ -91,6 +91,7 @@ def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlab
     centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))
     print(' '.join([''] * 15) + c['g'] + 'Total number of source centers = ' +
           c['b'] + '%d' % (len(centers_s)) + c['nc'])
+
     for i in range(dfactor):
         print(' '.join([''] * 16) + c['g'] + 'Round ' +
               c['b'] + '%d' % (i + 1) + c['nc'] + c['g'] + '/%d' % dfactor + c['nc'])
@@ -99,8 +100,9 @@ def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlab
             cnn.load_weights(checkpoint_name + '.net.e%d' % (i + 1))
         except IOError:
             batch_centers_s = centers_s[i::dfactor]
+            n_centers = len(batch_centers_s)
             print(' '.join([''] * 16) + c['g'] + 'Loading data ' +
-                  c['b'] + '(%d centers)' % (len(batch_centers_s) * 2) + c['nc'])
+                  c['b'] + '(%d centers)' % (n_centers * 2) + c['nc'])
             x, y = load_patches_gan(
                 source_names=train_data,
                 target_names=[p],
@@ -111,42 +113,48 @@ def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlab
                 preload=preload,
             )
 
-            print(' '.join([''] * 16) + c['g'] + 'Training the model for ' +
-                  c['b'] + '(%d parameters)' % gan.count_params() + c['nc'])
-
-            callbacks = [
+            # Prepare the callbacks
+            callbacks_cnn = [
                 EarlyStopping(
                     monitor=val_layer_name,
                     patience=options['patience']
                 ),
                 ModelCheckpoint(
-                    checkpoint_name + '.gan.e%d' % (i+1),
+                    checkpoint_name + '.cnn.e%d' % (i + 1),
+                    monitor=val_layer_name,
+                    save_best_only=True,
+                    save_weights_only=True
+                )
+            ]
+            callbacks_gan = [
+                EarlyStopping(
+                    monitor=val_layer_name,
+                    patience=options['patience']
+                ),
+                ModelCheckpoint(
+                    checkpoint_name + '.gan.e%d' % (i + 1),
                     monitor=val_layer_name,
                     save_best_only=True,
                     save_weights_only=True
                 )
             ]
 
-            gan.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
+            print(' '.join([''] * 16) + c['g'] + 'Training the ' + c['b'] + 'GAN' + c['nc'] + c['g'] + ' for ' +
+                  c['b'] + '(%d parameters)' % gan.count_params() + c['nc'])
+            gan.fit(x, y, batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks_gan)
             gan.load_weights(checkpoint_name + '.gan.e%d' % (i+1))
 
-            print(' '.join([''] * 16) + c['g'] + 'Training the model for ' +
+            print(' '.join([''] * 16) + c['g'] + 'Training the ' + c['b'] + 'CNN' + c['nc'] + c['g'] + ' for ' +
                   c['b'] + '(%d parameters)' % cnn.count_params() + c['nc'])
 
-            callbacks = [
-                EarlyStopping(
-                    monitor=val_layer_name,
-                    patience=options['patience']
-                ),
-                ModelCheckpoint(
-                    checkpoint_name + '.cnn.e%d' % (i+1),
-                    monitor=val_layer_name,
-                    save_best_only=True,
-                    save_weights_only=True
-                )
-            ]
-
-            cnn.fit(x[0], y[0], batch_size=batch_size, validation_split=val_rate, epochs=epochs, callbacks=callbacks)
+            cnn.fit(
+                x[0],
+                y[0],
+                batch_size=batch_size,
+                validation_split=val_rate,
+                epochs=epochs,
+                callbacks=callbacks_cnn
+            )
             cnn.load_weights(checkpoint_name + '.cnn.e%d' % (i+1))
         adversarial_w += 1.0 / dfactor
 
