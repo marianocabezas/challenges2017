@@ -88,7 +88,7 @@ def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlab
     net_name = os.path.join(patient_path, name)
     checkpoint_name = os.path.join(patient_path, net_name + '.weights')
 
-    centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))[::10]
+    centers_s = np.random.permutation(get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced))
     print(' '.join([''] * 15) + c['g'] + 'Total number of source centers = ' +
           c['b'] + '%d' % (len(centers_s)) + c['nc'])
     for i in range(dfactor):
