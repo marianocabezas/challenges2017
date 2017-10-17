@@ -84,18 +84,23 @@ def get_xy(
         split,
         iseg,
         experimental,
-        datatype
+        datatype,
+        verbose=True
 ):
     n_images = len(image_list)
     centers, idx = centers_and_idx(batch_centers, n_images)
-    print(''.join([' '] * 15) + 'Loading x')
+    if verbose:
+        print(''.join([' '] * 15) + 'Loading x')
     x = filter(lambda z: z.any(), get_patches_list(image_list, centers, size, preload))
     x = np.concatenate(x)
-    print(''.join([' '] * 15) + '- Concatenation')
+    if verbose:
+        print(''.join([' '] * 15) + '- Concatenation')
     x[idx] = x
-    print(''.join([' '] * 15) + 'Loading y')
+    if verbose:
+        print(''.join([' '] * 15) + 'Loading y')
     y = [np.array([l[c] for c in lc]) for l, lc in izip(labels_generator(label_names), centers)]
-    print(''.join([' '] * 15) + '- Concatenation')
+    if verbose:
+        print(''.join([' '] * 15) + '- Concatenation')
     y = np.concatenate(y)
     y[idx] = y
     if split:
@@ -172,6 +177,7 @@ def load_patches_gan(
         nlabels,
         datatype=np.float32,
         preload=False,
+        verbose=False,
 ):
     # Preload data if needed
     source_list = [load_norm_list(patient) for patient in source_names] if preload else source_names
@@ -183,14 +189,18 @@ def load_patches_gan(
 
     # Source loading according to the source centers for the segmenter
     seg_centers, idx = centers_and_idx(source_centers, n_images)
-    print(''.join([' '] * 15) + 'Loading source (seg) - %d centers' % len(source_centers))
+    if verbose:
+        print(''.join([' '] * 15) + 'Loading source (seg) - %d centers' % len(source_centers))
     x_seg = filter(lambda z: z.any(), get_patches_list(source_list, seg_centers, size, preload))
-    print(''.join([' '] * 15) + '- Concatenation')
+    if verbose:
+        print(''.join([' '] * 15) + '- Concatenation')
     x_seg = np.concatenate(x_seg)
     x_seg[idx] = x_seg
-    print(''.join([' '] * 15) + 'Loading y')
+    if verbose:
+        print(''.join([' '] * 15) + 'Loading y')
     y = [np.array([l[c] for c in lc]) for l, lc in zip(labels_generator(label_names), seg_centers)]
-    print(''.join([' '] * 15) + '- Concatenation')
+    if verbose:
+        print(''.join([' '] * 15) + '- Concatenation')
     y = np.concatenate(y)
     y[idx] = y
     if nlabels <= 2:
@@ -201,23 +211,81 @@ def load_patches_gan(
     centers_s = np.random.permutation(centers_from_data(source_names))[:(n_centers / 2)]
     centers_t = np.random.permutation(centers_from_data(target_names))[:(n_centers - (n_centers / 2))]
     disc_centers_s, _ = centers_and_idx(centers_s, n_images)
-    disc_centers_t, _ = centers_and_idx(centers_t, n_images)
-    print(''.join([' '] * 15) + 'Loading source (disc) - %d centers' % (len(centers_s)))
+    disc_centers_t, _ = centers_and_idx(centers_t, len(target_list))
+    if verbose:
+        print(''.join([' '] * 15) + 'Loading source (disc) - %d centers' % (len(centers_s)))
     x_s = filter(lambda z: z.any(), get_patches_list(source_list, disc_centers_s, size, preload))
-    print(''.join([' '] * 15) + '- Concatenation')
+    if verbose:
+        print(''.join([' '] * 15) + '- Concatenation')
     x_s = np.concatenate(x_s)
-    print(''.join([' '] * 15) + 'Loading target (disc) - %d centers' % (len(centers_t)))
+
+    if verbose:
+        print(''.join([' '] * 15) + 'Loading target (disc) - %d centers' % (len(centers_t)))
     x_t = filter(lambda z: z.any(), get_patches_list(target_list, disc_centers_t, size, preload))
-    print(''.join([' '] * 15) + '- Concatenation')
+    if verbose:
+        print(''.join([' '] * 15) + '- Concatenation')
     x_t = np.concatenate(x_t)
     x_disc = np.concatenate([x_s, x_t])
     idx = np.random.permutation(range(len(x_disc)))
     x_disc = x_disc[idx]
-    print(''.join([' '] * 15) + 'Creating y (disc)')
+    if verbose:
+        print(''.join([' '] * 15) + 'Creating y (disc)')
     y = np.concatenate([np.zeros(len(centers_s)), np.ones(len(centers_t))])[idx]
     y_disc = to_categorical(y, num_classes=2)
 
     return [x_seg.astype(dtype=datatype), x_disc.astype(dtype=datatype)], [y_seg, y_disc]
+
+
+def gan_generator(
+        source_names,
+        target_names,
+        label_names,
+        source_centers,
+        size,
+        batch_size,
+        nlabels,
+        datatype=np.float32,
+        preload=False,
+):
+    # Preload data if needed
+    source_list = [load_norm_list(patient) for patient in source_names] if preload else source_names
+    target_list = [load_norm_list(patient) for patient in target_names] if preload else target_names
+
+    # Initial variables
+    n_centers = len(source_centers)
+    n_images = len(source_list)
+
+    # Source and target center definition
+    centers_s = np.random.permutation(centers_from_data(source_names))[:(n_centers / 2)]
+    centers_t = np.random.permutation(centers_from_data(target_names))[:(n_centers - (n_centers / 2))]
+
+    for i in range(0, n_centers, batch_size):
+        # Source loading according to the source centers for the segmenter
+        seg_centers, idx = centers_and_idx(source_centers[i:i + batch_size], n_images)
+        x_seg = filter(lambda z: z.any(), get_patches_list(source_list, seg_centers, size, preload))
+        x_seg = np.concatenate(x_seg)
+        x_seg[idx] = x_seg
+        y = [np.array([l[c] for c in lc]) for l, lc in zip(labels_generator(label_names), seg_centers)]
+        y = np.concatenate(y)
+        y[idx] = y
+        if nlabels <= 2:
+            y = y.astype(dtype=np.bool)
+        y_seg = to_categorical(y, num_classes=nlabels)
+
+        # Source and target loading for the discriminator
+        disc_centers_s, _ = centers_and_idx(centers_s[i:i + batch_size], n_images)
+        disc_centers_t, _ = centers_and_idx(centers_t[i:i + batch_size], len(target_list))
+        x_s = filter(lambda z: z.any(), get_patches_list(source_list, disc_centers_s, size, preload))
+        x_s = np.concatenate(x_s)
+        x_t = filter(lambda z: z.any(), get_patches_list(target_list, disc_centers_t, size, preload))
+        x_t = np.concatenate(x_t)
+        x_disc = np.concatenate([x_s, x_t])
+        idx = np.random.permutation(range(len(x_disc)))
+        x_disc = x_disc[idx]
+        y = np.concatenate([np.zeros(len(x_s)), np.ones(len(x_t))])[idx]
+        y_disc = to_categorical(y, num_classes=2)
+
+        yield [x_seg.astype(dtype=datatype), x_disc.astype(dtype=datatype)], [y_seg, y_disc]
 
 
 def load_patch_batch_train(

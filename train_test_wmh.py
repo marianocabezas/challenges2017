@@ -95,6 +95,7 @@ def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlab
     print(' '.join([''] * 15) + c['g'] + 'Total number of source centers = ' +
           c['b'] + '%d' % (len(centers_s)) + c['nc'])
     for e in range(epochs):
+        centers_s = np.random.permutation(centers_s)
         print(' '.join([''] * 16) + c['g'] + 'Epoch ' +
               c['b'] + '%d' % (e + 1) + c['nc'] + c['g'] + '/%d' % epochs + c['nc'])
         try:
