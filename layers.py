@@ -47,9 +47,10 @@ class GradientReversal(Layer):
 
             return ReverseGradient(self.hp_lambda)(x)
         elif K.backend() == 'tensorflow':
+            import tensorflow as tf
+
             def reverse_gradient(X, hp_lambda):
-                import tensorflow as tf
-                '''Flips the sign of the incoming gradient during training.'''
+                # Flips the sign of the incoming gradient during training.
                 try:
                     reverse_gradient.num_calls += 1
                 except AttributeError:
@@ -118,11 +119,11 @@ class Affine3D(Layer):
     @staticmethod
     def _linspace(start, stop, num):
         # Theano linspace. Behaves similar to np.linspace
-        start = K.cast(start, K.floatX)
-        stop = K.cast(stop, K.floatX)
-        num = K.cast(num, K.floatX)
+        start = K.cast(start, K.floatx)
+        stop = K.cast(stop, K.floatx)
+        num = K.cast(num, K.floatx)
         step = (stop - start) / (num - 1)
-        return K.arange(num, dtype=K.floatX) * step + start
+        return K.arange(num, dtype=K.floatx) * step + start
 
     @staticmethod
     def _meshgrid(height, width, depth):
@@ -161,9 +162,9 @@ class Affine3D(Layer):
     def _interpolate(im, x, y, z, out_height, out_width, out_depth):
         # *_f are floats
         num_batch, height, width, depth, channels = im.shape
-        height_f = K.cast(height, K.floatX)
-        width_f = K.cast(width, K.floatX)
-        depth_f = K.cast(depth, K.floatX)
+        height_f = K.cast(height, K.floatx)
+        width_f = K.cast(width, K.floatx)
+        depth_f = K.cast(depth, K.floatx)
 
         # clip coordinates to [-1, 1]
         x = K.clip(x, -1, 1)
@@ -178,18 +179,18 @@ class Affine3D(Layer):
         # obtain indices of the 2x2x2 pixel neighborhood surrounding the coordinates;
         # we need those in floatX for interpolation and in int64 for indexing. for
         # indexing, we need to take care they do not extend past the image.
-        x0_f = T.floor(x)
-        y0_f = T.floor(y)
-        z0_f = T.floor(z)
+        x0_f = K.floor(x)
+        y0_f = K.floor(y)
+        z0_f = K.floor(z)
         x1_f = x0_f + 1
         y1_f = y0_f + 1
         z1_f = z0_f + 1
         x0 = K.cast(x0_f, 'int64')
         y0 = K.cast(y0_f, 'int64')
         z0 = K.cast(z0_f, 'int64')
-        x1 = K.cast(T.minimum(x1_f, width_f - 1), 'int64')
-        y1 = K.cast(T.minimum(y1_f, height_f - 1), 'int64')
-        z1 = K.cast(T.minimum(z1_f, depth_f - 1), 'int64')
+        x1 = K.cast(K.minimum(x1_f, width_f - 1), 'int64')
+        y1 = K.cast(K.minimum(y1_f, height_f - 1), 'int64')
+        z1 = K.cast(K.minimum(z1_f, depth_f - 1), 'int64')
 
         # The input is [num_batch, height, width, depth, channels]. We do the lookup in
         # the flattened input, i.e [num_batch*height*width*depth, channels]. We need
@@ -197,8 +198,8 @@ class Affine3D(Layer):
         dim1 = height * width * depth
         dim2 = width * depth
         dim3 = depth
-        base = T.repeat(
-            T.arange(num_batch, dtype='int64') * dim1, out_height * out_width * out_depth)
+        base = K.repeat(
+            K.arange(num_batch, dtype='int64') * dim1, out_height * out_width * out_depth)
         base_y0 = base + y0 * dim2
         base_y1 = base + y1 * dim2
         base_x0 = x0 * dim3
@@ -232,7 +233,7 @@ class Affine3D(Layer):
         wf = ((x1_f - x) * (y - y0_f) * (z0_f - z)).dimshuffle(0, 'x')
         wg = ((x - x0_f) * (y1_f - y) * (z0_f - z)).dimshuffle(0, 'x')
         wh = ((x - x0_f) * (y - y0_f) * (z0_f - z)).dimshuffle(0, 'x')
-        output = T.sum([wa * Ia, wb * Ib, wc * Ic, wd * Id, we * Ie, wf * If, wg * Ig, wh * Ih], axis=0)
+        output = K.sum([wa * Ia, wb * Ib, wc * Ic, wd * Id, we * Ie, wf * If, wg * Ig, wh * Ih], axis=0)
         return output
 
     def _transform(self, theta, input_layer):

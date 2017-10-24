@@ -236,6 +236,182 @@ def load_patches_gan(
     return [x_seg.astype(dtype=datatype), x_disc.astype(dtype=datatype)], [y_seg, y_disc]
 
 
+def load_patches_gan_by_batches(
+        source_names,
+        target_names,
+        label_names,
+        source_centers,
+        size,
+        nlabels,
+        datatype=np.float32,
+        preload=False,
+        batch_size=1024
+):
+    # Initial variables
+    n_centers = len(source_centers)
+    n_images = len(source_names)
+
+    # Preload data if needed
+    source_list = [load_norm_list(patient) for patient in source_names] if preload else source_names
+    target_list = [load_norm_list(patient) for patient in target_names] if preload else target_names
+
+    # Source and target centers
+    centers_s = np.random.permutation(centers_from_data(source_names))[:(n_centers / 2)]
+    centers_t = np.random.permutation(centers_from_data(target_names))[:(n_centers - (n_centers / 2))]
+    print(''.join([' '] * 15) + 'Loading data (seg %d centers / source %d centers / target %d centers)' %
+          (n_centers, len(centers_s), len(centers_t)))
+    # Source loading according to the source centers for the segmenter
+    x_seg = np.empty((n_centers, source_names.shape[1]) + size, dtype=datatype)
+    y_seg = np.empty((n_centers,), dtype=np.uint8)
+    x_disc = np.empty((n_centers, source_names.shape[1]) + size, dtype=datatype)
+    y_disc = np.empty((n_centers,), dtype=np.uint8)
+    for i in range(0, n_centers, batch_size):
+        print(''.join([' '] * 15) + '%f%% of data loaded' % (100.0 * i / n_centers), end='\r')
+        sys.stdout.flush()
+        batch_centers = source_centers[0:batch_size]
+        source_centers = np.delete(source_centers, range(0, batch_size), axis=0)
+        seg_centers, idx_seg = centers_and_idx(batch_centers, n_images)
+        x = filter(lambda z: z.any(), get_patches_list(source_list, seg_centers, size, preload))
+        x = np.concatenate(x)
+        x[idx_seg] = x.tolist()
+        x_seg[i:i + len(x)] = x.tolist()
+
+        y = [np.array([l[c] for c in lc], dtype=np.uint8)
+             for l, lc in zip(labels_generator(label_names), seg_centers)]
+        y = np.concatenate(y)
+        y[y >= nlabels] = 0
+        y[idx_seg] = y.tolist()
+        y_seg[i:i + len(y)] = y.tolist()
+
+        batch_centers_s = centers_s[0:batch_size / 2]
+        centers_s = np.delete(centers_s, range(0, batch_size / 2), axis=0)
+        batch_centers_t = centers_t[0:batch_size / 2]
+        centers_t = np.delete(centers_t, range(0, batch_size / 2), axis=0)
+        disc_centers_s, _ = centers_and_idx(batch_centers_s, n_images)
+        disc_centers_t, _ = centers_and_idx(batch_centers_t, len(target_list))
+        x_s = filter(lambda z: z.any(), get_patches_list(source_list, disc_centers_s, size, preload))
+        x_s = np.concatenate(x_s)
+
+        x_t = filter(lambda z: z.any(), get_patches_list(target_list, disc_centers_t, size, preload))
+        x_t = np.concatenate(x_t)
+        x_st = np.concatenate([x_s, x_t])
+        idx_disc = np.random.permutation(range(len(x_st)))
+        x_disc[i:i + len(x_st)] = x_st[idx_disc].tolist()
+        y_disc[i:i + len(x_st)] = np.concatenate([
+            np.zeros(len(x_s), dtype=np.uint8),
+            np.ones(len(x_t), dtype=np.uint8)]
+        )[idx_disc].tolist()
+    print(' '.join([''] * 70), end='\r')
+    sys.stdout.flush()
+    print(''.join([' '] * 15) + 'Data fully loaded')
+    y_seg = to_categorical(y_seg, nlabels)
+    y_disc = to_categorical(y_disc, 2)
+    print(''.join([' '] * 15) + 'Data ready for training')
+    return [x_seg, x_disc], [y_seg, y_disc]
+
+
+def load_patches_ganseg_by_batches(
+        image_names,
+        label_names,
+        source_centers,
+        size,
+        nlabels,
+        datatype=np.float32,
+        preload=False,
+        batch_size=1024
+):
+    # Initial variables
+    n_centers = len(source_centers)
+    n_images = len(image_names)
+
+    # Preload data if needed
+    source_list = [load_norm_list(patient) for patient in image_names] if preload else image_names
+
+    print(''.join([' '] * 15) + 'Loading data (seg: %d centers)' % n_centers)
+    # Source loading according to the source centers for the segmenter
+    x_seg = np.empty((n_centers, image_names.shape[1]) + size, dtype=datatype)
+    y_seg = np.empty((n_centers,), dtype=np.uint8)
+    for i in range(0, n_centers, batch_size):
+        print(''.join([' '] * 15) + '%f%% of data loaded' % (100.0 * i / n_centers), end='\r')
+        sys.stdout.flush()
+        batch_centers = source_centers[0:batch_size]
+        source_centers = np.delete(source_centers, range(0, batch_size), axis=0)
+        seg_centers, idx_seg = centers_and_idx(batch_centers, n_images)
+        x = filter(lambda z: z.any(), get_patches_list(source_list, seg_centers, size, preload))
+        x = np.concatenate(x)
+        x[idx_seg] = x.tolist()
+        x_seg[i:i + len(x)] = x.tolist()
+
+        y = [np.array([l[c] for c in lc], dtype=np.uint8)
+             for l, lc in zip(labels_generator(label_names), seg_centers)]
+        y = np.concatenate(y)
+        y[y >= nlabels] = 0
+        y[idx_seg] = y.tolist()
+        y_seg[i:i + len(y)] = y.tolist()
+
+    print(' '.join([''] * 70), end='\r')
+    sys.stdout.flush()
+    print(''.join([' '] * 15) + 'Data fully loaded')
+    y_seg = to_categorical(y_seg, nlabels)
+    print(''.join([' '] * 15) + 'Data ready for training (%d positive / %d negative)' %
+          (np.count_nonzero(y_seg), np.count_nonzero(np.logical_not(y_seg))))
+    return x_seg, y_seg
+
+
+def load_patches_gandisc_by_batches(
+        source_names,
+        target_names,
+        n_centers,
+        size,
+        datatype=np.float32,
+        preload=False,
+        batch_size=1024
+):
+    # Initial variables
+    n_images = len(source_names)
+
+    # Preload data if needed
+    source_list = [load_norm_list(patient) for patient in source_names] if preload else source_names
+    target_list = [load_norm_list(patient) for patient in target_names] if preload else target_names
+
+    # Source and target centers
+    centers_s = np.random.permutation(centers_from_data(source_names))[:(n_centers / 2)]
+    centers_t = np.random.permutation(centers_from_data(target_names))[:(n_centers - (n_centers / 2))]
+    print(''.join([' '] * 15) + 'Loading data (source: %d centers / target: %d centers)' %
+          (len(centers_s), len(centers_t)))
+    # Source loading according to the source centers for the segmenter
+    x_disc = np.empty((n_centers, source_names.shape[1]) + size, dtype=datatype)
+    y_disc = np.empty((n_centers,), dtype=np.uint8)
+    for i in range(0, n_centers, batch_size):
+        print(''.join([' '] * 15) + '%f%% of data loaded' % (100.0 * i / n_centers), end='\r')
+        sys.stdout.flush()
+
+        batch_centers_s = centers_s[0:batch_size / 2]
+        centers_s = np.delete(centers_s, range(0, batch_size / 2), axis=0)
+        batch_centers_t = centers_t[0:batch_size / 2]
+        centers_t = np.delete(centers_t, range(0, batch_size / 2), axis=0)
+        disc_centers_s, _ = centers_and_idx(batch_centers_s, n_images)
+        disc_centers_t, _ = centers_and_idx(batch_centers_t, len(target_list))
+        x_s = filter(lambda z: z.any(), get_patches_list(source_list, disc_centers_s, size, preload))
+        x_s = np.concatenate(x_s)
+
+        x_t = filter(lambda z: z.any(), get_patches_list(target_list, disc_centers_t, size, preload))
+        x_t = np.concatenate(x_t)
+        x_st = np.concatenate([x_s, x_t])
+        idx_disc = np.random.permutation(range(len(x_st)))
+        x_disc[i:i + len(x_st)] = x_st[idx_disc].tolist()
+        y_disc[i:i + len(x_st)] = np.concatenate([
+            np.zeros(len(x_s), dtype=np.uint8),
+            np.ones(len(x_t), dtype=np.uint8)]
+        )[idx_disc].tolist()
+    print(' '.join([''] * 70), end='\r')
+    sys.stdout.flush()
+    print(''.join([' '] * 15) + 'Data fully loaded')
+    y_disc = to_categorical(y_disc, 2)
+    print(''.join([' '] * 15) + 'Data ready for training')
+    return x_disc, y_disc
+
+
 def gan_generator(
         source_names,
         target_names,

@@ -82,7 +82,7 @@ def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlab
     preload = options['preload']
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the networks ' + c['nc'] +
-          '(' + c['dgy'] + 'GAN' + c['nc'] + '/' + c['lgy'] + 'CNN' + c['nc'] + ': ' +
+          '(' + c['y'] + 'GAN' + c['nc'] + '/' + c['lgy'] + 'CNN' + c['nc'] + ': ' +
           c['b'] + '%d' % gan.count_params() + c['nc'] + '/' + c['b'] + '%d ' % cnn.count_params() + c['nc'] +
           'parameters)')
 
@@ -112,7 +112,7 @@ def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlab
                     nlabels=nlabels,
                     preload=preload,
                 )
-                print(c['dgy'], end='\r')
+                print(c['y'], end='\r')
                 gan.fit(x, y, batch_size=batch_size, epochs=1)
                 print(c['lgy'], end='\r')
                 cnn.fit(x[0], y[0], batch_size=batch_size, epochs=1)

@@ -360,3 +360,82 @@ def get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabel
     )
 
     return seg_net
+
+
+def get_wmh_nets(input_shape, filters_list, kernel_size_list, dense_size, lambda_var):
+    s_inputs = Input(shape=input_shape, name='seg_inputs')
+    d_inputs = Input(shape=input_shape, name='disc_inputs')
+
+    def convolutional_blocks(s, f_list, k_size_list, d=None, conv_list=None):
+        for l, (filters, kernel_size) in enumerate(zip(f_list, k_size_list)):
+            conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')
+            s = BatchNormalization(axis=1)(conv(s))
+            if d is not None:
+                d = BatchNormalization(axis=1)(conv(d))
+                d_crop = Cropping3D(cropping=len(filters_list) - l - 1, data_format='channels_first')(d)
+                if conv_list is not None:
+                    conv_list.append(d_crop)
+        return s
+
+    # < GAN creation >
+    list_disc = []
+    conv_s = convolutional_blocks(
+        s=s_inputs,
+        d=d_inputs,
+        f_list=filters_list,
+        k_size_list=kernel_size_list,
+        conv_list=list_disc
+    )
+
+    dense_gan = Dense(dense_size, activation='relu')(Flatten()(conv_s))
+    seg_gan = Dense(2, activation='softmax', name='seg')(dense_gan)
+    # This network is only used for testing to skip the adversarial part. We don't need to compile because
+    # we are already initialising the weights and layers in the main GAN.
+    gan_test = Model(inputs=s_inputs, outputs=seg_gan)
+
+    # Discriminator part
+    disc_input = concatenate(list_disc, axis=1)
+    grad_reverse = GradientReversal(lambda_var)
+    conv_d = Conv3D(
+        filters_list[-1],
+        kernel_size=kernel_size_list[-1],
+        activation='relu',
+        data_format='channels_first'
+    )(grad_reverse(disc_input))
+    conv_d = Conv3D(
+        filters_list[-1],
+        kernel_size=kernel_size_list[-1],
+        activation='relu',
+        data_format='channels_first'
+    )(conv_d)
+
+    disc = Dense(2, activation='softmax', name='disc')(Flatten()(conv_d))
+
+    gan = Model(inputs=[s_inputs, d_inputs], outputs=[seg_gan, disc])
+
+    gan.compile(
+        optimizer='adadelta',
+        loss={'seg': 'categorical_crossentropy', 'disc': 'binary_crossentropy'},
+        loss_weights=[1, 1],
+        metrics=['accuracy']
+    )
+
+    # < CNN creation >
+    conv_cnn = convolutional_blocks(
+        s=s_inputs,
+        f_list=filters_list,
+        k_size_list=kernel_size_list,
+    )
+
+    dense_cnn = Dense(dense_size, activation='relu')(Flatten()(conv_cnn))
+    seg_cnn = Dense(2, activation='softmax', name='seg')(dense_cnn)
+
+    cnn = Model(inputs=s_inputs, outputs=seg_cnn)
+
+    cnn.compile(
+        optimizer='adadelta',
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+
+    return cnn, gan, gan_test
