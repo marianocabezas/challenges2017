@@ -28,7 +28,7 @@ def parse_inputs():
     parser.add_argument('-D', '--down-sampling', dest='downsample', type=int, default=1)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=5)
-    parser.add_argument('-v', '--validation-rate', action='store', dest='val_rate', type=float, default=0.25)
+    parser.add_argument('-r', '--swap-rate', action='store', dest='swap_rate', type=float, default=0.5)
     parser.add_argument('-u', '--unbalanced', action='store_false', dest='balanced', default=True)
     parser.add_argument('-p', '--preload', action='store_true', dest='preload', default=False)
     parser.add_argument('-P', '--patience', dest='patience', type=int, default=2)
@@ -54,7 +54,7 @@ def get_names_from_path(options, train=True):
     return image_names, label_names
 
 
-def train_nets(gan, cnn, p, x, y, name, adversarial_w, val_layer_name='val_loss'):
+def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w, val_layer_name='val_loss'):
     options = parse_inputs()
     c = color_codes()
     # Data stuff
@@ -66,10 +66,10 @@ def train_nets(gan, cnn, p, x, y, name, adversarial_w, val_layer_name='val_loss'
     patch_size = (patch_width, patch_width, patch_width)
     preload = options['preload']
     batch_size = options['batch_size']
-    val_rate = options['val_rate']
+    swap_rate = options['swap_rate']
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the networks ' + c['nc'] +
-          '(' + c['y'] + 'GAN' + c['nc'] + '/' + c['lgy'] + 'CNN' + c['nc'] + ': ' +
+          '(' + 'CNN' + c['nc'] + c['y'] + 'GAN' + c['nc'] + '/' + c['lgy'] + ': ' +
           c['b'] + '%d' % gan.count_params() + c['nc'] + '/' + c['b'] + '%d ' % cnn.count_params() + c['nc'] +
           'parameters)')
 
@@ -87,23 +87,44 @@ def train_nets(gan, cnn, p, x, y, name, adversarial_w, val_layer_name='val_loss'
             size=patch_size,
             preload=preload,
         )
+        n_samples = len(x_disc)
         print(' '.join([''] * 15) + c['g'] + 'Starting the training process' + c['nc'])
         for e in range(epochs):
             print(' '.join([''] * 16) + c['g'] + 'Epoch ' +
                   c['b'] + '%d' % (e + 1) + c['nc'] + c['g'] + '/%d' % epochs + c['nc'])
             try:
-                gan.load_weights(checkpoint_name + '.gan.e%d' % (e + 1))
                 cnn.load_weights(checkpoint_name + '.net.e%d' % (e + 1))
+                gan.load_weights(checkpoint_name + '.gan.e%d' % (e + 1))
             except IOError:
-                print(c['y'], end='\r')
-                gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
                 print(c['lgy'], end='\r')
                 cnn.fit(x, y, batch_size=batch_size, epochs=1)
+                print(c['y'], end='\r')
+                gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
                 print(c['nc'], end='\r')
 
-            gan.save_weights(checkpoint_name + '.gan.e%d' % (e + 1))
             cnn.save_weights(checkpoint_name + '.net.e%d' % (e + 1))
-            adversarial_w += 1.0 / (epochs - 1)
+            gan.save_weights(checkpoint_name + '.gan.e%d' % (e + 1))
+            adversarial_weight = min([K.eval(adversarial_w) + 0.1, 1.0])
+
+            # We freeze the discriminator and negate the adversarial_weight
+            for l in gan.layers:
+                if l not in segmenter.layers:
+                    l.trainable = False
+            K.set_value(adversarial_w, -1)
+
+            # We shift a sample_rate of the domain samples to confuse the discriminator
+            random_shifts = np.random.permutation(range(n_samples))[:int(n_samples*swap_rate)]
+            y_disc[random_shifts] = 1 - y_disc[random_shifts]
+
+            print(c['y'], end='\r')
+            gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
+
+            # We unfreeze the discriminator for the label and get the adversarial weight back
+            for l in gan.layers:
+                if l not in segmenter.layers:
+                    l.trainable = True
+            K.set_value(adversarial_w, adversarial_weight)
+            y_disc[random_shifts] = 1 - y_disc[random_shifts]
 
 
 def test_net(net, p, outputname):
@@ -230,6 +251,7 @@ def main():
         )
         train_nets(
             gan=gan,
+            segmenter=gan_test,
             cnn=cnn,
             p=p,
             x=x_seg,
