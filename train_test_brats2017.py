@@ -182,8 +182,6 @@ def main():
     options = parse_inputs()
     c = color_codes()
 
-    # Prepare the net architecture parameters
-    dfactor = options['bfactor']
     # Prepare the net hyperparameters
     epochs = options['epochs']
     patch_width = options['patch_width']
@@ -202,8 +200,8 @@ def main():
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     ub_s = '.ub' if not balanced else ''
-    params_s = (ub_s, dfactor, patch_width, conv_s, filters_s, dense_size, epochs)
-    sufix = '%s.BF%d.p%d.c%s.n%s.d%d.e%d' % params_s
+    params_s = (ub_s, patch_width, conv_s, filters_s, dense_size, epochs)
+    sufix = '%s.p%d.c%s.n%s.d%d.e%d' % params_s
     preload_s = ' (with ' + c['b'] + 'preloading' + c['nc'] + c['c'] + ')' if preload else ''
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting training' + preload_s + c['nc'])
