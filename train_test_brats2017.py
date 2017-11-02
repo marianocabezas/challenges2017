@@ -25,7 +25,6 @@ def parse_inputs():
     parser.add_argument('-b', '--batch-size', dest='batch_size', type=int, default=128)
     parser.add_argument('-B', '--batch-test-size', dest='test_size', type=int, default=32768)
     parser.add_argument('-d', '--dense-size', dest='dense_size', type=int, default=256)
-    parser.add_argument('-D', '--batch-factor', dest='bfactor', type=int, default=10)
     parser.add_argument('-s', '--down-sampling', dest='down_sampling', type=int, default=1)
     parser.add_argument('-n', '--num-filters', action='store', dest='n_filters', nargs='+', type=int, default=[32])
     parser.add_argument('-e', '--epochs', action='store', dest='epochs', type=int, default=5)

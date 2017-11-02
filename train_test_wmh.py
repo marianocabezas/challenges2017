@@ -55,7 +55,7 @@ def get_names_from_path(options, train=True):
     return image_names, label_names
 
 
-def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w, val_layer_name='val_loss'):
+def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w):
     options = parse_inputs()
     c = color_codes()
     # Data stuff
@@ -89,7 +89,9 @@ def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w, val_layer_name
             preload=preload,
         )
         n_samples = len(x_disc)
-        print(' '.join([''] * 15) + c['g'] + 'Starting the training process' + c['nc'])
+        print('%s%s%s%s%sStarting the training process%s' % (
+            c['c'], strftime("%H:%M:%S"), c['nc'], ' '.join([''] * 15), c['g'], c['nc']
+        ))
         for e in range(epochs):
             print(' '.join([''] * 16) + c['g'] + 'Epoch ' +
                   c['b'] + '%d' % (e + 1) + c['nc'] + c['g'] + '/%d' % epochs + c['nc'])
@@ -295,7 +297,7 @@ def main():
         results_cnn = dsc_seg(seg_gt, seg_cnn)
         results_gan = dsc_seg(seg_gt, seg_gan)
         whites = ''.join([' '] * 14)
-        print('%s%s%s%s%s %sCNN%s vs %sGAN%s DSC: %f vs %f' % (
+        print('Case %s%s%s%s%s %sCNN%s vs %sGAN%s DSC: %f vs %f' % (
             whites, c['c'], c['b'], p_name, c['nc'], c['lgy'], c['nc'], c['y'], c['nc'], results_cnn, results_gan
         ))
 
