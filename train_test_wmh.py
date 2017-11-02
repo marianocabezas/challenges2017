@@ -69,10 +69,14 @@ def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w):
     batch_size = options['batch_size']
     swap_rate = options['swap_rate']
 
-    print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the networks ' + c['nc'] +
-          c['lgy'] + '(' + 'CNN' + c['nc'] + '/' + c['y'] + 'GAN' + c['nc'] + ': ' +
-          c['b'] + '%d' % gan.count_params() + c['nc'] + '/' + c['b'] + '%d ' % cnn.count_params() + c['nc'] +
-          'parameters)')
+    print('%s[%s]    %sTraining the networks%s (%sCNN%s vs %sGAN%s: %s%s%s/%s%d%s parameters)' % (
+        c['c'], strftime("%H:%M:%S"),
+        c['g'], c['nc'],
+        c['lgy'], c['nc'],
+        c['y'], c['nc'],
+        c['b'], gan.count_params(),c['nc'],
+        c['b'], cnn.count_params(), c['nc']
+    ))
 
     net_name = os.path.join(patient_path, name)
     checkpoint_name = os.path.join(patient_path, net_name + '.weights')
@@ -89,8 +93,9 @@ def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w):
             preload=preload,
         )
         n_samples = len(x_disc)
-        print('%s%s%s%s%sStarting the training process%s' % (
-            c['c'], strftime("%H:%M:%S"), c['nc'], ' '.join([''] * 15), c['g'], c['nc']
+        print('%s[%s]%s     %sStarting the training process%s' % (
+            c['c'], strftime("%H:%M:%S"), c['nc'],
+            c['g'], c['nc']
         ))
         for e in range(epochs):
             print(' '.join([''] * 16) + c['g'] + 'Epoch ' +
@@ -146,16 +151,19 @@ def test_net(net, p, outputname):
     try:
         image = load_nii(outputname_path).get_data()
     except IOError:
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Testing the network' + c['nc'])
+        print('%s[%s]    %sTesting the network%s' % (c['c'], strftime("%H:%M:%S"), c['g'], c['nc']))
         nii = load_nii(p[0])
         roi = nii.get_data().astype(dtype=np.bool)
         centers = get_mask_voxels(roi)
         test_samples = np.count_nonzero(roi)
         image = np.zeros_like(roi).astype(dtype=np.uint8)
         pr = np.zeros_like(roi).astype(dtype=np.float32)
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] +
-              '<Creating the probability map ' + c['b'] + p_name + c['nc'] + c['g'] + ' - ' +
-              c['b'] + outputname + c['nc'] + c['g'] + ' (%d samples)>' % test_samples + c['nc'])
+        print('%s[%s]    %s<Creating the probability map %s%s%s%s - %s%s%s%s (%d samples)>%s' %(
+            c['c'], strftime("%H:%M:%S"),
+            c['g'], c['b'], p_name, c['nc'],
+            c['g'], c['b'], outputname, c['nc'],
+            c['g'], test_samples, c['nc']
+        ))
 
         n_centers = len(centers)
         image_list = [load_norm_list(p)]
@@ -182,7 +190,7 @@ def test_net(net, p, outputname):
 
         # Post-processing (Basically keep the biggest connected region)
         # image = get_biggest_region(image)
-        print(c['g'] + '                   -- Saving image ' + c['b'] + outputname_path + c['nc'])
+        print('%s                   -- Saving image %s%s%s' % (c['g'], c['b'], outputname_path, c['nc']))
 
         nii.get_data()[:] = image
         nii.to_filename(outputname_path)
@@ -218,9 +226,9 @@ def main():
     shuffle_s = '.s' if not shuffle else ''
     params_s = (unbalanced_s, shuffle_s, patch_width, conv_s, filters_s, dense_size, downsample)
     sufix = '%s%s.p%d.c%s.n%s.d%d.D%d' % params_s
-    preload_s = ' (with ' + c['b'] + 'preloading' + c['nc'] + c['c'] + ')' if preload else ''
+    preload_s = ' (with %spreloading%s%s)' % (c['b'], c['nc'], c['c']) if preload else ''
 
-    print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting training' + preload_s + c['nc'])
+    print('%s[%s] Starting training%s%s', (c['c'], strftime("%H:%M:%S"), preload_s, c['nc']))
     train_data, _ = get_names_from_path(options)
     test_data, test_labels = get_names_from_path(options, False)
 
@@ -245,17 +253,9 @@ def main():
         p_name = p[0].rsplit('/')[-3]
         patient_path = '/'.join(p[0].rsplit('/')[:-1])
         print('%s[%s] %sCase %s%s%s%s%s (%d/%d):%s' % (
-            c['c'],
-            strftime("%H:%M:%S"),
-            c['nc'],
-            c['c'],
-            c['b'],
-            p_name,
-            c['nc'],
-            c['c'],
-            i + 1,
-            len(test_data),
-            c['nc']
+            c['c'], strftime("%H:%M:%S"), c['nc'],
+            c['c'], c['b'], p_name, c['nc'],
+            c['c'], i + 1, len(test_data), c['nc']
         ))
 
         # ROI segmentation
@@ -297,8 +297,12 @@ def main():
         results_cnn = dsc_seg(seg_gt, seg_cnn)
         results_gan = dsc_seg(seg_gt, seg_gan)
         whites = ''.join([' '] * 14)
-        print('%sCase%s%s%s%s %sCNN%s vs %sGAN%s DSC: %f vs %f' % (
-            whites, c['c'], c['b'], p_name, c['nc'], c['lgy'], c['nc'], c['y'], c['nc'], results_cnn, results_gan
+        print('%sCase%s%s%s%s %sCNN%s vs %sGAN%s DSC: %s%f%s vs %s%f%s' % (
+            whites, c['c'], c['b'], p_name, c['nc'],
+            c['lgy'], c['nc'],
+            c['y'], c['nc'],
+            c['lgy'], results_cnn, c['nc'],
+            c['y'], results_gan, c['nc']
         ))
 
         dsc_results.append((results_cnn, results_gan))
