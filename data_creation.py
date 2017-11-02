@@ -318,7 +318,7 @@ def load_patches_ganseg_by_batches(
         nlabels,
         datatype=np.float32,
         preload=False,
-        batch_size=1024
+        batch_size=10240
 ):
     # Initial variables
     n_centers = len(source_centers)
@@ -365,7 +365,7 @@ def load_patches_gandisc_by_batches(
         size,
         datatype=np.float32,
         preload=False,
-        batch_size=1024
+        batch_size=10240
 ):
     # Initial variables
     n_images = len(source_names)

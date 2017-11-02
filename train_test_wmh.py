@@ -31,6 +31,7 @@ def parse_inputs():
     parser.add_argument('-r', '--swap-rate', action='store', dest='swap_rate', type=float, default=0.5)
     parser.add_argument('-u', '--unbalanced', action='store_false', dest='balanced', default=True)
     parser.add_argument('-p', '--preload', action='store_true', dest='preload', default=False)
+    parser.add_argument('-s', '--shuffle-labels', action='store_true', dest='shuffle', default=False)
     parser.add_argument('-P', '--patience', dest='patience', type=int, default=2)
     parser.add_argument('--flair', action='store', dest='flair', default='pre/FLAIR.nii.gz')
     parser.add_argument('--t1', action='store', dest='t1', default='pre/T1.nii.gz')
@@ -69,7 +70,7 @@ def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w, val_layer_name
     swap_rate = options['swap_rate']
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the networks ' + c['nc'] +
-          '(' + 'CNN' + c['nc'] + c['y'] + 'GAN' + c['nc'] + '/' + c['lgy'] + ': ' +
+          c['lgy'] + '(' + 'CNN' + c['nc'] + '/' + c['y'] + 'GAN' + c['nc'] + ': ' +
           c['b'] + '%d' % gan.count_params() + c['nc'] + '/' + c['b'] + '%d ' % cnn.count_params() + c['nc'] +
           'parameters)')
 
@@ -106,25 +107,27 @@ def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w, val_layer_name
             gan.save_weights(checkpoint_name + '.gan.e%d' % (e + 1))
             adversarial_weight = min([K.eval(adversarial_w) + 0.1, 1.0])
 
-            # We freeze the discriminator and negate the adversarial_weight
-            for l in gan.layers:
-                if l not in segmenter.layers:
-                    l.trainable = False
-            K.set_value(adversarial_w, -1)
+            if options['shuffle']:
+                # We freeze the discriminator and negate the adversarial_weight
+                for l in gan.layers:
+                    if l not in segmenter.layers:
+                        l.trainable = False
+                K.set_value(adversarial_w, -adversarial_weight)
 
-            # We shift a sample_rate of the domain samples to confuse the discriminator
-            random_shifts = np.random.permutation(range(n_samples))[:int(n_samples*swap_rate)]
-            y_disc[random_shifts] = 1 - y_disc[random_shifts]
+                # We shift a sample_rate of the domain samples to confuse the discriminator
+                random_shifts = np.random.permutation(range(n_samples))[:int(n_samples*swap_rate)]
+                y_disc[random_shifts] = 1 - y_disc[random_shifts]
 
-            print(c['y'], end='\r')
-            gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
+                print(c['y'], end='\r')
+                gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
 
-            # We unfreeze the discriminator for the label and get the adversarial weight back
-            for l in gan.layers:
-                if l not in segmenter.layers:
-                    l.trainable = True
+                # We unfreeze the discriminator for the label and get the adversarial weight back
+                for l in gan.layers:
+                    if l not in segmenter.layers:
+                        l.trainable = True
+                y_disc[random_shifts] = 1 - y_disc[random_shifts]
+
             K.set_value(adversarial_w, adversarial_weight)
-            y_disc[random_shifts] = 1 - y_disc[random_shifts]
 
 
 def test_net(net, p, outputname):
@@ -204,13 +207,15 @@ def main():
     # Data loading parameters
     downsample = options['downsample']
     preload = options['preload']
+    shuffle = options['shuffle']
 
     # Prepare the sufix that will be added to the results for the net and images
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
-    ub_s = '.ub' if not balanced else ''
-    params_s = (ub_s, patch_width, conv_s, filters_s, dense_size, downsample)
-    sufix = '%s.p%d.c%s.n%s.d%d.D%d' % params_s
+    unbalanced_s = '.ub' if not balanced else ''
+    shuffle_s = '.s' if not shuffle else ''
+    params_s = (unbalanced_s, shuffle_s, patch_width, conv_s, filters_s, dense_size, downsample)
+    sufix = '%s%s.p%d.c%s.n%s.d%d.D%d' % params_s
     preload_s = ' (with ' + c['b'] + 'preloading' + c['nc'] + c['c'] + ')' if preload else ''
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + '] ' + 'Starting training' + preload_s + c['nc'])
@@ -237,8 +242,19 @@ def main():
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
         p_name = p[0].rsplit('/')[-3]
         patient_path = '/'.join(p[0].rsplit('/')[:-1])
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
-              c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
+        print('%s[%s] %sCase %s%s%s%s%s (%d/%d):%s' % (
+            c['c'],
+            strftime("%H:%M:%S"),
+            c['nc'],
+            c['c'],
+            c['b'],
+            p_name,
+            c['nc'],
+            c['c'],
+            i + 1,
+            len(test_data),
+            c['nc']
+        ))
 
         # ROI segmentation
         adversarial_w = K.variable(0)
@@ -260,14 +276,14 @@ def main():
             adversarial_w=adversarial_w
         )
 
-        image_cnn_name = os.path.join(patient_path, p_name + '.cnn.test.e%d' % epochs)
+        image_cnn_name = os.path.join(patient_path, p_name + '.cnn.test%s.e%d' % (shuffle_s, epochs))
         try:
             image_cnn = load_nii(image_cnn_name + '.nii.gz').get_data()
         except IOError:
             image_cnn = test_net(cnn, p, image_cnn_name)
         seg_cnn = image_cnn.astype(np.bool)
 
-        image_gan_name = os.path.join(patient_path, p_name + '.gan.test.e%d' % epochs)
+        image_gan_name = os.path.join(patient_path, p_name + '.gan.test%s.e%d' % (shuffle_s, epochs))
         try:
             image_gan = load_nii(image_gan_name + '.nii.gz').get_data()
         except IOError:
@@ -278,13 +294,15 @@ def main():
 
         results_cnn = dsc_seg(seg_gt, seg_cnn)
         results_gan = dsc_seg(seg_gt, seg_gan)
-        print(''.join([' '] * 14) + c['c'] + c['b'] + p_name + c['nc'] + ' ' + c['lgy'] + 'CNN' + c['nc'] +
-              ' vs ' + c['y'] + 'GAN' + c['nc'] + ' DSC: %f vs %f' % (results_cnn, results_gan))
+        whites = ''.join([' '] * 14)
+        print('%s%s%s%s%s %sCNN%s vs %sGAN%s DSC: %f vs %f' % (
+            whites, c['c'], c['b'], p_name, c['nc'], c['lgy'], c['nc'], c['y'], c['nc'], results_cnn, results_gan
+        ))
 
         dsc_results.append((results_cnn, results_gan))
 
-    final_dsc_string = 'Final results DSC: ' + c['lgy'] + '%f' + c['nc'] + ' vs '  + c['y'] + '%f' + c['nc']
-    print(final_dsc_string % tuple(np.mean(dsc_results, axis=0)))
+    final_dsc = tuple(np.mean(dsc_results, axis=0))
+    print('Final results DSC: %s%f%s vs %s%f%s' % (c['lgy'], final_dsc[0], c['nc'], c['y'], final_dsc[1], c['nc']))
 
 if __name__ == '__main__':
     main()

@@ -6,7 +6,8 @@ from time import strftime
 import numpy as np
 from nibabel import load as load_nii
 from utils import color_codes
-from data_creation import get_cnn_centers, load_norm_list, get_patches_list, load_patches_gan
+from data_creation import get_cnn_centers, load_norm_list, get_patches_list
+from data_creation import load_patches_ganseg_by_batches, load_patches_gandisc_by_batches
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
 from nets import get_brats_gan_fc, get_brats_fc
@@ -65,7 +66,7 @@ def check_dsc(gt_name, image):
     return [dsc_seg(gt == l, image == l) for l in labels[1:]]
 
 
-def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlabels=5):
+def train_nets(gan, cnn, x, y, p, name, adversarial_w):
     options = parse_inputs()
     c = color_codes()
     # Data stuff
@@ -76,51 +77,44 @@ def train_nets(gan, cnn, p, name, adversarial_w, val_layer_name='val_loss', nlab
     patch_width = options['patch_width']
     patch_size = (patch_width, patch_width, patch_width)
     batch_size = options['batch_size']
-    bfactor = options['bfactor'] * batch_size
-    balanced = options['balanced']
-    val_rate = options['val_rate']
     preload = options['preload']
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the networks ' + c['nc'] +
-          '(' + c['y'] + 'GAN' + c['nc'] + '/' + c['lgy'] + 'CNN' + c['nc'] + ': ' +
+          c['lgy'] + '(' + 'CNN' + c['nc'] + '/' + c['y'] + 'GAN' + c['nc'] + ': ' +
           c['b'] + '%d' % gan.count_params() + c['nc'] + '/' + c['b'] + '%d ' % cnn.count_params() + c['nc'] +
           'parameters)')
 
     net_name = os.path.join(patient_path, name)
     checkpoint_name = os.path.join(patient_path, net_name + '.weights')
 
-    centers_s = np.random.permutation(
-        get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
-    )[::options['down_sampling']]
-    print(' '.join([''] * 15) + c['g'] + 'Total number of source centers = ' +
-          c['b'] + '%d' % (len(centers_s)) + c['nc'])
-    for e in range(epochs):
-        print(' '.join([''] * 16) + c['g'] + 'Epoch ' +
-              c['b'] + '%d' % (e + 1) + c['nc'] + c['g'] + '/%d' % epochs + c['nc'])
-        try:
-            gan.load_weights(checkpoint_name + '.gan.e%d' % (e + 1))
-            cnn.load_weights(checkpoint_name + '.net.e%d' % (e + 1))
-        except IOError:
-            for i in range(0, len(centers_s), bfactor):
-                batch_centers_s = centers_s[i:i + bfactor]
-                x, y = load_patches_gan(
-                    source_names=train_data,
-                    target_names=[p],
-                    label_names=train_labels,
-                    source_centers=batch_centers_s,
-                    size=patch_size,
-                    nlabels=nlabels,
-                    preload=preload,
-                )
-                print(c['y'], end='\r')
-                gan.fit(x, y, batch_size=batch_size, epochs=1)
+    try:
+        gan.load_weights(checkpoint_name + '.gan.e%d' % epochs)
+        cnn.load_weights(checkpoint_name + '.net.e%d' % epochs)
+    except IOError:
+        x_disc, y_disc = load_patches_gandisc_by_batches(
+            source_names=train_data,
+            target_names=[p],
+            n_centers=len(x),
+            size=patch_size,
+            preload=preload,
+        )
+        print(' '.join([''] * 15) + c['g'] + 'Starting the training process' + c['nc'])
+        for e in range(epochs):
+            print(' '.join([''] * 16) + c['g'] + 'Epoch ' +
+                  c['b'] + '%d' % (e + 1) + c['nc'] + c['g'] + '/%d' % epochs + c['nc'])
+            try:
+                cnn.load_weights(checkpoint_name + '.net.e%d' % (e + 1))
+                gan.load_weights(checkpoint_name + '.gan.e%d' % (e + 1))
+            except IOError:
                 print(c['lgy'], end='\r')
-                cnn.fit(x[0], y[0], batch_size=batch_size, epochs=1)
+                cnn.fit(x, y, batch_size=batch_size, epochs=1)
+                print(c['y'], end='\r')
+                gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
                 print(c['nc'], end='\r')
 
-        gan.save_weights(checkpoint_name + '.gan.e%d' % (e + 1))
-        cnn.save_weights(checkpoint_name + '.net.e%d' % (e + 1))
-        adversarial_w += 1.0 / epochs
+            cnn.save_weights(checkpoint_name + '.net.e%d' % (e + 1))
+            gan.save_weights(checkpoint_name + '.gan.e%d' % (e + 1))
+            K.set_value(adversarial_w, min([K.eval(adversarial_w) + 0.1, 1.0]))
 
 
 def test_net(net, p, outputname):
@@ -221,11 +215,36 @@ def main():
 
     dsc_results_gan = list()
     dsc_results_cnn = list()
+
+    train_data, train_labels = get_names_from_path(options)
+    centers_s = np.random.permutation(
+        get_cnn_centers(train_data[:, 0], train_labels, balanced=balanced)
+    )[::options['down_sampling']]
+    x_seg, y_seg = load_patches_ganseg_by_batches(
+        image_names=train_data,
+        label_names=train_labels,
+        source_centers=centers_s,
+        size=patch_size,
+        nlabels=5,
+        preload=preload,
+    )
+
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
         p_name = p[0].rsplit('/')[-2]
         patient_path = '/'.join(p[0].rsplit('/')[:-1])
-        print(c['c'] + '[' + strftime("%H:%M:%S") + ']  ' + c['nc'] + 'Case ' + c['c'] + c['b'] + p_name + c['nc'] +
-              c['c'] + ' (%d/%d):' % (i + 1, len(test_data)) + c['nc'])
+        print('%s[%s] %sCase %s%s%s%s%s (%d/%d):%s' % (
+            c['c'],
+            strftime("%H:%M:%S"),
+            c['nc'],
+            c['c'],
+            c['b'],
+            p_name,
+            c['nc'],
+            c['c'],
+            i + 1,
+            len(test_data),
+            c['nc']
+        ))
 
         # ROI segmentation
         adversarial_w = K.variable(0)
@@ -239,11 +258,12 @@ def main():
             lambda_var=adversarial_w
         )
         train_nets(
+            x=x_seg,
+            y=y_seg,
             gan=roi_gan,
             cnn=roi_cnn,
             p=p,
             name='brats2017-roi' + sufix,
-            nlabels=2,
             adversarial_w=adversarial_w
         )
 
@@ -267,8 +287,8 @@ def main():
             cnn=seg_cnn,
             p=p,
             name='brats2017-full' + sufix,
-            nlabels=5,
-            adversarial_w=adversarial_w)
+            adversarial_w=adversarial_w
+        )
 
         image_cnn_name = os.path.join(patient_path, p_name + '.cnn.test')
         try:
