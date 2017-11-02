@@ -297,7 +297,7 @@ def main():
         results_cnn = dsc_seg(seg_gt, seg_cnn)
         results_gan = dsc_seg(seg_gt, seg_gan)
         whites = ''.join([' '] * 14)
-        print('Case %s%s%s%s%s %sCNN%s vs %sGAN%s DSC: %f vs %f' % (
+        print('%sCase%s%s%s%s %sCNN%s vs %sGAN%s DSC: %f vs %f' % (
             whites, c['c'], c['b'], p_name, c['nc'], c['lgy'], c['nc'], c['y'], c['nc'], results_cnn, results_gan
         ))
 

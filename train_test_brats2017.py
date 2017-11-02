@@ -226,6 +226,10 @@ def main():
         preload=preload,
     )
 
+    y_seg_roi = np.empty((len(y_seg), 2), dtype=np.bool)
+    y_seg_roi[:, 0] = y_seg[:, 0]
+    y_seg_roi[:, 1] = np.sum(y_seg[:, 1:], axis=1)
+
     for i, (p, gt_name) in enumerate(zip(test_data, test_labels)):
         p_name = p[0].rsplit('/')[-2]
         patient_path = '/'.join(p[0].rsplit('/')[:-1])
@@ -256,7 +260,7 @@ def main():
         )
         train_nets(
             x=x_seg,
-            y=y_seg,
+            y=y_seg_roi,
             gan=roi_gan,
             cnn=roi_cnn,
             p=p,
@@ -280,6 +284,8 @@ def main():
         for lr, ls in zip(roi_net_conv_layers[:conv_blocks], seg_net_conv_layers[:conv_blocks]):
             ls.set_weights(lr.get_weights())
         train_nets(
+            x=x_seg,
+            y=y_seg,
             gan=seg_gan_tr,
             cnn=seg_cnn,
             p=p,
