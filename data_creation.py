@@ -352,10 +352,9 @@ def load_patches_ganseg_by_batches(
     print(' '.join([''] * 70), end='\r')
     sys.stdout.flush()
     print(''.join([' '] * 15) + 'Data fully loaded')
-    y_seg = to_categorical(y_seg, nlabels)
     print(''.join([' '] * 15) + 'Data ready for training (%d positive / %d negative)' %
           (np.count_nonzero(y_seg), np.count_nonzero(np.logical_not(y_seg))))
-    return x_seg, y_seg
+    return x_seg, to_categorical(y_seg, nlabels)
 
 
 def load_patches_gandisc_by_batches(

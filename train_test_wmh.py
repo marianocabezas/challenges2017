@@ -223,12 +223,12 @@ def main():
     filters_s = 'n'.join(['%d' % nf for nf in filters_list])
     conv_s = 'c'.join(['%d' % cs for cs in kernel_size_list])
     unbalanced_s = '.ub' if not balanced else ''
-    shuffle_s = '.s' if not shuffle else ''
+    shuffle_s = '.s' if shuffle else ''
     params_s = (unbalanced_s, shuffle_s, patch_width, conv_s, filters_s, dense_size, downsample)
     sufix = '%s%s.p%d.c%s.n%s.d%d.D%d' % params_s
     preload_s = ' (with %spreloading%s%s)' % (c['b'], c['nc'], c['c']) if preload else ''
 
-    print('%s[%s] Starting training%s%s', (c['c'], strftime("%H:%M:%S"), preload_s, c['nc']))
+    print('%s[%s] Starting training%s%s' % (c['c'], strftime("%H:%M:%S"), preload_s, c['nc']))
     train_data, _ = get_names_from_path(options)
     test_data, test_labels = get_names_from_path(options, False)
 
@@ -292,12 +292,13 @@ def main():
             image_gan = test_net(gan_test, p, image_gan_name)
         seg_gan = image_gan.astype(np.bool)
 
-        seg_gt = load_nii(gt_name).get_data().astype(np.bool)
+        seg_gt = load_nii(gt_name).get_data()
+        not_roi = np.logical_not(seg_gt == 2)
 
-        results_cnn = dsc_seg(seg_gt, seg_cnn)
-        results_gan = dsc_seg(seg_gt, seg_gan)
+        results_cnn = dsc_seg(seg_gt == 1, np.logical_and(seg_cnn, not_roi))
+        results_gan = dsc_seg(seg_gt == 1, np.logical_and(seg_gan, not_roi))
         whites = ''.join([' '] * 14)
-        print('%sCase%s%s%s%s %sCNN%s vs %sGAN%s DSC: %s%f%s vs %s%f%s' % (
+        print('%sCase %s%s%s%s %sCNN%s vs %sGAN%s DSC: %s%f%s vs %s%f%s' % (
             whites, c['c'], c['b'], p_name, c['nc'],
             c['lgy'], c['nc'],
             c['y'], c['nc'],
