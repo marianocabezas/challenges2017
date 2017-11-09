@@ -113,7 +113,8 @@ def train_nets(gan, cnn, x, y, p, name, adversarial_w):
 
             cnn.save_weights(checkpoint_name + '.net.e%d' % (e + 1))
             gan.save_weights(checkpoint_name + '.gan.e%d' % (e + 1))
-            K.set_value(adversarial_w, min([K.eval(adversarial_w) + 0.1, 1.0]))
+            adversarial_weight = min([K.eval(adversarial_w) + 0.1, 1.0])
+            K.set_value(adversarial_w, adversarial_weight)
 
 
 def test_net(net, p, outputname):
