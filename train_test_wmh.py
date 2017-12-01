@@ -9,7 +9,7 @@ from utils import color_codes
 from data_creation import get_cnn_centers, load_norm_list, get_patches_list
 from data_creation import load_patches_ganseg_by_batches, load_patches_gandisc_by_batches
 from data_manipulation.generate_features import get_mask_voxels
-from data_manipulation.metrics import dsc_seg
+from data_manipulation.metrics import dsc_seg, probabilistic_dsc_seg
 from nets import get_wmh_nets
 import keras.backend as K
 
@@ -55,7 +55,7 @@ def get_names_from_path(options, train=True):
     return image_names, label_names
 
 
-def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w):
+def train_nets(gan, gan_dsc, cnn, cnn_dsc, p, x, y, name, adversarial_w):
     options = parse_inputs()
     c = color_codes()
     # Data stuff
@@ -67,14 +67,13 @@ def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w):
     patch_size = (patch_width, patch_width, patch_width)
     preload = options['preload']
     batch_size = options['batch_size']
-    swap_rate = options['swap_rate']
 
     print('%s[%s]    %sTraining the networks%s (%sCNN%s vs %sGAN%s: %s%s%s/%s%d%s parameters)' % (
         c['c'], strftime("%H:%M:%S"),
         c['g'], c['nc'],
         c['lgy'], c['nc'],
         c['y'], c['nc'],
-        c['b'], gan.count_params(),c['nc'],
+        c['b'], gan.count_params(), c['nc'],
         c['b'], cnn.count_params(), c['nc']
     ))
 
@@ -83,7 +82,9 @@ def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w):
 
     try:
         gan.load_weights(checkpoint_name + '.gan.e%d' % epochs)
+        gan_dsc.load_weights(checkpoint_name + '.gan-dsc.e%d' % epochs)
         cnn.load_weights(checkpoint_name + '.net.e%d' % epochs)
+        cnn_dsc.load_weights(checkpoint_name + '.net-dsc.e%d' % epochs)
     except IOError:
         x_disc, y_disc = load_patches_gandisc_by_batches(
             source_names=train_data,
@@ -92,7 +93,6 @@ def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w):
             size=patch_size,
             preload=preload,
         )
-        n_samples = len(x_disc)
         print('%s[%s]%s     %sStarting the training process%s' % (
             c['c'], strftime("%H:%M:%S"), c['nc'],
             c['g'], c['nc']
@@ -102,38 +102,24 @@ def train_nets(gan, segmenter, cnn, p, x, y, name, adversarial_w):
                   c['b'] + '%d' % (e + 1) + c['nc'] + c['g'] + '/%d' % epochs + c['nc'])
             try:
                 cnn.load_weights(checkpoint_name + '.net.e%d' % (e + 1))
+                cnn_dsc.load_weights(checkpoint_name + '.net-dsc.e%d' % (e + 1))
                 gan.load_weights(checkpoint_name + '.gan.e%d' % (e + 1))
+                gan_dsc.load_weights(checkpoint_name + '.gan-dsc.e%d' % (e + 1))
             except IOError:
                 print(c['lgy'], end='\r')
                 cnn.fit(x, y, batch_size=batch_size, epochs=1)
+                cnn_dsc.fit(x, y, batch_size=batch_size, epochs=1)
                 print(c['y'], end='\r')
                 gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
+                gan_dsc.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
                 print(c['nc'], end='\r')
 
-            cnn.save_weights(checkpoint_name + '.net.e%d' % (e + 1))
-            gan.save_weights(checkpoint_name + '.gan.e%d' % (e + 1))
+                cnn.save_weights(checkpoint_name + '.net.e%d' % (e + 1))
+                cnn_dsc.save_weights(checkpoint_name + '.net-dsc.e%d' % (e + 1))
+                gan.save_weights(checkpoint_name + '.gan.e%d' % (e + 1))
+                gan_dsc.save_weights(checkpoint_name + '.gan-dsc.e%d' % (e + 1))
+
             adversarial_weight = min([K.eval(adversarial_w) + 0.1, 1.0])
-
-            if options['shuffle']:
-                # We freeze the discriminator and negate the adversarial_weight
-                for l in gan.layers:
-                    if l not in segmenter.layers:
-                        l.trainable = False
-                K.set_value(adversarial_w, -adversarial_weight)
-
-                # We shift a sample_rate of the domain samples to confuse the discriminator
-                random_shifts = np.random.permutation(range(n_samples))[:int(n_samples*swap_rate)]
-                y_disc[random_shifts] = 1 - y_disc[random_shifts]
-
-                print(c['y'], end='\r')
-                gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
-
-                # We unfreeze the discriminator for the label and get the adversarial weight back
-                for l in gan.layers:
-                    if l not in segmenter.layers:
-                        l.trainable = True
-                y_disc[random_shifts] = 1 - y_disc[random_shifts]
-
             K.set_value(adversarial_w, adversarial_weight)
 
 
@@ -158,7 +144,7 @@ def test_net(net, p, outputname):
         test_samples = np.count_nonzero(roi)
         image = np.zeros_like(roi).astype(dtype=np.uint8)
         pr = np.zeros_like(roi).astype(dtype=np.float32)
-        print('%s[%s]    %s<Creating the probability map %s%s%s%s - %s%s%s%s (%d samples)>%s' %(
+        print('%s[%s]    %s<Creating the probability map %s%s%s%s - %s%s%s%s (%d samples)>%s' % (
             c['c'], strftime("%H:%M:%S"),
             c['g'], c['b'], p_name, c['nc'],
             c['g'], c['b'], outputname, c['nc'],
@@ -235,6 +221,7 @@ def main():
     input_shape = (train_data.shape[1],) + patch_size
 
     dsc_results = list()
+    dsc_results_pr = list()
 
     train_data, train_labels = get_names_from_path(options)
     centers_s = np.random.permutation(
@@ -258,58 +245,121 @@ def main():
             c['c'], i + 1, len(test_data), c['nc']
         ))
 
-        # ROI segmentation
-        adversarial_w = K.variable(0)
-        cnn, gan, gan_test = get_wmh_nets(
-            input_shape=input_shape,
-            filters_list=filters_list,
-            kernel_size_list=kernel_size_list,
-            dense_size=dense_size,
-            lambda_var=adversarial_w
-        )
-        train_nets(
-            gan=gan,
-            segmenter=gan_test,
-            cnn=cnn,
-            p=p,
-            x=x_seg,
-            y=y_seg,
-            name='wmh2017' + sufix,
-            adversarial_w=adversarial_w
-        )
-
+        # NO DSC objective
         image_cnn_name = os.path.join(patient_path, p_name + '.cnn.test%s.e%d' % (shuffle_s, epochs))
-        try:
-            image_cnn = load_nii(image_cnn_name + '.nii.gz').get_data()
-        except IOError:
-            image_cnn = test_net(cnn, p, image_cnn_name)
-        seg_cnn = image_cnn.astype(np.bool)
-
         image_gan_name = os.path.join(patient_path, p_name + '.gan.test%s.e%d' % (shuffle_s, epochs))
+        # DSC objective
+        image_cnn_dsc_name = os.path.join(patient_path, p_name + '.dsc-cnn.test%s.e%d' % (shuffle_s, epochs))
+        image_gan_dsc_name = os.path.join(patient_path, p_name + '.dsc-gan.test%s.e%d' % (shuffle_s, epochs))
         try:
+            # NO DSC objective
+            image_cnn = load_nii(image_cnn_name + '.nii.gz').get_data()
+            image_cnn_pr = load_nii(image_cnn_name + '.pr.nii.gz').get_data()
             image_gan = load_nii(image_gan_name + '.nii.gz').get_data()
+            image_gan_pr = load_nii(image_gan_name + '.pr.nii.gz').get_data()
+            # DSC objective
+            image_cnn_dsc = load_nii(image_cnn_dsc_name + '.nii.gz').get_data()
+            image_cnn_dsc_pr = load_nii(image_cnn_dsc_name + '.pr.nii.gz').get_data()
+            image_gan_dsc = load_nii(image_gan_dsc_name + '.nii.gz').get_data()
+            image_gan_dsc_pr = load_nii(image_gan_dsc_name + '.pr.nii.gz').get_data()
         except IOError:
+            # Lesion segmentation
+            adversarial_w = K.variable(0)
+            # NO DSC objective
+            cnn, gan, gan_test = get_wmh_nets(
+                input_shape=input_shape,
+                filters_list=filters_list,
+                kernel_size_list=kernel_size_list,
+                dense_size=dense_size,
+                lambda_var=adversarial_w
+            )
+            # DSC objective
+            cnn_dsc, gan_dsc, gan_dsc_test = get_wmh_nets(
+                input_shape=input_shape,
+                filters_list=filters_list,
+                kernel_size_list=kernel_size_list,
+                dense_size=dense_size,
+                lambda_var=adversarial_w,
+                dsc_obj=True
+            )
+            train_nets(
+                gan=gan,
+                gan_dsc=gan_dsc,
+                cnn=cnn,
+                cnn_dsc=cnn_dsc,
+                p=p,
+                x=x_seg,
+                y=y_seg,
+                name='wmh2017' + sufix,
+                adversarial_w=adversarial_w
+            )
+            # NO DSC objective
+            image_cnn = test_net(cnn, p, image_cnn_name)
+            image_cnn_pr = load_nii(image_cnn_name + '.pr.nii.gz').get_data()
             image_gan = test_net(gan_test, p, image_gan_name)
+            image_gan_pr = load_nii(image_gan_name + '.pr.nii.gz').get_data()
+            # DSC objective
+            image_cnn_dsc = test_net(cnn_dsc, p, image_cnn_dsc_name)
+            image_cnn_dsc_pr = load_nii(image_cnn_dsc_name + '.pr.nii.gz').get_data()
+            image_gan_dsc = test_net(gan_dsc_test, p, image_gan_dsc_name)
+            image_gan_dsc_pr = load_nii(image_gan_dsc_name + '.pr.nii.gz').get_data()
+        # NO DSC objective
+        seg_cnn = image_cnn.astype(np.bool)
         seg_gan = image_gan.astype(np.bool)
+        # DSC objective
+        seg_cnn_dsc = image_cnn_dsc.astype(np.bool)
+        seg_gan_dsc = image_gan_dsc.astype(np.bool)
 
         seg_gt = load_nii(gt_name).get_data()
         not_roi = np.logical_not(seg_gt == 2)
 
+        results_cnn_dsc = dsc_seg(seg_gt == 1, np.logical_and(seg_cnn_dsc, not_roi))
+        results_cnn_dsc_pr = probabilistic_dsc_seg(seg_gt == 1, image_cnn_dsc_pr * not_roi)
         results_cnn = dsc_seg(seg_gt == 1, np.logical_and(seg_cnn, not_roi))
+        results_cnn_pr = probabilistic_dsc_seg(seg_gt == 1, image_cnn_pr * not_roi)
+
+        results_gan_dsc = dsc_seg(seg_gt == 1, np.logical_and(seg_gan_dsc, not_roi))
+        results_gan_dsc_pr = probabilistic_dsc_seg(seg_gt == 1, image_gan_dsc_pr * not_roi)
         results_gan = dsc_seg(seg_gt == 1, np.logical_and(seg_gan, not_roi))
+        results_gan_pr = probabilistic_dsc_seg(seg_gt == 1, image_gan_pr * not_roi)
+
         whites = ''.join([' '] * 14)
-        print('%sCase %s%s%s%s %sCNN%s vs %sGAN%s DSC: %s%f%s vs %s%f%s' % (
+        print('%sCase %s%s%s%s %sCNN%s vs %sGAN%s DSC: %s%f%s (%s%f%s) vs %s%f%s (%s%f%s)' % (
             whites, c['c'], c['b'], p_name, c['nc'],
             c['lgy'], c['nc'],
             c['y'], c['nc'],
+            c['lgy'], results_cnn_dsc, c['nc'],
             c['lgy'], results_cnn, c['nc'],
+            c['y'], results_gan_dsc, c['nc'],
             c['y'], results_gan, c['nc']
         ))
+        print('%sCase %s%s%s%s %sCNN%s vs %sGAN%s DSC Pr: %s%f%s (%s%f%s) vs %s%f%s (%s%f%s)' % (
+            whites, c['c'], c['b'], p_name, c['nc'],
+            c['lgy'], c['nc'],
+            c['y'], c['nc'],
+            c['lgy'], results_cnn_dsc_pr, c['nc'],
+            c['lgy'], results_cnn_pr, c['nc'],
+            c['y'], results_gan_dsc_pr, c['nc'],
+            c['y'], results_gan_pr, c['nc']
+        ))
 
-        dsc_results.append((results_cnn, results_gan))
+        dsc_results.append((results_cnn_dsc, results_cnn, results_gan_dsc, results_gan))
+        dsc_results_pr.append((results_cnn_dsc_pr, results_cnn_pr, results_gan_dsc_pr, results_gan_pr))
 
     final_dsc = tuple(np.mean(dsc_results, axis=0))
-    print('Final results DSC: %s%f%s vs %s%f%s' % (c['lgy'], final_dsc[0], c['nc'], c['y'], final_dsc[1], c['nc']))
+    final_dsc_pr = tuple(np.mean(dsc_results_pr, axis=0))
+    print('Final results DSC: %s%f%s (%s%f%s) vs %s%f%s (%s%f%s)' % (
+        c['lgy'], final_dsc[0], c['nc'],
+        c['lgy'], final_dsc[1], c['nc'],
+        c['y'], final_dsc[2], c['nc'],
+        c['y'], final_dsc[3], c['nc']
+    ))
+    print('Final results DSC Pr: %s%f%s (%s%f%s) vs %s%f%s (%s%f%s)' % (
+        c['lgy'], final_dsc_pr[0], c['nc'],
+        c['lgy'], final_dsc_pr[1], c['nc'],
+        c['y'], final_dsc_pr[2], c['nc'],
+        c['y'], final_dsc_pr[3], c['nc']
+    ))
 
 if __name__ == '__main__':
     main()

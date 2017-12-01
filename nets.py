@@ -7,6 +7,11 @@ import numpy as np
 from layers import GradientReversal
 
 
+def dsc_loss(y_true, y_pred):
+    dsc_class = K.sum(y_true * y_pred, axis=0) / (K.sum(y_true, axis=0) + K.sum(y_pred, axis=0))
+    return 1 - 2 * dsc_class[0]
+
+
 def compile_network(inputs, outputs, weights):
     net = Model(inputs=inputs, outputs=outputs)
 
@@ -171,7 +176,7 @@ def get_iseg_experimental3(input_shape, filters_list, kernel_size_list, dense_si
     x_combos = product(range(full_shape[-2]), range(full_shape[-1]))
     lambda_x = Lambda(lambda l: l[:, :, :, i, j], output_shape=(4, full_shape[-3]))
     lambda_x_rev = Lambda(lambda l: l[:, :, -1::-1, i, j], output_shape=(4, full_shape[-3]))
-    x_input = [lambda_x(PReLU()(full)) for (i, j) in x_combos] +[lambda_x_rev(PReLU()(full)) for (i, j) in x_combos]
+    x_input = [lambda_x(PReLU()(full)) for (i, j) in x_combos] + [lambda_x_rev(PReLU()(full)) for (i, j) in x_combos]
     x_lstm = [LSTM(4, implementation=1)(x) for x in x_input]
 
     # y LSTM
@@ -362,9 +367,10 @@ def get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabel
     return seg_net
 
 
-def get_wmh_nets(input_shape, filters_list, kernel_size_list, dense_size, lambda_var):
+def get_wmh_nets(input_shape, filters_list, kernel_size_list, dense_size, lambda_var, dsc_obj=False):
     s_inputs = Input(shape=input_shape, name='seg_inputs')
     d_inputs = Input(shape=input_shape, name='disc_inputs')
+    obj_f = dsc_loss if dsc_obj else 'categorical_crossentropy'
 
     def convolutional_blocks(s, f_list, k_size_list, d=None, conv_list=None):
         for l, (filters, kernel_size) in enumerate(zip(f_list, k_size_list)):
@@ -415,7 +421,7 @@ def get_wmh_nets(input_shape, filters_list, kernel_size_list, dense_size, lambda
 
     gan.compile(
         optimizer='adadelta',
-        loss={'seg': 'categorical_crossentropy', 'disc': 'binary_crossentropy'},
+        loss={'seg': dsc_loss, 'disc': 'binary_crossentropy'},
         loss_weights=[1, 1],
         metrics=['accuracy']
     )
@@ -434,7 +440,7 @@ def get_wmh_nets(input_shape, filters_list, kernel_size_list, dense_size, lambda
 
     cnn.compile(
         optimizer='adadelta',
-        loss='categorical_crossentropy',
+        loss=dsc_loss,
         metrics=['accuracy']
     )
 
