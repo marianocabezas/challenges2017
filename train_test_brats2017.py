@@ -234,6 +234,7 @@ def main():
         size=patch_size,
         nlabels=5,
         preload=preload,
+        batch_size=51200
     )
 
     y_seg_roi = np.empty((len(y_seg), 2), dtype=np.bool)
