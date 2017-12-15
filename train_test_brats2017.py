@@ -10,7 +10,7 @@ from data_creation import get_cnn_centers, load_norm_list, get_patches_list
 from data_creation import load_patches_ganseg_by_batches, load_patches_gandisc_by_batches
 from data_manipulation.generate_features import get_mask_voxels
 from data_manipulation.metrics import dsc_seg
-from nets import get_brats_gan_fc, get_brats_fc
+from nets import get_brats_gan_fc, get_brats_fc, get_brats_caps
 import keras.backend as K
 
 
@@ -65,7 +65,7 @@ def check_dsc(gt_name, image):
     return [dsc_seg(gt == l, image == l) for l in labels[1:]]
 
 
-def train_nets(gan, cnn, x, y, p, name, adversarial_w):
+def train_nets(gan, cnn, caps, x, y, p, name, adversarial_w):
     options = parse_inputs()
     c = color_codes()
     # Data stuff
@@ -79,7 +79,9 @@ def train_nets(gan, cnn, x, y, p, name, adversarial_w):
     preload = options['preload']
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the networks ' + c['nc'] +
-          c['lgy'] + '(' + 'CNN' + c['nc'] + '/' + c['y'] + 'GAN' + c['nc'] + ': ' +
+          c['lgy'] + '(' + 'CNN' + c['nc'] + '/' +
+          c['r'] + '(' + 'CAPS' + c['nc'] + '/' +
+          c['y'] + 'GAN' + c['nc'] + ': ' +
           c['b'] + '%d' % gan.count_params() + c['nc'] + '/' + c['b'] + '%d ' % cnn.count_params() + c['nc'] +
           'parameters)')
 
@@ -87,8 +89,9 @@ def train_nets(gan, cnn, x, y, p, name, adversarial_w):
     checkpoint_name = os.path.join(patient_path, net_name + '.weights')
 
     try:
-        gan.load_weights(checkpoint_name + '.gan.e%d' % epochs)
         cnn.load_weights(checkpoint_name + '.net.e%d' % epochs)
+        caps.load_weights(checkpoint_name + '.caps.e%d' % epochs)
+        gan.load_weights(checkpoint_name + '.gan.e%d' % epochs)
     except IOError:
         x_disc, y_disc = load_patches_gandisc_by_batches(
             source_names=train_data,
@@ -103,15 +106,19 @@ def train_nets(gan, cnn, x, y, p, name, adversarial_w):
                   c['b'] + '%d' % (e + 1) + c['nc'] + c['g'] + '/%d' % epochs + c['nc'])
             try:
                 cnn.load_weights(checkpoint_name + '.net.e%d' % (e + 1))
+                caps.load_weights(checkpoint_name + '.caps.e%d' % (e + 1))
                 gan.load_weights(checkpoint_name + '.gan.e%d' % (e + 1))
             except IOError:
                 print(c['lgy'], end='\r')
                 cnn.fit(x, y, batch_size=batch_size, epochs=1)
+                print(c['r'], end='\r')
+                caps.fit(x, y, batch_size=batch_size, epochs=1)
                 print(c['y'], end='\r')
                 gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
                 print(c['nc'], end='\r')
 
             cnn.save_weights(checkpoint_name + '.net.e%d' % (e + 1))
+            caps.save_weights(checkpoint_name + '.caps.e%d' % (e + 1))
             gan.save_weights(checkpoint_name + '.gan.e%d' % (e + 1))
             adversarial_weight = min([np.array(K.eval(adversarial_w)) + 0.1, 1.0])
             K.set_value(adversarial_w, adversarial_weight)
@@ -213,6 +220,7 @@ def main():
 
     dsc_results_gan = list()
     dsc_results_cnn = list()
+    dsc_results_caps = list()
 
     train_data, train_labels = get_names_from_path(options)
     centers_s = np.random.permutation(
@@ -251,6 +259,7 @@ def main():
         # ROI segmentation
         adversarial_w = K.variable(0)
         roi_cnn = get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, 2)
+        roi_caps = get_brats_caps(input_shape, filters_list, kernel_size_list, 8, 2)
         roi_gan, _ = get_brats_gan_fc(
             input_shape,
             filters_list,
@@ -264,6 +273,7 @@ def main():
             y=y_seg_roi,
             gan=roi_gan,
             cnn=roi_cnn,
+            caps=roi_caps,
             p=p,
             name='brats2017-roi' + sufix,
             adversarial_w=adversarial_w
@@ -272,6 +282,7 @@ def main():
         # Tumor substructures net
         adversarial_w = K.variable(0)
         seg_cnn = get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, 5)
+        seg_caps = get_brats_caps(input_shape, filters_list, kernel_size_list, 8, 5)
         seg_gan_tr, seg_gan_tst = get_brats_gan_fc(
             input_shape,
             filters_list,
@@ -289,6 +300,7 @@ def main():
             y=y_seg,
             gan=seg_gan_tr,
             cnn=seg_cnn,
+            caps=seg_caps,
             p=p,
             name='brats2017-full' + sufix,
             adversarial_w=adversarial_w
@@ -299,6 +311,12 @@ def main():
             image_cnn = load_nii(image_cnn_name + '.nii.gz').get_data()
         except IOError:
             image_cnn = test_net(seg_cnn, p, image_cnn_name)
+
+        image_caps_name = os.path.join(patient_path, p_name + '.caps.test')
+        try:
+            image_caps = load_nii(image_caps_name + '.nii.gz').get_data()
+        except IOError:
+            image_caps = test_net(seg_caps, p, image_caps_name)
 
         image_gan_name = os.path.join(patient_path, p_name + '.gan.test')
         try:
@@ -311,20 +329,28 @@ def main():
         print(''.join([' '] * 14) + c['c'] + c['b'] + p_name + c['nc'] + ' CNN DSC: ' +
               dsc_string % tuple(results_cnn))
 
+        results_caps = check_dsc(gt_name, image_caps)
+        dsc_string = c['g'] + '/'.join(['%f'] * len(results_caps)) + c['nc']
+        print(''.join([' '] * 14) + c['c'] + c['b'] + p_name + c['nc'] + ' CAPS DSC: ' +
+              dsc_string % tuple(results_caps))
+
         results_gan = check_dsc(gt_name, image_gan)
         dsc_string = c['g'] + '/'.join(['%f'] * len(results_gan)) + c['nc']
         print(''.join([' '] * 14) + c['c'] + c['b'] + p_name + c['nc'] + ' GAN DSC: ' +
               dsc_string % tuple(results_gan))
 
         dsc_results_cnn.append(results_cnn)
+        dsc_results_caps.append(results_caps)
         dsc_results_gan.append(results_gan)
 
     f_dsc = tuple(
         [np.array([dsc[i] for dsc in dsc_results_cnn if len(dsc) > i]).mean() for i in range(3)]
     ) + tuple(
+        [np.array([dsc[i] for dsc in dsc_results_caps if len(dsc) > i]).mean() for i in range(3)]
+    ) + tuple(
         [np.array([dsc[i] for dsc in dsc_results_gan if len(dsc) > i]).mean() for i in range(3)]
     )
-    print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
+    print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
 
 if __name__ == '__main__':
     main()

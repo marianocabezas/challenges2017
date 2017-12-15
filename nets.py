@@ -4,7 +4,7 @@ from keras.layers import BatchNormalization, LSTM, Permute, Activation, PReLU, A
 from keras.models import Model
 from itertools import product
 import numpy as np
-from layers import GradientReversal
+from layers import GradientReversal, PrimaryCap3D, CapsuleLayer, Length
 
 
 def dsc_loss(y_true, y_pred):
@@ -268,7 +268,7 @@ def get_iseg_experimental4(input_shape, filters_list, kernel_size_list, dense_si
     return compile_network(merged_inputs, outputs, weights)
 
 
-def get_brats_gan_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabels, lambda_var=None):
+def get_brats_gan_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabels, lambda_var=None, capsule=False):
     s_inputs = Input(shape=input_shape, name='seg_inputs')
     d_inputs = Input(shape=input_shape, name='disc_inputs')
 
@@ -337,7 +337,7 @@ def get_brats_gan_fc(input_shape, filters_list, kernel_size_list, dense_size, nl
     return gan_net, seg_net
 
 
-def get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabels):
+def get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabels, capsule=False):
     s_inputs = Input(shape=input_shape, name='seg_inputs')
 
     conv_s = s_inputs
@@ -355,6 +355,43 @@ def get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabel
             Cropping3D(cropping=K.int_shape(full_s)[2]/2, data_format='channels_first')(full_s)
         )
     )
+
+    seg_net = Model(inputs=s_inputs, outputs=seg)
+
+    seg_net.compile(
+        optimizer='adadelta',
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+
+    return seg_net
+
+
+def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabels):
+    s_inputs = Input(shape=input_shape, name='seg_inputs')
+
+    conv_s = s_inputs
+    for i, (filters, kernel_size) in enumerate(zip(filters_list, kernel_size_list)):
+        conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')
+        conv_s = BatchNormalization(axis=1)(conv(conv_s))
+
+    primarycaps = PrimaryCap3D(
+        dim_vector=caps_size,
+        n_channels=32,
+        kernel_size=9,
+        strides=2,
+        padding='valid',
+        name='primarycaps'
+    )(conv_s)
+
+    digitcaps = CapsuleLayer(
+        num_capsule=nlabels,
+        dim_vector=16,
+        num_routing=3,
+        name='digitcaps'
+    )(primarycaps)
+
+    seg = Length(name='capsnet')(digitcaps)
 
     seg_net = Model(inputs=s_inputs, outputs=seg)
 
