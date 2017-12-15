@@ -99,6 +99,7 @@ def train_nets(gan, cnn, caps, x, y, p, name, adversarial_w):
             n_centers=len(x),
             size=patch_size,
             preload=preload,
+            batch_size=51200
         )
         print(' '.join([''] * 15) + c['g'] + 'Starting the training process' + c['nc'])
         for e in range(epochs):
