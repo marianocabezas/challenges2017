@@ -421,7 +421,7 @@ class PrimaryCap3D(layers.Conv3D):
         self.dim_vector = dim_vector
 
     def __call__(self, inputs, **kwargs):
-        output = super(PrimaryCap3D, self).__call__(inputs)
+        output = super(PrimaryCap3D, self).__call__(inputs, **kwargs)
         outputs = K.reshape(output, shape=[-1, self.dim_vector])
         return squash(outputs)
 
