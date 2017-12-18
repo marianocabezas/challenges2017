@@ -377,7 +377,7 @@ def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabe
 
     primarycaps = PrimaryCap3D(
         dim_vector=caps_size,
-        n_channels=32,
+        filters=32,
         kernel_size=9,
         strides=2,
         padding='valid',
