@@ -426,5 +426,5 @@ class PrimaryCap3D(layers.Conv3D):
         return squash(outputs)
 
     def compute_output_shape(self, input_shape):
-        vector_len = np.prod(super(PrimaryCap3D, self).compute_output_shape(input_shape)) / self.dim_vector
+        vector_len = np.prod(super(PrimaryCap3D, self).compute_output_shape(input_shape)[1:]) / self.dim_vector
         return tuple([None, vector_len, self.dim_vector])
