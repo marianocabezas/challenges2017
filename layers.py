@@ -403,7 +403,7 @@ class CapsuleLayer(layers.Layer):
             # last iteration needs not compute bias which will not be passed to the graph any more anyway.
             if i != self.num_routing - 1:
                 self.bias += K.sum(inputs_hat * outputs, -1, keepdims=True)
-            print(K.int_shape(self.bias))
+            print(K.int_shape(self.bias), self.bias.shape)
         # End: routing algorithm V2, static ------------------------------------------------------------#
 
         return K.reshape(outputs, [-1, self.num_capsule, self.dim_vector])
