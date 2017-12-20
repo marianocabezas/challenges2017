@@ -391,7 +391,9 @@ class CapsuleLayer(layers.Layer):
         for i in range(self.num_routing):
             permuted_bias = K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))
             bias_shape = K.int_shape(permuted_bias)
-            soft_bias = K.reshape(K.softmax(K.reshape(permuted_bias, (-1, bias_shape[-1]))), bias_shape)
+            soft_bias = K.reshape(K.softmax(
+                K.reshape(permuted_bias, (np.prod(bias_shape[:-1]), bias_shape[-1]))
+            ), bias_shape)
             c = K.permute_dimensions(soft_bias, (0, 1, 4, 3, 2))
             # c = K.permute_dimensions(
             #     K.softmax(K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))),
