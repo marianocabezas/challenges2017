@@ -383,7 +383,7 @@ class CapsuleLayer(layers.Layer):
         print(K.int_shape(inputs_expand))
         print(K.int_shape(self.W))
         print(K.int_shape(inputs_tiled))
-        w_tiled = K.tile(K.expand_dims(self.W, 0), [self.batch_size, 1, 1, 1, 1])
+        w_tiled = K.tile(K.expand_dims(self.W, 0), [None, 1, 1, 1, 1])
         # Transformed vectors, inputs_hat.shape = [None, input_num_capsule, num_capsule, 1, dim_vector]
         inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
         # End: inputs_hat computation V1 ---------------------------------------------------------------------#
