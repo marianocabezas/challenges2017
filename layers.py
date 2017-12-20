@@ -391,7 +391,7 @@ class CapsuleLayer(layers.Layer):
         permuted_bias = K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))
         bias_shape = K.int_shape(permuted_bias)
         print(bias_shape)
-        reshaped_bias = K.reshape(permuted_bias, [-1, bias_shape[-1]])
+        reshaped_bias = K.reshape(permuted_bias, (-1, bias_shape[-1]))
         print(K.int_shape(reshaped_bias))
         for i in range(self.num_routing):
             c = K.permute_dimensions(
