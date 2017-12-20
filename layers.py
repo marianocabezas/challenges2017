@@ -357,7 +357,7 @@ class CapsuleLayer(layers.Layer):
 
         # Transform matrix
         self.W = self.add_weight(
-            shape=[self.input_num_capsule, self.num_capsule, self.input_dim_vector, self.dim_vector],
+            shape=tuple([self.input_num_capsule, self.num_capsule, self.input_dim_vector, self.dim_vector]),
             initializer=self.kernel_initializer,
             name='W')
 
