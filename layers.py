@@ -394,6 +394,7 @@ class CapsuleLayer(layers.Layer):
             soft_bias = K.reshape(K.softmax(
                 K.reshape(permuted_bias, (np.prod(bias_shape[:-1]), bias_shape[-1]))
             ), bias_shape)
+            print(K.int_shape((soft_bias)), bias_shape)
             c = K.permute_dimensions(soft_bias, (0, 1, 4, 3, 2))
             # c = K.permute_dimensions(
             #     K.softmax(K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))),
