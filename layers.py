@@ -362,7 +362,7 @@ class CapsuleLayer(layers.Layer):
             name='W')
 
         # Coupling coefficient. The redundant dimensions are just to facilitate subsequent matrix calculation.
-        self.bias = self.add_weight(shape=[1, self.input_num_capsule, self.num_capsule, 1, 1],
+        self.bias = self.add_weight(shape=tuple([1, self.input_num_capsule, self.num_capsule, 1, 1]),
                                     initializer=self.bias_initializer,
                                     name='bias',
                                     trainable=False)
