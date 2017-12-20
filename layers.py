@@ -379,7 +379,10 @@ class CapsuleLayer(layers.Layer):
 
         # Begin: inputs_hat computation V1 ---------------------------------------------------------------------#
         # Compute `inputs * W` by expanding the first dim of W. More time-consuming and need batch_size.
-        print(K.int_shape(inputs), K.int_shape(inputs_expand), K.int_shape(self.W), K.int_shape(inputs_tiled))
+        print(K.int_shape(inputs))
+        print(K.int_shape(inputs_expand))
+        print(K.int_shape(self.W))
+        print(K.int_shape(inputs_tiled))
         w_tiled = K.tile(K.expand_dims(self.W, 0), [None, 1, 1, 1, 1])
         # Transformed vectors, inputs_hat.shape = [None, input_num_capsule, num_capsule, 1, dim_vector]
         inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
