@@ -379,9 +379,6 @@ class CapsuleLayer(layers.Layer):
 
         # Begin: inputs_hat computation V1 ---------------------------------------------------------------------#
         # Compute `inputs * W` by expanding the first dim of W. More time-consuming and need batch_size.
-        print('Inputs expanded: %s' % str(K.int_shape(inputs_expand)))
-        print('W: %s' % str(K.int_shape(self.W)))
-        print('Inputs tiled: %s' % str(K.int_shape(inputs_tiled)))
         w_tiled = K.tile(K.expand_dims(self.W, 0), [-1, 1, 1, 1, 1])
         # Transformed vectors, inputs_hat.shape = [None, input_num_capsule, num_capsule, 1, dim_vector]
         inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
@@ -391,6 +388,11 @@ class CapsuleLayer(layers.Layer):
         # Routing algorithm V2. Use iteration. V2 and V1 both work without much difference on performance
         assert self.num_routing > 0, 'The num_routing should be > 0.'
         outputs = None
+        permuted_bias = K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))
+        bias_shape = K.int_shape(permuted_bias)
+        print(bias_shape)
+        reshaped_bias = K.reshape(permuted_bias, [-1, bias_shape[-1]])
+        print(K.int_shape(reshaped_bias))
         for i in range(self.num_routing):
             c = K.permute_dimensions(
                 K.softmax(K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))),
