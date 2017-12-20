@@ -379,7 +379,6 @@ class CapsuleLayer(layers.Layer):
 
         # Begin: inputs_hat computation V1 ---------------------------------------------------------------------#
         # Compute `inputs * W` by expanding the first dim of W. More time-consuming and need batch_size.
-        print(inputs.shape)
         print(K.int_shape(inputs_expand))
         print(K.int_shape(self.W))
         print(K.int_shape(inputs_tiled))
