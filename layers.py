@@ -389,6 +389,7 @@ class CapsuleLayer(layers.Layer):
         assert self.num_routing > 0, 'The num_routing should be > 0.'
         outputs = None
         for i in range(self.num_routing):
+            print(self.bias.shape)
             permuted_bias = K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))
             bias_shape = K.int_shape(permuted_bias)
             soft_bias = K.reshape(K.softmax(K.reshape(permuted_bias, (-1, bias_shape[-1]))), bias_shape)
@@ -403,7 +404,6 @@ class CapsuleLayer(layers.Layer):
             # last iteration needs not compute bias which will not be passed to the graph any more anyway.
             if i != self.num_routing - 1:
                 self.bias += K.sum(inputs_hat * outputs, -1, keepdims=True)
-            print(K.int_shape(self.bias), self.bias.shape)
         # End: routing algorithm V2, static ------------------------------------------------------------#
 
         return K.reshape(outputs, [-1, self.num_capsule, self.dim_vector])
