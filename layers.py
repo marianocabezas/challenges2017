@@ -388,16 +388,15 @@ class CapsuleLayer(layers.Layer):
         # Routing algorithm V2. Use iteration. V2 and V1 both work without much difference on performance
         assert self.num_routing > 0, 'The num_routing should be > 0.'
         outputs = None
-        permuted_bias = K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))
-        bias_shape = K.int_shape(permuted_bias)
-        print(bias_shape)
-        reshaped_bias = K.reshape(permuted_bias, (-1, bias_shape[-1]))
-        print(K.int_shape(reshaped_bias))
         for i in range(self.num_routing):
-            c = K.permute_dimensions(
-                K.softmax(K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))),
-                (0, 1, 4, 3, 2)
-            )
+            permuted_bias = K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))
+            bias_shape = K.int_shape(permuted_bias)
+            soft_bias = K.reshape(K.softmax(K.reshape(permuted_bias, (-1, bias_shape[-1]))), bias_shape)
+            c = K.permute_dimensions(soft_bias, (0, 1, 4, 3, 2))
+            # c = K.permute_dimensions(
+            #     K.softmax(K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))),
+            #     (0, 1, 4, 3, 2)
+            # )
             # c = tf.nn.softmax(self.bias, dim=2)  # dim=2 is the num_capsule dimension
             outputs = squash(K.sum(c * inputs_hat, 1, keepdims=True))
 
