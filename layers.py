@@ -368,7 +368,7 @@ class CapsuleLayer(layers.Layer):
                                     trainable=False)
         self.built = True
 
-    def __call__(self, inputs, **kwargs):
+    def call(self, inputs, **kwargs):
         # inputs.shape=[None, input_num_capsule, input_dim_vector]
         # Expand dims to [None, input_num_capsule, 1, 1, input_dim_vector]
         inputs_expand = K.expand_dims(K.expand_dims(inputs, 2), 2)
@@ -379,11 +379,11 @@ class CapsuleLayer(layers.Layer):
 
         # Begin: inputs_hat computation V1 ---------------------------------------------------------------------#
         # Compute `inputs * W` by expanding the first dim of W. More time-consuming and need batch_size.
-        print(K.int_shape(inputs))
+        print(inputs.shape)
         print(K.int_shape(inputs_expand))
         print(K.int_shape(self.W))
         print(K.int_shape(inputs_tiled))
-        w_tiled = K.tile(K.expand_dims(self.W, 0), [None, 1, 1, 1, 1])
+        w_tiled = K.tile(K.expand_dims(self.W, 0), [self.batch_size, 1, 1, 1, 1])
         # Transformed vectors, inputs_hat.shape = [None, input_num_capsule, num_capsule, 1, dim_vector]
         inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
         # End: inputs_hat computation V1 ---------------------------------------------------------------------#
@@ -424,7 +424,7 @@ class PrimaryCap3D(layers.Conv3D):
         super(PrimaryCap3D, self).__init__(**kwargs)
         self.dim_vector = dim_vector
 
-    def __call__(self, inputs, **kwargs):
+    def call(self, inputs, **kwargs):
         output = super(PrimaryCap3D, self).__call__(inputs, **kwargs)
         outputs = K.reshape(output, shape=[-1, self.dim_vector])
         return squash(outputs)
