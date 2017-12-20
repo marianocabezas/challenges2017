@@ -389,7 +389,7 @@ class CapsuleLayer(layers.Layer):
         assert self.num_routing > 0, 'The num_routing should be > 0.'
         outputs = None
         for i in range(self.num_routing):
-            print(self.bias.shape)
+            print(K.eval(self.bias.shape))
             permuted_bias = K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))
             bias_shape = K.int_shape(permuted_bias)
             soft_bias = K.reshape(K.softmax(K.reshape(permuted_bias, (-1, bias_shape[-1]))), bias_shape)
