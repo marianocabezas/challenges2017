@@ -382,7 +382,7 @@ class CapsuleLayer(layers.Layer):
         w_tiled = K.tile(K.expand_dims(self.W, 0), [-1, 1, 1, 1, 1])
         # Transformed vectors, inputs_hat.shape = [None, input_num_capsule, num_capsule, 1, dim_vector]
         inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
-        print(inputs_hat.shape)
+        print(K.int_shape(inputs_tiled), K.int_shape(w_tiled))
         # End: inputs_hat computation V1 ---------------------------------------------------------------------#
 
         # Begin: routing algorithm V2, static -----------------------------------------------------------#
