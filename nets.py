@@ -375,8 +375,6 @@ def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabe
         conv = Conv3D(filters, kernel_size=kernel_size, activation='relu', data_format='channels_first')
         conv_s = BatchNormalization(axis=1)(conv(conv_s))
 
-    print(K.int_shape(conv_s))
-
     primarycaps = PrimaryCap3D(
         dim_vector=caps_size,
         filters=32,
@@ -385,6 +383,8 @@ def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabe
         padding='valid',
         name='primarycaps'
     )(conv_s)
+
+    print(K.int_shape(primarycaps))
 
     digitcaps = CapsuleLayer(
         num_capsule=nlabels,
