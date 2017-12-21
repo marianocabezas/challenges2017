@@ -352,7 +352,6 @@ class CapsuleLayer(layers.Layer):
 
     def build(self, input_shape):
         assert len(input_shape) >= 3, "The input Tensor should have shape=[None, input_num_capsule, input_dim_vector]"
-        print(input_shape)
         self.input_num_capsule = input_shape[1]
         self.input_dim_vector = input_shape[2]
 
@@ -374,8 +373,6 @@ class CapsuleLayer(layers.Layer):
         # Expand dims to [None, input_num_capsule, 1, 1, input_dim_vector]
         inputs_expand = K.expand_dims(K.expand_dims(inputs, 2), 2)
 
-        print(K.int_shape(inputs_expand), K.int_shape(K.expand_dims(self.W, 0)))
-
         # Replicate num_capsule dimension to prepare being multiplied by W
         # Now it has shape = [None, input_num_capsule, num_capsule, 1, input_dim_vector]
         inputs_tiled = K.tile(inputs_expand, [1, 1, self.num_capsule, 1, 1])
@@ -385,7 +382,7 @@ class CapsuleLayer(layers.Layer):
         w_tiled = K.tile(K.expand_dims(self.W, 0), [-1, 1, 1, 1, 1])
         # Transformed vectors, inputs_hat.shape = [None, input_num_capsule, num_capsule, 1, dim_vector]
         inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
-        #print(K.int_shape(inputs_tiled), K.int_shape(w_tiled))
+        print(K.int_shape(inputs_tiled), K.int_shape(w_tiled))
         # End: inputs_hat computation V1 ---------------------------------------------------------------------#
 
         # Begin: routing algorithm V2, static -----------------------------------------------------------#

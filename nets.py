@@ -384,8 +384,6 @@ def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabe
         name='primarycaps'
     )(conv_s)
 
-    print(K.int_shape(primarycaps))
-
     digitcaps = CapsuleLayer(
         num_capsule=nlabels,
         dim_vector=16,
