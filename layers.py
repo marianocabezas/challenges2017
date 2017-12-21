@@ -384,7 +384,7 @@ class CapsuleLayer(layers.Layer):
         inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
         print('Inputs expand = %s' % str(K.int_shape(inputs_expand)))
         print('Inputs tiled = %s' % str(K.int_shape(inputs_tiled)))
-        flat_shape = (None,) + (np.prod(K.int_shape(w_tiled)[1:-2]),) + K.int_shape(w_tiled)[-2:]
+        flat_shape = (-1,) + (np.prod(K.int_shape(w_tiled)[1:-2]),) + K.int_shape(w_tiled)[-2:]
         print(flat_shape)
         print('W tiled = %s' % str(K.int_shape(K.reshape(w_tiled, flat_shape))))
         print('Inputs hat = %s' % str(K.int_shape(inputs_hat)))
