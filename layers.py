@@ -382,6 +382,7 @@ class CapsuleLayer(layers.Layer):
         w_tiled = K.tile(K.expand_dims(self.W, 0), [-1, 1, 1, 1, 1])
         # Transformed vectors, inputs_hat.shape = [None, input_num_capsule, num_capsule, 1, dim_vector]
         inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
+        print(K.eval(inputs_hat.shape))
         # End: inputs_hat computation V1 ---------------------------------------------------------------------#
 
         # Begin: routing algorithm V2, static -----------------------------------------------------------#
@@ -391,6 +392,7 @@ class CapsuleLayer(layers.Layer):
         for i in range(self.num_routing):
             permuted_bias = K.permute_dimensions(self.bias, (0, 1, 4, 3, 2))
             bias_shape = K.int_shape(permuted_bias)
+            print(bias_shape)
             soft_bias = K.reshape(K.softmax(K.reshape(permuted_bias, (-1, bias_shape[-1]))), bias_shape)
             c = K.permute_dimensions(soft_bias, (0, 1, 4, 3, 2))
             # c = K.permute_dimensions(
