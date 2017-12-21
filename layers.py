@@ -399,9 +399,6 @@ class CapsuleLayer(layers.Layer):
             # )
             # c = tf.nn.softmax(self.bias, dim=2)  # dim=2 is the num_capsule dimension
             outputs = squash(K.sum(c * inputs_hat, 1, keepdims=True))
-            print(K.eval((inputs_hat * outputs)).shape)
-            print(K.eval(inputs_hat.shape))
-            print(K.eval(outputs.shape))
 
             # last iteration needs not compute bias which will not be passed to the graph any more anyway.
             if i != self.num_routing - 1:
