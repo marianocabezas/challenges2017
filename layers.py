@@ -376,17 +376,22 @@ class CapsuleLayer(layers.Layer):
         # Replicate num_capsule dimension to prepare being multiplied by W
         # Now it has shape = [None, input_num_capsule, num_capsule, 1, input_dim_vector]
         inputs_tiled = K.tile(inputs_expand, [1, 1, self.num_capsule, 1, 1])
+        itiled_shape = K.int_shape(inputs_tiled)
 
         # Begin: inputs_hat computation V1 ---------------------------------------------------------------------#
         # Compute `inputs * W` by expanding the first dim of W. More time-consuming and need batch_size.
         w_tiled = K.tile(K.expand_dims(self.W, 0), [-1, 1, 1, 1, 1])
+        wtiled_shape = K.int_shape(w_tiled)
         # Transformed vectors, inputs_hat.shape = [None, input_num_capsule, num_capsule, 1, dim_vector]
-        inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
+        # inputs_hat = K.batch_dot(inputs_tiled, w_tiled, [4, 3])
+        inputs_hat_flat = K.batch_dot(
+            K.reshape(inputs_tiled, (-1,) + itiled_shape[-2:]),
+            K.reshape(w_tiled, (-1,) + wtiled_shape[-2:]),
+            [4, 3]
+        )
+        inputs_hat = K.reshape(inputs_hat_flat, (-1, self.input_num_capsule, self.num_capsule, 1, self.dim_vector))
         print('Inputs expand = %s' % str(K.int_shape(inputs_expand)))
         print('Inputs tiled = %s' % str(K.int_shape(inputs_tiled)))
-        flat_shape = (-1,) + (np.prod(K.int_shape(w_tiled)[1:-2]),) + K.int_shape(w_tiled)[-2:]
-        print(flat_shape)
-        print('W tiled = %s' % str(K.int_shape(K.reshape(w_tiled, flat_shape))))
         print('Inputs hat = %s' % str(K.int_shape(inputs_hat)))
         # End: inputs_hat computation V1 ---------------------------------------------------------------------#
 
