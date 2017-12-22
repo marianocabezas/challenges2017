@@ -276,7 +276,7 @@ class Length(layers.Layer):
     output: shape=[dim_1, ..., dim_{n-1}]
     """
 
-    def __call__(self, inputs, **kwargs):
+    def call(self, inputs, **kwargs):
         return K.sqrt(K.sum(K.square(inputs), -1))
 
     def compute_output_shape(self, input_shape):
@@ -289,7 +289,7 @@ class Mask(layers.Layer):
     Output shape: [None, d2]
     """
 
-    def __call__(self, inputs, **kwargs):
+    def call(self, inputs, **kwargs):
         # use true label to select target capsule, shape=[batch_size, num_capsule]
         if type(inputs) is list:  # true label is provided with shape = [batch_size, n_classes], i.e. one-hot code.
             assert len(inputs) == 2
