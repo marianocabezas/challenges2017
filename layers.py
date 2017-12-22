@@ -424,7 +424,7 @@ class CapsuleLayer(layers.Layer):
 
         return K.reshape(outputs, [-1, self.num_capsule, self.dim_vector])
 
-    def compute_output_shape(self, **kwargs):
+    def compute_output_shape(self, input_shape):
         return tuple([None, self.num_capsule, self.dim_vector])
 
 
