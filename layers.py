@@ -392,6 +392,7 @@ class CapsuleLayer(layers.Layer):
         print('Inputs expand = %s' % str(K.int_shape(inputs_expand)))
         print('Inputs tiled = %s' % str(K.int_shape(inputs_tiled)))
         print('Inputs hat = %s' % str(K.int_shape(inputs_hat)))
+        print('Inputs hat flat = %s' % str(K.int_shape(inputs_hat_flat)))
         # End: inputs_hat computation V1 ---------------------------------------------------------------------#
 
         # Begin: routing algorithm V2, static -----------------------------------------------------------#
