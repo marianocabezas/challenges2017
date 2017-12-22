@@ -80,7 +80,7 @@ def train_nets(gan, cnn, caps, x, y, p, name, adversarial_w):
 
     print(c['c'] + '[' + strftime("%H:%M:%S") + ']    ' + c['g'] + 'Training the networks ' + c['nc'] +
           c['lgy'] + '(' + 'CNN' + c['nc'] + '/' +
-          c['r'] + '(' + 'CAPS' + c['nc'] + '/' +
+          c['r'] + 'CAPS' + c['nc'] + '/' +
           c['y'] + 'GAN' + c['nc'] + ': ' +
           c['b'] + '%d' % gan.count_params() + c['nc'] + '/' + c['b'] + '%d ' % cnn.count_params() + c['nc'] +
           'parameters)')
