@@ -387,7 +387,7 @@ class CapsuleLayer(layers.Layer):
         inputs_hat_flat = K.batch_dot(
             K.reshape(inputs_tiled, (-1,) + itiled_shape[-2:]),
             K.reshape(w_tiled, (-1,) + wtiled_shape[-2:]),
-            [4, 3]
+            [3, 2]
         )
         inputs_hat = K.reshape(inputs_hat_flat, (-1, self.input_num_capsule, self.num_capsule, 1, self.dim_vector))
         print('Inputs expand = %s' % str(K.int_shape(inputs_expand)))
