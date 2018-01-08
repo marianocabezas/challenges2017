@@ -367,7 +367,7 @@ def get_brats_fc(input_shape, filters_list, kernel_size_list, dense_size, nlabel
     return seg_net
 
 
-def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabels):
+def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabels, num_routing=2):
     s_inputs = Input(shape=input_shape, name='seg_inputs')
 
     conv_s = s_inputs
@@ -386,8 +386,8 @@ def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabe
 
     digitcaps = CapsuleLayer(
         num_capsule=nlabels,
-        dim_vector=8,
-        num_routing=2,
+        dim_vector=caps_size,
+        num_routing=num_routing,
         name='digitcaps'
     )(primarycaps)
 
