@@ -377,7 +377,7 @@ def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabe
 
     primarycaps = PrimaryCap3D(
         dim_vector=caps_size,
-        filters=32,
+        filters=16,
         kernel_size=1,
         strides=2,
         padding='valid',
@@ -386,8 +386,8 @@ def get_brats_caps(input_shape, filters_list, kernel_size_list, caps_size, nlabe
 
     digitcaps = CapsuleLayer(
         num_capsule=nlabels,
-        dim_vector=16,
-        num_routing=3,
+        dim_vector=8,
+        num_routing=2,
         name='digitcaps'
     )(primarycaps)
 
