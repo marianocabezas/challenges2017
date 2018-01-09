@@ -107,16 +107,20 @@ def train_nets(gan, cnn, caps, x, y, p, name, adversarial_w):
                   c['b'] + '%d' % (e + 1) + c['nc'] + c['g'] + '/%d' % epochs + c['nc'])
             try:
                 cnn.load_weights(checkpoint_name + '.net.e%d' % (e + 1))
-                caps.load_weights(checkpoint_name + '.caps.e%d' % (e + 1))
-                gan.load_weights(checkpoint_name + '.gan.e%d' % (e + 1))
             except IOError:
                 print(c['lgy'], end='\r')
-                #cnn.fit(x, y, batch_size=batch_size, epochs=1)
+                cnn.fit(x, y, batch_size=batch_size, epochs=1)
+            try:
+                caps.load_weights(checkpoint_name + '.caps.e%d' % (e + 1))
+            except IOError:
                 print(c['r'], end='\r')
                 caps.fit(x, y, batch_size=batch_size, epochs=1)
+            try:
+                gan.load_weights(checkpoint_name + '.gan.e%d' % (e + 1))
+            except IOError:
                 print(c['y'], end='\r')
-                #gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
-                print(c['nc'], end='\r')
+                gan.fit([x, x_disc], [y, y_disc], batch_size=batch_size, epochs=1)
+            print(c['nc'], end='\r')
 
             cnn.save_weights(checkpoint_name + '.net.e%d' % (e + 1))
             caps.save_weights(checkpoint_name + '.caps.e%d' % (e + 1))
