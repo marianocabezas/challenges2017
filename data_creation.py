@@ -3,14 +3,54 @@ import sys
 from operator import itemgetter
 import numpy as np
 from nibabel import load as load_nii
-from data_manipulation.generate_features import get_mask_voxels, get_patches
+from data_manipulation.generate_features import get_mask_voxels, get_patches, get_rolling_patches
 from itertools import izip, chain
 from scipy.ndimage.morphology import binary_dilation as imdilate
+from scipy.stats import entropy
 from numpy import logical_and as log_and
 from numpy import logical_or as log_or
 from numpy import logical_not as log_not
 import keras
 from keras.utils import to_categorical
+
+
+def get_information_image(names, mask_name, patch_size, method='stdev'):
+    # Init
+    mask = load_nii(mask_name).get_data()
+    patch_size = patch_size if type(patch_size) is list else (patch_size,) * len(mask.shape)
+    patch_voxels = np.prod(patch_size)
+    n_images =  len(names)
+    # ROI stuff
+    min_c = np.stack(np.nonzero(mask.astype(dtype=np.bool))).min(axis=1)
+    max_c = np.stack(np.nonzero(mask.astype(dtype=np.bool))).max(axis=1)
+    roi_shape = max_c - min_c
+    # Slicing
+    slicing = [slice(i, j) for i, j in zip(min_c, max_c)]
+    images = [load_nii(name).get_data() for name in names]
+    clipped_images = [np.pad(im[slicing], patch_size[0]/2, 'constant') for im in images]
+
+    n_slices = np.prod(roi_shape)
+    slices = np.zeros((n_slices, n_images, patch_voxels), dtype=np.int16)
+    for i, ci in enumerate(clipped_images):
+        slices[:, i, :] = get_rolling_patches(ci, patch_size).reshape((-1, patch_voxels))
+    slices.reshape((-1, n_images * patch_voxels))
+
+    min_s = np.amin(slices)
+    max_s = np.amax(slices)
+
+    hist = [np.histogram((x.astype(np.float32)-min_s)/(max_s-min_s), range=(0, 1))[0] for x in slices]
+
+    methods = {
+        'stdev': np.array([x.std() for x in slices]),
+        'entropy': np.array([entropy(x) * 512 for x in hist])
+    }
+
+    # Final image
+    im = np.zeros_like(mask, dtype=np.float32)
+    im[slicing] = methods[method].reshape(roi_shape)
+    im[np.logical_not(mask)] = 0
+
+    return im
 
 
 def clip_to_roi(images, roi):
