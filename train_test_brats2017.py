@@ -358,5 +358,6 @@ def main():
     )
     print('Final results DSC: (%f/%f/%f) vs (%f/%f/%f) vs (%f/%f/%f)' % f_dsc)
 
+
 if __name__ == '__main__':
     main()
